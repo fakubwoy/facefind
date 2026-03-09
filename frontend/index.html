@@ -747,7 +747,11 @@
 <div class="toast" id="toast"></div>
 
 <script>
-  const API = 'http://localhost:8000';
+  // On Railway the frontend and backend are the same origin — no hardcoded URL needed.
+  // Locally it falls back to localhost:8000 automatically.
+  const API = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    ? 'http://localhost:8000'
+    : window.location.origin;
   let selectedDatasetId = null;
   let pollingInterval = null;
 
