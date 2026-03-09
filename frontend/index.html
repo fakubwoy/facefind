@@ -1019,17 +1019,51 @@
     uploadBtn.style.display = 'none';
     showInlineProgress('zip', 'Uploading', `Sending ${(file.size/1024/1024).toFixed(1)} MB to server…`, 0);
 
-    try {
-      const r = await fetch(`${API}/api/datasets/upload-zip`, { method: 'POST', body: fd, credentials: 'include' });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.detail || 'Upload failed');
-
-      pollStatus(d.dataset_id, 'zip');
-      loadDatasets();
-    } catch (e) {
-      toast(`Error: ${e.message}`);
+    // Use XMLHttpRequest to track upload progress
+    const xhr = new XMLHttpRequest();
+    
+    // Track upload progress
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable) {
+        const pct = Math.round((e.loaded / e.total) * 100);
+        const loaded = (e.loaded / 1024 / 1024).toFixed(1);
+        const total = (e.total / 1024 / 1024).toFixed(1);
+        updateInlineProgress('zip', 'Uploading', `${loaded} / ${total} MB`, pct, '');
+      }
+    });
+    
+    // Handle completion
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const d = JSON.parse(xhr.responseText);
+          pollStatus(d.dataset_id, 'zip');
+          loadDatasets();
+        } catch (e) {
+          toast(`Error: ${e.message}`);
+          resetZipUpload();
+        }
+      } else {
+        try {
+          const d = JSON.parse(xhr.responseText);
+          toast(`Error: ${d.detail || 'Upload failed'}`);
+        } catch {
+          toast('Upload failed');
+        }
+        resetZipUpload();
+      }
+    });
+    
+    // Handle errors
+    xhr.addEventListener('error', () => {
+      toast('Network error during upload');
       resetZipUpload();
-    }
+    });
+    
+    // Send the request
+    xhr.open('POST', `${API}/api/datasets/upload-zip`);
+    xhr.withCredentials = true;
+    xhr.send(fd);
   });
 
   function showZipSuccess(filename, datasetId) {
