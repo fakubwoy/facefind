@@ -919,6 +919,13 @@
       </div>
       <div class="drop-hint">New images will be added to the existing dataset</div>
     </div>
+
+    <!-- Selected file info in modal -->
+    <div id="addImagesSelectedInfo" style="display:none;background:rgba(232,255,74,0.05);border:1px solid rgba(232,255,74,0.2);padding:12px 16px;margin-bottom:16px;">
+      <div style="font-size:11px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin-bottom:4px;">Selected File</div>
+      <div style="font-size:13px;color:var(--accent);font-weight:500;" id="addImagesFileName"></div>
+      <div style="font-size:11px;color:var(--muted);margin-top:2px;" id="addImagesFileSize"></div>
+    </div>
     
     <div class="field" style="margin-bottom:16px;">
       <label style="display:flex;align-items:center;cursor:pointer;user-select:none;">
@@ -1267,13 +1274,26 @@
         const addImagesBtn = ds.status === 'ready' 
           ? `<button class="btn-delete" style="border-color: rgba(74,222,128,0.3); color: var(--success); margin-right: 8px;" onclick="showAddImagesDialog('${ds.id}', '${ds.name.replace(/'/g, "\\'")}')">➕ Add Images</button>`
           : '';
+        
+        // Show progress for processing/downloading datasets
+        let statusInfo = '';
+        if (ds.status === 'processing' && ds.total > 0) {
+          const pct = Math.round((ds.processed / ds.total) * 100);
+          statusInfo = `<span>${ds.processed} / ${ds.total} (${pct}%)</span>`;
+        } else if (ds.status === 'downloading' && ds.total > 0) {
+          const pct = Math.round((ds.processed / ds.total) * 100);
+          statusInfo = `<span>${ds.processed} / ${ds.total} (${pct}%)</span>`;
+        } else {
+          statusInfo = `<span>${ds.face_count > 0 ? ds.face_count + ' faces' : (ds.total ? ds.total + ' imgs' : '')}</span>`;
+        }
+        
         return `
           <div class="dataset-item ${ds.id === selectedDatasetId ? 'selected' : ''}"
                onclick="selectDataset('${ds.id}', '${ds.status}')">
             <div class="dataset-name">${srcIcon}${ds.name}</div>
             <div class="dataset-meta">
               <span class="badge badge-${ds.status}">${ds.status}</span>
-              <span>${ds.face_count > 0 ? ds.face_count + ' faces' : (ds.total ? ds.total + ' imgs' : '')}</span>
+              ${statusInfo}
             </div>
             <div class="dataset-actions" onclick="event.stopPropagation()">
               ${addImagesBtn}
@@ -1339,13 +1359,21 @@
     document.getElementById('addImagesDatasetName').textContent = `Adding to: ${datasetName}`;
     document.getElementById('addImagesModal').classList.add('show');
     document.getElementById('addImagesFile').value = '';
+    document.getElementById('addImagesSelectedInfo').style.display = 'none';
     document.getElementById('addImagesCompress').checked = false;
     document.getElementById('addImagesBtn').disabled = true;
   }
   
   function closeAddImagesDialog() {
     document.getElementById('addImagesModal').classList.remove('show');
+    document.getElementById('addImagesSelectedInfo').style.display = 'none';
     currentAddImagesDatasetId = null;
+  }
+
+  function showAddImagesFileInfo(file) {
+    document.getElementById('addImagesFileName').textContent = file.name;
+    document.getElementById('addImagesFileSize').textContent = `${(file.size/1024/1024).toFixed(1)} MB`;
+    document.getElementById('addImagesSelectedInfo').style.display = 'block';
   }
   
   // Add Images file selection
@@ -1355,6 +1383,9 @@
   
   addImagesFile.addEventListener('change', () => {
     addImagesBtn.disabled = !addImagesFile.files.length;
+    if (addImagesFile.files.length) {
+      showAddImagesFileInfo(addImagesFile.files[0]);
+    }
   });
   
   addImagesDropZone.addEventListener('dragover', e => { 
@@ -1371,6 +1402,7 @@
       dt.items.add(f);
       addImagesFile.files = dt.files;
       addImagesBtn.disabled = false;
+      showAddImagesFileInfo(f);
     }
   });
   
@@ -1396,15 +1428,48 @@
       const d = await r.json();
       if (!r.ok) throw new Error(d.detail || 'Failed to add images');
       
-      toast('Images added! Re-embedding in background...');
+      toast('Images added! Re-embedding dataset...');
       closeAddImagesDialog();
+      
+      // Select this dataset and start monitoring its re-embedding progress
+      selectedDatasetId = currentAddImagesDatasetId;
       loadDatasets();
+      
+      // Start polling to show progress updates
+      startReembeddingPolling(currentAddImagesDatasetId);
     } catch (e) {
       toast(`Error: ${e.message}`);
       addImagesBtn.disabled = false;
       addImagesBtn.textContent = '➕ Add Images & Re-embed';
     }
   });
+
+  // Poll for re-embedding progress (updates dataset list in real-time)
+  let reembeddingPollInterval = null;
+  function startReembeddingPolling(datasetId) {
+    if (reembeddingPollInterval) clearInterval(reembeddingPollInterval);
+    
+    reembeddingPollInterval = setInterval(async () => {
+      try {
+        const r = await fetch(`${API}/api/datasets/${datasetId}/status`, { credentials: 'include' });
+        const d = await r.json();
+        
+        // Update the dataset list to show current status
+        loadDatasets();
+        
+        // Stop polling when done or error
+        if (d.status === 'ready') {
+          clearInterval(reembeddingPollInterval);
+          toast(`Re-embedding complete! ${d.face_count} faces indexed.`);
+        } else if (d.status === 'error') {
+          clearInterval(reembeddingPollInterval);
+          toast(`Re-embedding failed: ${d.error || 'Unknown error'}`);
+        }
+      } catch (e) {
+        // Continue polling even on errors
+      }
+    }, 1000);
+  }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   function toast(msg) {
