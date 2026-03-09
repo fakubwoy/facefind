@@ -315,6 +315,102 @@
       margin-top: 8px;
     }
 
+    /* In-place progress panel — replaces the upload zone while job is running */
+    .progress-panel {
+      display: none;
+      border: 2px solid var(--border);
+      padding: 36px 24px 32px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      min-height: 200px;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+    }
+
+    .progress-panel.visible {
+      display: flex;
+    }
+
+    /* Animated fill background */
+    .progress-panel-fill {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, rgba(232,255,74,0.05) 0%, rgba(232,255,74,0.02) 100%);
+      width: 0%;
+      transition: width 0.6s ease;
+      pointer-events: none;
+    }
+
+    /* SVG ring spinner */
+    .ring-wrap {
+      position: relative;
+      width: 80px;
+      height: 80px;
+      margin: 0 auto 20px;
+      flex-shrink: 0;
+    }
+
+    .ring-wrap svg {
+      transform: rotate(-90deg);
+      width: 80px;
+      height: 80px;
+    }
+
+    .ring-track {
+      fill: none;
+      stroke: var(--border);
+      stroke-width: 4;
+    }
+
+    .ring-progress {
+      fill: none;
+      stroke: var(--accent);
+      stroke-width: 4;
+      stroke-linecap: butt;
+      stroke-dasharray: 220;
+      stroke-dashoffset: 220;
+      transition: stroke-dashoffset 0.6s ease;
+    }
+
+    .ring-pct {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Syne', sans-serif;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .progress-panel-phase {
+      font-size: 10px;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+
+    .progress-panel-detail {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .progress-panel-eta {
+      margin-top: 12px;
+      font-size: 11px;
+      color: var(--muted);
+      opacity: 0.7;
+    }
+
+    .progress-panel-eta span {
+      color: var(--text);
+    }
+
     /* Status badge */
     .badge {
       display: inline-block;
@@ -664,7 +760,7 @@
 
         <!-- ── ZIP tab ── -->
         <div class="tab-panel active" id="tab-zip">
-          <!-- Drop zone (shown when no file selected) -->
+          <!-- Upload zone -->
           <div class="drop-zone" id="dropZone">
             <input type="file" id="zipFile" accept=".zip" />
             <div class="drop-icon">📦</div>
@@ -675,7 +771,22 @@
             <div class="drop-hint">ZIP should contain folders of images (e.g. person_name/photo.jpg)</div>
           </div>
 
-          <!-- Success state (shown after successful upload) -->
+          <!-- In-place progress panel -->
+          <div class="progress-panel" id="zipProgressPanel">
+            <div class="progress-panel-fill" id="zipProgressFill"></div>
+            <div class="ring-wrap">
+              <svg viewBox="0 0 80 80">
+                <circle class="ring-track" cx="40" cy="40" r="35"/>
+                <circle class="ring-progress" id="zipRing" cx="40" cy="40" r="35"/>
+              </svg>
+              <div class="ring-pct" id="zipPct">0%</div>
+            </div>
+            <div class="progress-panel-phase" id="zipPhase">Initialising</div>
+            <div class="progress-panel-detail" id="zipDetail">—</div>
+            <div class="progress-panel-eta" id="zipEta"></div>
+          </div>
+
+          <!-- Success state -->
           <div class="upload-success" id="zipSuccess">
             <div class="success-icon">✅</div>
             <div class="success-title">ZIP Uploaded Successfully</div>
@@ -710,6 +821,21 @@
             </div>
           </div>
 
+          <!-- In-place progress panel for drive -->
+          <div class="progress-panel" id="driveProgressPanel">
+            <div class="progress-panel-fill" id="driveProgressFill"></div>
+            <div class="ring-wrap">
+              <svg viewBox="0 0 80 80">
+                <circle class="ring-track" cx="40" cy="40" r="35"/>
+                <circle class="ring-progress" id="driveRing" cx="40" cy="40" r="35"/>
+              </svg>
+              <div class="ring-pct" id="drivePct">0%</div>
+            </div>
+            <div class="progress-panel-phase" id="drivePhase">Connecting</div>
+            <div class="progress-panel-detail" id="driveDetail">—</div>
+            <div class="progress-panel-eta" id="driveEta"></div>
+          </div>
+
           <!-- Success state for Drive -->
           <div class="upload-success" id="driveSuccess">
             <div class="success-icon">✅</div>
@@ -726,11 +852,6 @@
           <button class="btn btn-primary" id="driveBtn">
             🔗 Link Drive Folder &amp; Start Embedding
           </button>
-        </div>
-
-        <div class="progress-wrap" id="progressWrap">
-          <div class="progress-bar-bg"><div class="progress-bar" id="progressBar"></div></div>
-          <div class="progress-text" id="progressText">Initializing...</div>
         </div>
 
         <div class="log-box" id="logBox"></div>
@@ -837,7 +958,11 @@
     fd.append('name', name || file.name.replace('.zip',''));
 
     uploadBtn.disabled = true;
-    showProgress(true);
+    // Hide input UI, show progress panel
+    dropZone.style.display = 'none';
+    document.getElementById('datasetName').parentElement.style.display = 'none';
+    uploadBtn.style.display = 'none';
+    showInlineProgress('zip', 'Uploading', `Sending ${(file.size/1024/1024).toFixed(1)} MB to server…`, 0);
     log(`Uploading ${file.name}…`);
 
     try {
@@ -845,30 +970,32 @@
       const d = await r.json();
       if (!r.ok) throw new Error(d.detail || 'Upload failed');
 
-      showZipSuccess(file.name, d.dataset_id);
       log(`Dataset created: ${d.dataset_id}`, 'ok');
       log('Embedding job started in background…');
-      pollStatus(d.dataset_id);
+      pollStatus(d.dataset_id, 'zip');
       loadDatasets();
     } catch (e) {
       log(`Error: ${e.message}`, 'err');
-      showProgress(false);
-      uploadBtn.disabled = false;
+      resetZipUpload();
     }
   });
 
   function showZipSuccess(filename, datasetId) {
-    dropZone.style.display = 'none';
+    document.getElementById('zipProgressPanel').classList.remove('visible');
     document.getElementById('zipSuccess').classList.add('visible');
     document.getElementById('zipSuccessMeta').innerHTML =
-      `<strong>${filename}</strong> uploaded — dataset ID: <strong>${datasetId}</strong><br>Embedding is running in the background.`;
+      `<strong>${filename}</strong> — dataset ID: <strong>${datasetId}</strong><br>${datasetId} is ready.`;
   }
 
   function resetZipUpload() {
     dropZone.style.display = '';
+    const nameField = document.getElementById('datasetName').parentElement;
+    nameField.style.display = '';
+    uploadBtn.style.display = '';
+    uploadBtn.disabled = true;
+    document.getElementById('zipProgressPanel').classList.remove('visible');
     document.getElementById('zipSuccess').classList.remove('visible');
     zipFile.value = '';
-    uploadBtn.disabled = true;
     document.getElementById('datasetName').value = '';
   }
 
@@ -880,8 +1007,10 @@
 
     const btn = document.getElementById('driveBtn');
     btn.disabled = true;
-    btn.textContent = '⏳ Linking…';
-    showProgress(true);
+    document.getElementById('driveZone').style.display = 'none';
+    document.getElementById('driveNameField').style.display = 'none';
+    btn.style.display = 'none';
+    showInlineProgress('drive', 'Connecting', 'Linking Drive folder…', 0);
     log(`Linking Drive folder…`);
 
     const fd = new FormData();
@@ -893,78 +1022,138 @@
       const d = await r.json();
       if (!r.ok) throw new Error(d.detail || 'Failed to link Drive folder');
 
-      showDriveSuccess(url, d.dataset_id);
       log(`Drive dataset created: ${d.dataset_id}`, 'ok');
       log('Downloading images & embedding in background…');
-      pollStatus(d.dataset_id);
+      pollStatus(d.dataset_id, 'drive');
       loadDatasets();
     } catch (e) {
       log(`Error: ${e.message}`, 'err');
       toast(`Error: ${e.message}`);
-      showProgress(false);
-      btn.disabled = false;
-      btn.textContent = '🔗 Link Drive Folder & Start Embedding';
+      resetDriveUpload();
     }
   });
 
-  function showDriveSuccess(url, datasetId) {
-    document.getElementById('driveZone').style.display = 'none';
-    document.getElementById('driveNameField').style.display = 'none';
-    document.getElementById('driveBtn').style.display = 'none';
+  function showDriveSuccess(datasetId) {
+    document.getElementById('driveProgressPanel').classList.remove('visible');
     document.getElementById('driveSuccess').classList.add('visible');
-
-    const short = url.length > 52 ? url.slice(0, 52) + '…' : url;
     document.getElementById('driveSuccessMeta').innerHTML =
-      `<strong>${short}</strong><br>Dataset ID: <strong>${datasetId}</strong><br>Images are downloading &amp; embedding in the background.`;
+      `Dataset ID: <strong>${datasetId}</strong> is ready.`;
   }
 
   function resetDriveUpload() {
     document.getElementById('driveZone').style.display = '';
     document.getElementById('driveNameField').style.display = '';
-    document.getElementById('driveBtn').style.display = '';
-    document.getElementById('driveBtn').disabled = false;
-    document.getElementById('driveBtn').textContent = '🔗 Link Drive Folder & Start Embedding';
+    const btn = document.getElementById('driveBtn');
+    btn.style.display = '';
+    btn.disabled = false;
+    btn.textContent = '🔗 Link Drive Folder & Start Embedding';
+    document.getElementById('driveProgressPanel').classList.remove('visible');
     document.getElementById('driveSuccess').classList.remove('visible');
     document.getElementById('driveFolderUrl').value = '';
     document.getElementById('driveDatasetName').value = '';
   }
 
+  // ── Inline progress panel helpers ──────────────────────────────────────────
+  const CIRCUMFERENCE = 2 * Math.PI * 35; // r=35
+
+  function showInlineProgress(which, phase, detail, pct) {
+    const panel = document.getElementById(which + 'ProgressPanel');
+    panel.classList.add('visible');
+    updateInlineProgress(which, phase, detail, pct, '');
+  }
+
+  function updateInlineProgress(which, phase, detail, pct, eta) {
+    const offset = CIRCUMFERENCE - (pct / 100) * CIRCUMFERENCE;
+    document.getElementById(which + 'Ring').style.strokeDashoffset = offset;
+    document.getElementById(which + 'Pct').textContent = pct + '%';
+    document.getElementById(which + 'Phase').textContent = phase;
+    document.getElementById(which + 'Detail').textContent = detail;
+    document.getElementById(which + 'ProgressFill').style.width = pct + '%';
+    const etaEl = document.getElementById(which + 'Eta');
+    etaEl.innerHTML = eta ? `ETA <span>${eta}</span>` : '';
+  }
+
+  function formatEta(seconds) {
+    if (seconds < 5)  return 'almost done';
+    if (seconds < 60) return `~${Math.round(seconds)}s`;
+    const m = Math.floor(seconds / 60), s = Math.round(seconds % 60);
+    return s > 0 ? `~${m}m ${s}s` : `~${m}m`;
+  }
+
   // ── Status polling ─────────────────────────────────────────────────────────
-  function pollStatus(id) {
+  function pollStatus(id, which) {
     if (pollingInterval) clearInterval(pollingInterval);
+    let jobStartTime = null;
+    let lastProcessed = 0;
+    let lastTick = null;
+
     pollingInterval = setInterval(async () => {
       try {
         const r = await fetch(`${API}/api/datasets/${id}/status`, { credentials: 'include' });
         const d = await r.json();
+        const now = Date.now();
 
-        let statusLabel, pct;
-        if (d.status === 'downloading') {
-          if (d.total > 0) {
-            pct = Math.round((d.processed / d.total) * 100);
-            statusLabel = `DOWNLOADING — ${d.processed}/${d.total} files (${pct}%)`;
-          } else {
-            pct = 5;
-            statusLabel = `DOWNLOADING — listing files from Drive…`;
-          }
-        } else {
-          pct = d.total > 0 ? Math.round((d.processed / d.total) * 100) : 0;
-          statusLabel = `${d.status.toUpperCase()} — ${d.processed}/${d.total} images (${pct}%)`;
+        // Initialise timing on first real progress
+        if (d.processed > 0 && jobStartTime === null) {
+          jobStartTime = now;
+          lastTick     = now;
+          lastProcessed = d.processed;
         }
 
-        document.getElementById('progressBar').style.width = pct + '%';
-        document.getElementById('progressText').textContent = statusLabel;
+        let phase, detail, pct, etaStr = '';
+
+        if (d.status === 'downloading') {
+          if (d.total > 0) {
+            pct    = Math.round((d.processed / d.total) * 100);
+            phase  = 'Downloading';
+            detail = `${d.processed} / ${d.total} files`;
+          } else {
+            pct    = 2;
+            phase  = 'Listing Files';
+            detail = 'Reading Drive folder…';
+          }
+        } else if (d.status === 'processing') {
+          pct    = d.total > 0 ? Math.round((d.processed / d.total) * 100) : 0;
+          phase  = 'Embedding';
+          detail = `${d.processed} / ${d.total} images`;
+        } else if (d.status === 'queued') {
+          pct    = 0;
+          phase  = 'Queued';
+          detail = 'Waiting to start…';
+        } else {
+          pct    = d.total > 0 ? Math.round((d.processed / d.total) * 100) : 0;
+          phase  = d.status;
+          detail = `${d.processed} / ${d.total}`;
+        }
+
+        // ETA calculation — rate over last window
+        if (jobStartTime && d.processed > 0 && d.total > 0 && d.processed < d.total) {
+          const elapsed   = (now - jobStartTime) / 1000;
+          const rate      = d.processed / elapsed; // items/sec
+          const remaining = d.total - d.processed;
+          if (rate > 0) etaStr = formatEta(remaining / rate);
+        }
+
+        updateInlineProgress(which, phase, detail, pct, etaStr);
         loadDatasets();
 
         if (d.status === 'ready') {
           clearInterval(pollingInterval);
+          updateInlineProgress(which, 'Complete', `${d.face_count} face embeddings indexed`, 100, '');
+          setTimeout(() => {
+            if (which === 'zip') showZipSuccess(zipFile.files[0]?.name || '', id);
+            else showDriveSuccess(id);
+          }, 800);
           log(`✓ Done! ${d.face_count} face embeddings indexed.`, 'ok');
-          showProgress(false);
           toast(`Dataset ready — ${d.face_count} faces indexed!`);
         }
+
         if (d.status === 'error') {
           clearInterval(pollingInterval);
-          log(`Embedding job failed. ${d.error || ''}`, 'err');
-          showProgress(false);
+          updateInlineProgress(which, 'Error', d.error || 'Job failed', pct, '');
+          document.getElementById(which + 'Ring').style.stroke = 'var(--error)';
+          document.getElementById(which + 'Pct').style.color   = 'var(--error)';
+          log(`Job failed: ${d.error || ''}`, 'err');
         }
       } catch {}
     }, 2000);
@@ -1058,10 +1247,6 @@
     el.textContent = `> ${msg}`;
     box.appendChild(el);
     box.scrollTop = box.scrollHeight;
-  }
-
-  function showProgress(show) {
-    document.getElementById('progressWrap').classList.toggle('visible', show);
   }
 
   function toast(msg) {
