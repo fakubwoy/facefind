@@ -783,7 +783,7 @@
             </div>
             <div class="progress-panel-phase" id="zipPhase">Initialising</div>
             <div class="progress-panel-detail" id="zipDetail">—</div>
-            <div class="progress-panel-eta" id="zipEta"></div>
+            <div class="progress-panel-eta" id="zipEtp"></div>
           </div>
 
           <!-- Success state -->
@@ -797,6 +797,16 @@
           <div class="field">
             <label>Dataset Name (optional)</label>
             <input type="text" id="datasetName" placeholder="e.g. Wedding 2024" />
+          </div>
+
+          <div class="field" style="margin-top: 16px;">
+            <label style="display: flex; align-items: center; cursor: pointer; user-select: none;">
+              <input type="checkbox" id="compressImages" style="margin-right: 8px; cursor: pointer;" />
+              <span>Compress images (reduces quality & storage)</span>
+            </label>
+            <div style="font-size: 10px; color: var(--muted); margin-top: 6px; opacity: 0.7;">
+              Compresses to 85% JPEG quality, max 1920px width. Saves ~60-80% storage.
+            </div>
           </div>
 
           <button class="btn btn-primary" id="uploadBtn" disabled>
@@ -833,7 +843,7 @@
             </div>
             <div class="progress-panel-phase" id="drivePhase">Connecting</div>
             <div class="progress-panel-detail" id="driveDetail">—</div>
-            <div class="progress-panel-eta" id="driveEta"></div>
+            <div class="progress-panel-eta" id="driveEtp"></div>
           </div>
 
           <!-- Success state for Drive -->
@@ -887,6 +897,37 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<!-- Add Images Modal -->
+<div id="addImagesModal" style="display:none;position:fixed;inset:0;background:rgba(10,10,15,0.85);z-index:1000;display:flex;align-items:center;justify-content:center;padding:24px;">
+  <div style="background:var(--surface);border:1px solid var(--border);max-width:500px;width:100%;padding:32px;position:relative;">
+    <button onclick="closeAddImagesDialog()" style="position:absolute;top:16px;right:16px;background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1;">&times;</button>
+    
+    <h3 style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700;margin-bottom:8px;color:var(--accent);">Add Images to Dataset</h3>
+    <p id="addImagesDatasetName" style="font-size:12px;color:var(--muted);margin-bottom:24px;"></p>
+    
+    <div class="drop-zone" id="addImagesDropZone" style="margin-bottom:16px;">
+      <input type="file" id="addImagesFile" accept=".zip" />
+      <div class="drop-icon">📦</div>
+      <div class="drop-label">
+        <strong>Drop a ZIP file here</strong><br>
+        or click to browse
+      </div>
+      <div class="drop-hint">New images will be added to the existing dataset</div>
+    </div>
+    
+    <div class="field" style="margin-bottom:16px;">
+      <label style="display:flex;align-items:center;cursor:pointer;user-select:none;">
+        <input type="checkbox" id="addImagesCompress" style="margin-right:8px;cursor:pointer;" />
+        <span>Compress images (reduces quality & storage)</span>
+      </label>
+    </div>
+    
+    <button class="btn btn-primary" id="addImagesBtn" disabled style="width:100%;">
+      ➕ Add Images &amp; Re-embed
+    </button>
+  </div>
+</div>
 
 <script>
   const API = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
@@ -953,17 +994,20 @@
     if (!file) return;
 
     const name = document.getElementById('datasetName').value.trim();
+    const compress = document.getElementById('compressImages').checked;
     const fd   = new FormData();
     fd.append('file', file);
     fd.append('name', name || file.name.replace('.zip',''));
+    fd.append('compress', compress ? 'true' : 'false');
 
     uploadBtn.disabled = true;
     // Hide input UI, show progress panel
     dropZone.style.display = 'none';
     document.getElementById('datasetName').parentElement.style.display = 'none';
+    document.querySelector('#compressImages').parentElement.parentElement.style.display = 'none';
     uploadBtn.style.display = 'none';
     showInlineProgress('zip', 'Uploading', `Sending ${(file.size/1024/1024).toFixed(1)} MB to server…`, 0);
-    log(`Uploading ${file.name}…`);
+    log(`Uploading ${file.name}${compress ? ' (with compression)' : ''}…`);
 
     try {
       const r = await fetch(`${API}/api/datasets/upload-zip`, { method: 'POST', body: fd, credentials: 'include' });
@@ -991,12 +1035,15 @@
     dropZone.style.display = '';
     const nameField = document.getElementById('datasetName').parentElement;
     nameField.style.display = '';
+    const compressField = document.querySelector('#compressImages').parentElement.parentElement;
+    compressField.style.display = '';
     uploadBtn.style.display = '';
     uploadBtn.disabled = true;
     document.getElementById('zipProgressPanel').classList.remove('visible');
     document.getElementById('zipSuccess').classList.remove('visible');
     zipFile.value = '';
     document.getElementById('datasetName').value = '';
+    document.getElementById('compressImages').checked = false;
   }
 
   // ── Drive: Link folder ─────────────────────────────────────────────────────
@@ -1062,18 +1109,18 @@
     updateInlineProgress(which, phase, detail, pct, '');
   }
 
-  function updateInlineProgress(which, phase, detail, pct, eta) {
+  function updateInlineProgress(which, phase, detail, pct, etp) {
     const offset = CIRCUMFERENCE - (pct / 100) * CIRCUMFERENCE;
     document.getElementById(which + 'Ring').style.strokeDashoffset = offset;
     document.getElementById(which + 'Pct').textContent = pct + '%';
     document.getElementById(which + 'Phase').textContent = phase;
     document.getElementById(which + 'Detail').textContent = detail;
     document.getElementById(which + 'ProgressFill').style.width = pct + '%';
-    const etaEl = document.getElementById(which + 'Eta');
-    etaEl.innerHTML = eta ? `ETA <span>${eta}</span>` : '';
+    const etpEl = document.getElementById(which + 'Etp');
+    etpEl.innerHTML = etp ? `ETP <span>${etp}</span>` : '';
   }
 
-  function formatEta(seconds) {
+  function formatEtp(seconds) {
     if (seconds < 5)  return 'almost done';
     if (seconds < 60) return `~${Math.round(seconds)}s`;
     const m = Math.floor(seconds / 60), s = Math.round(seconds % 60);
@@ -1100,7 +1147,7 @@
           lastProcessed = d.processed;
         }
 
-        let phase, detail, pct, etaStr = '';
+        let phase, detail, pct, etpStr = '';
 
         if (d.status === 'downloading') {
           if (d.total > 0) {
@@ -1126,15 +1173,15 @@
           detail = `${d.processed} / ${d.total}`;
         }
 
-        // ETA calculation — rate over last window
+        // ETP calculation — rate over last window
         if (jobStartTime && d.processed > 0 && d.total > 0 && d.processed < d.total) {
           const elapsed   = (now - jobStartTime) / 1000;
           const rate      = d.processed / elapsed; // items/sec
           const remaining = d.total - d.processed;
-          if (rate > 0) etaStr = formatEta(remaining / rate);
+          if (rate > 0) etpStr = formatEtp(remaining / rate);
         }
 
-        updateInlineProgress(which, phase, detail, pct, etaStr);
+        updateInlineProgress(which, phase, detail, pct, etpStr);
         loadDatasets();
 
         if (d.status === 'ready') {
@@ -1175,6 +1222,9 @@
 
       list.innerHTML = entries.sort((a,b) => b.created_at - a.created_at).map(ds => {
         const srcIcon = ds.source === 'gdrive' ? '🔗 ' : '';
+        const addImagesBtn = ds.status === 'ready' 
+          ? `<button class="btn-delete" style="border-color: rgba(74,222,128,0.3); color: var(--success); margin-right: 8px;" onclick="showAddImagesDialog('${ds.id}', '${ds.name.replace(/'/g, "\\'")}')">➕ Add Images</button>`
+          : '';
         return `
           <div class="dataset-item ${ds.id === selectedDatasetId ? 'selected' : ''}"
                onclick="selectDataset('${ds.id}', '${ds.status}')">
@@ -1184,6 +1234,7 @@
               <span>${ds.face_count > 0 ? ds.face_count + ' faces' : (ds.total ? ds.total + ' imgs' : '')}</span>
             </div>
             <div class="dataset-actions" onclick="event.stopPropagation()">
+              ${addImagesBtn}
               <button class="btn-delete" onclick="deleteDataset('${ds.id}', '${ds.name.replace(/'/g, "\\'")}')">🗑 Delete</button>
             </div>
           </div>`;
@@ -1237,6 +1288,82 @@
       toast(`Error: ${e.message}`);
     }
   }
+
+  // ── Add Images to Existing Dataset ────────────────────────────────────────
+  let currentAddImagesDatasetId = null;
+  
+  function showAddImagesDialog(datasetId, datasetName) {
+    currentAddImagesDatasetId = datasetId;
+    document.getElementById('addImagesDatasetName').textContent = `Adding to: ${datasetName}`;
+    document.getElementById('addImagesModal').style.display = 'flex';
+    document.getElementById('addImagesFile').value = '';
+    document.getElementById('addImagesCompress').checked = false;
+    document.getElementById('addImagesBtn').disabled = true;
+  }
+  
+  function closeAddImagesDialog() {
+    document.getElementById('addImagesModal').style.display = 'none';
+    currentAddImagesDatasetId = null;
+  }
+  
+  // Add Images file selection
+  const addImagesFile = document.getElementById('addImagesFile');
+  const addImagesBtn = document.getElementById('addImagesBtn');
+  const addImagesDropZone = document.getElementById('addImagesDropZone');
+  
+  addImagesFile.addEventListener('change', () => {
+    addImagesBtn.disabled = !addImagesFile.files.length;
+  });
+  
+  addImagesDropZone.addEventListener('dragover', e => { 
+    e.preventDefault(); 
+    addImagesDropZone.classList.add('dragover'); 
+  });
+  addImagesDropZone.addEventListener('dragleave', () => addImagesDropZone.classList.remove('dragover'));
+  addImagesDropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    addImagesDropZone.classList.remove('dragover');
+    const f = e.dataTransfer.files[0];
+    if (f && f.name.endsWith('.zip')) {
+      const dt = new DataTransfer();
+      dt.items.add(f);
+      addImagesFile.files = dt.files;
+      addImagesBtn.disabled = false;
+    }
+  });
+  
+  // Add Images upload handler
+  addImagesBtn.addEventListener('click', async () => {
+    const file = addImagesFile.files[0];
+    if (!file || !currentAddImagesDatasetId) return;
+    
+    const compress = document.getElementById('addImagesCompress').checked;
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('compress', compress ? 'true' : 'false');
+    
+    try {
+      addImagesBtn.disabled = true;
+      addImagesBtn.textContent = 'Uploading...';
+      
+      const r = await fetch(`${API}/api/datasets/${currentAddImagesDatasetId}/add-images`, { 
+        method: 'POST', 
+        body: fd, 
+        credentials: 'include' 
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || 'Failed to add images');
+      
+      toast('Images added! Re-embedding in background...');
+      closeAddImagesDialog();
+      loadDatasets();
+      log(`Images added to dataset ${currentAddImagesDatasetId}`, 'ok');
+    } catch (e) {
+      toast(`Error: ${e.message}`);
+      addImagesBtn.disabled = false;
+      addImagesBtn.textContent = '➕ Add Images & Re-embed';
+    }
+  });
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   function log(msg, type='') {

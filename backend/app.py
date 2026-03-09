@@ -247,6 +247,20 @@ def decode_image(data: bytes) -> np.ndarray:
         raise ValueError("Cannot decode image.")
     return img
 
+def compress_image(img_bgr: np.ndarray, max_width: int = 1920, quality: int = 85) -> np.ndarray:
+    """Compress image by resizing and reducing JPEG quality"""
+    h, w = img_bgr.shape[:2]
+    if w > max_width:
+        scale = max_width / w
+        new_w = max_width
+        new_h = int(h * scale)
+        img_bgr = cv2.resize(img_bgr, (new_w, new_h), interpolation=cv2.INTER_AREA)
+    
+    # Encode to JPEG with specified quality, then decode back
+    encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), quality]
+    _, encoded = cv2.imencode('.jpg', img_bgr, encode_param)
+    return cv2.imdecode(encoded, cv2.IMREAD_COLOR)
+
 def extract_embedding(img_bgr: np.ndarray):
     model = get_face_model()
     faces = model.get(img_bgr)
@@ -254,6 +268,33 @@ def extract_embedding(img_bgr: np.ndarray):
         return None, []
     best = max(faces, key=lambda f: (f.bbox[2]-f.bbox[0])*(f.bbox[3]-f.bbox[1]))
     return best.normed_embedding.astype("float32"), faces
+
+def compress_images_in_dir(directory: Path, max_width: int = 1920, quality: int = 85):
+    """Compress all images in a directory"""
+    exts = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
+    image_paths = [p for p in directory.rglob("*") if p.suffix.lower() in exts]
+    
+    for img_path in image_paths:
+        try:
+            img = cv2.imread(str(img_path))
+            if img is None:
+                continue
+            
+            # Compress the image
+            compressed = compress_image(img, max_width, quality)
+            
+            # Save back, converting to .jpg if it was a different format
+            output_path = img_path.with_suffix('.jpg') if img_path.suffix.lower() != '.jpg' else img_path
+            cv2.imwrite(str(output_path), compressed, [int(cv2.IMWRITE_JPEG_QUALITY), quality])
+            
+            # Delete original if format changed
+            if output_path != img_path:
+                img_path.unlink()
+                
+        except Exception as e:
+            log.warning(f"Failed to compress {img_path.name}: {e}")
+    
+    log.info(f"Compressed {len(image_paths)} images in {directory}")
 
 # ── Embedding job ─────────────────────────────────────────────────────────────
 
@@ -584,6 +625,7 @@ async def upload_zip(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     name: str = Form(default=""),
+    compress: str = Form(default="false"),
 ):
     user = require_auth(request)
     if not file.filename.endswith(".zip"):
@@ -595,9 +637,17 @@ async def upload_zip(
 
     zip_path = dataset_dir / "upload.zip"
     zip_path.write_bytes(await file.read())
+    
+    # Extract ZIP
     with zipfile.ZipFile(zip_path) as zf:
         zf.extractall(dataset_dir)
     zip_path.unlink()
+    
+    # Compress images if requested
+    should_compress = compress.lower() == "true"
+    if should_compress:
+        log.info(f"[{dataset_id}] Compressing images...")
+        compress_images_in_dir(dataset_dir)
 
     ds = {
         "id": dataset_id, "user_id": user["id"],
@@ -672,6 +722,64 @@ def delete_dataset(dataset_id: str, request: Request):
     cache_delete(f"datasets:{user['id']}")
     log.info(f"Dataset {dataset_id} deleted by user {user['id']}")
     return {"ok": True}
+
+@app.post("/api/datasets/{dataset_id}/add-images")
+async def add_images_to_dataset(
+    dataset_id: str,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    compress: str = Form(default="false"),
+):
+    user = require_auth(request)
+    ds = db_get_dataset(dataset_id)
+    if not ds:
+        raise HTTPException(404, "Dataset not found.")
+    if ds["user_id"] != user["id"]:
+        raise HTTPException(403, "Not your dataset.")
+    if ds["status"] != "ready":
+        raise HTTPException(400, "Dataset must be in 'ready' state to add images.")
+    if not file.filename.endswith(".zip"):
+        raise HTTPException(400, "Please upload a .zip file.")
+    
+    dataset_dir = DATASETS_DIR / dataset_id
+    
+    # Create temp directory for new images
+    temp_dir = dataset_dir / f"_temp_{int(time.time())}"
+    temp_dir.mkdir()
+    
+    # Extract new images
+    zip_path = temp_dir / "upload.zip"
+    zip_path.write_bytes(await file.read())
+    with zipfile.ZipFile(zip_path) as zf:
+        zf.extractall(temp_dir)
+    zip_path.unlink()
+    
+    # Compress if requested
+    should_compress = compress.lower() == "true"
+    if should_compress:
+        log.info(f"[{dataset_id}] Compressing new images...")
+        compress_images_in_dir(temp_dir)
+    
+    # Move all files from temp to main dataset directory
+    import shutil
+    for item in temp_dir.rglob("*"):
+        if item.is_file():
+            # Maintain directory structure
+            rel_path = item.relative_to(temp_dir)
+            target = dataset_dir / rel_path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(item), str(target))
+    
+    # Clean up temp directory
+    shutil.rmtree(temp_dir)
+    
+    # Set status to processing and re-run embedding job
+    db_update_dataset_fields(dataset_id, status="queued")
+    background_tasks.add_task(run_embedding_job, dataset_id)
+    
+    log.info(f"[{dataset_id}] Images added, re-embedding started")
+    return {"ok": True, "dataset_id": dataset_id, "status": "queued"}
 
 # ── Share endpoints ───────────────────────────────────────────────────────────
 
