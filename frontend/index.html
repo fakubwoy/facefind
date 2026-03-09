@@ -725,6 +725,22 @@
     }
 
     .inline-link:hover { text-decoration: underline; }
+
+    /* Modal styles */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(10,10,15,0.85);
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .modal-overlay.show {
+      display: flex;
+    }
   </style>
 </head>
 <body>
@@ -899,7 +915,7 @@
 <div class="toast" id="toast"></div>
 
 <!-- Add Images Modal -->
-<div id="addImagesModal" style="display:none;position:fixed;inset:0;background:rgba(10,10,15,0.85);z-index:1000;display:flex;align-items:center;justify-content:center;padding:24px;">
+<div id="addImagesModal" class="modal-overlay">
   <div style="background:var(--surface);border:1px solid var(--border);max-width:500px;width:100%;padding:32px;position:relative;">
     <button onclick="closeAddImagesDialog()" style="position:absolute;top:16px;right:16px;background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1;">&times;</button>
     
@@ -1134,7 +1150,7 @@
     let lastProcessed = 0;
     let lastTick = null;
 
-    pollingInterval = setInterval(async () => {
+    const checkStatus = async () => {
       try {
         const r = await fetch(`${API}/api/datasets/${id}/status`, { credentials: 'include' });
         const d = await r.json();
@@ -1203,7 +1219,11 @@
           log(`Job failed: ${d.error || ''}`, 'err');
         }
       } catch {}
-    }, 2000);
+    };
+
+    // Check immediately, then poll every 1 second for faster updates
+    checkStatus();
+    pollingInterval = setInterval(checkStatus, 1000);
   }
 
   // ── Dataset list ───────────────────────────────────────────────────────────
@@ -1295,14 +1315,14 @@
   function showAddImagesDialog(datasetId, datasetName) {
     currentAddImagesDatasetId = datasetId;
     document.getElementById('addImagesDatasetName').textContent = `Adding to: ${datasetName}`;
-    document.getElementById('addImagesModal').style.display = 'flex';
+    document.getElementById('addImagesModal').classList.add('show');
     document.getElementById('addImagesFile').value = '';
     document.getElementById('addImagesCompress').checked = false;
     document.getElementById('addImagesBtn').disabled = true;
   }
   
   function closeAddImagesDialog() {
-    document.getElementById('addImagesModal').style.display = 'none';
+    document.getElementById('addImagesModal').classList.remove('show');
     currentAddImagesDatasetId = null;
   }
   

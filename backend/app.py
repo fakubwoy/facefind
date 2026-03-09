@@ -333,8 +333,12 @@ def run_embedding_job(dataset_id: str):
         except Exception as exc:
             log.warning(f"[{dataset_id}] {img_path.name}: {exc}")
 
-        if (i + 1) % 10 == 0 or i == len(image_paths) - 1:
+        # Update progress more frequently for better UI feedback
+        # Every image for small datasets (<50), every 5 for larger
+        update_freq = 1 if len(image_paths) < 50 else 5
+        if (i + 1) % update_freq == 0 or i == len(image_paths) - 1:
             db_update_dataset_fields(dataset_id, processed=i+1)
+            log.info(f"[{dataset_id}] Progress: {i+1}/{len(image_paths)}")
 
     if embeddings:
         emb_matrix = np.stack(embeddings).astype("float32")
