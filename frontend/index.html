@@ -1078,6 +1078,11 @@
     document.getElementById('zipSuccess').classList.add('visible');
     document.getElementById('zipSuccessMeta').innerHTML =
       `<strong>${filename}</strong> — dataset ID: <strong>${datasetId}</strong><br>${datasetId} is ready.`;
+    
+    // Auto-reset after 5 seconds
+    setTimeout(() => {
+      resetZipUpload();
+    }, 5000);
   }
 
   function resetZipUpload() {
@@ -1131,6 +1136,11 @@
     document.getElementById('driveSuccess').classList.add('visible');
     document.getElementById('driveSuccessMeta').innerHTML =
       `Dataset ID: <strong>${datasetId}</strong> is ready.`;
+    
+    // Auto-reset after 5 seconds
+    setTimeout(() => {
+      resetDriveUpload();
+    }, 5000);
   }
 
   function resetDriveUpload() {
