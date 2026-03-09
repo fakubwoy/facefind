@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FaceFind — Sign In</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0f;
+      --surface: #111118;
+      --border: #1e1e2e;
+      --accent: #e8ff4a;
+      --text: #e2e2f0;
+      --muted: #555570;
+      --success: #4ade80;
+      --error: #f87171;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(232,255,74,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(232,255,74,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .wrap {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 400px;
+    }
+
+    .logo {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .logo-mark {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: 28px;
+      color: var(--accent);
+      letter-spacing: -0.5px;
+    }
+
+    .logo-sub {
+      display: block;
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-top: 4px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 32px;
+    }
+
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 28px;
+    }
+
+    .tab-btn {
+      flex: 1;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      padding: 10px;
+      cursor: pointer;
+      transition: all 0.15s;
+      margin-bottom: -1px;
+    }
+
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    .field {
+      margin-bottom: 16px;
+    }
+
+    .field label {
+      display: block;
+      font-size: 10px;
+      letter-spacing: 1.5px;
+      color: var(--muted);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+    }
+
+    .field input {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 13px;
+      padding: 11px 14px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .field input:focus { border-color: var(--accent); }
+
+    .btn {
+      width: 100%;
+      padding: 13px;
+      background: var(--accent);
+      color: #0a0a0f;
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      border: none;
+      cursor: pointer;
+      transition: background 0.15s;
+      margin-top: 8px;
+    }
+
+    .btn:hover:not(:disabled) { background: #d4eb3a; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .error-msg {
+      display: none;
+      background: rgba(248,113,113,0.08);
+      border: 1px solid rgba(248,113,113,0.3);
+      color: var(--error);
+      font-size: 12px;
+      padding: 10px 14px;
+      margin-bottom: 16px;
+      line-height: 1.5;
+    }
+
+    .error-msg.show { display: block; }
+
+    .spinner {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border: 2px solid rgba(10,10,15,0.3);
+      border-top-color: #0a0a0f;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="logo">
+    <div class="logo-mark">FaceFind</div>
+    <span class="logo-sub">Admin Console</span>
+  </div>
+
+  <div class="card">
+    <div class="tabs">
+      <button class="tab-btn active" id="loginTab" onclick="switchTab('login')">Sign In</button>
+      <button class="tab-btn" id="registerTab" onclick="switchTab('register')">Create Account</button>
+    </div>
+
+    <!-- Login -->
+    <div class="tab-panel active" id="panel-login">
+      <div class="error-msg" id="loginError"></div>
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="loginEmail" placeholder="you@example.com" autocomplete="email" />
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password" />
+      </div>
+      <button class="btn" id="loginBtn" onclick="doLogin()">Sign In</button>
+    </div>
+
+    <!-- Register -->
+    <div class="tab-panel" id="panel-register">
+      <div class="error-msg" id="registerError"></div>
+      <div class="field">
+        <label>Name</label>
+        <input type="text" id="registerName" placeholder="Your name" autocomplete="name" />
+      </div>
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="registerEmail" placeholder="you@example.com" autocomplete="email" />
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" id="registerPassword" placeholder="Min. 6 characters" autocomplete="new-password" />
+      </div>
+      <button class="btn" id="registerBtn" onclick="doRegister()">Create Account</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const API = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    ? 'http://localhost:8000' : window.location.origin;
+
+  // If already logged in, go straight to admin
+  fetch(`${API}/api/auth/me`, { credentials: 'include' })
+    .then(r => { if (r.ok) window.location.replace('/index.html'); })
+    .catch(() => {});
+
+  function switchTab(name) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.getElementById(name + 'Tab').classList.add('active');
+    document.getElementById('panel-' + name).classList.add('active');
+  }
+
+  function setLoading(btnId, loading) {
+    const btn = document.getElementById(btnId);
+    btn.disabled = loading;
+    btn.innerHTML = loading
+      ? '<span class="spinner"></span> Please wait…'
+      : (btnId === 'loginBtn' ? 'Sign In' : 'Create Account');
+  }
+
+  function showError(id, msg) {
+    const el = document.getElementById(id);
+    el.textContent = msg;
+    el.classList.add('show');
+  }
+
+  function hideError(id) {
+    document.getElementById(id).classList.remove('show');
+  }
+
+  async function doLogin() {
+    hideError('loginError');
+    const email    = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    if (!email || !password) { showError('loginError', 'Please enter your email and password.'); return; }
+
+    setLoading('loginBtn', true);
+    const fd = new FormData();
+    fd.append('email', email);
+    fd.append('password', password);
+
+    try {
+      const r = await fetch(`${API}/api/auth/login`, { method: 'POST', body: fd, credentials: 'include' });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || 'Login failed.');
+      window.location.replace('/index.html');
+    } catch(e) {
+      showError('loginError', e.message);
+      setLoading('loginBtn', false);
+    }
+  }
+
+  async function doRegister() {
+    hideError('registerError');
+    const name     = document.getElementById('registerName').value.trim();
+    const email    = document.getElementById('registerEmail').value.trim();
+    const password = document.getElementById('registerPassword').value;
+    if (!name || !email || !password) { showError('registerError', 'Please fill in all fields.'); return; }
+    if (password.length < 6) { showError('registerError', 'Password must be at least 6 characters.'); return; }
+
+    setLoading('registerBtn', true);
+    const fd = new FormData();
+    fd.append('name', name);
+    fd.append('email', email);
+    fd.append('password', password);
+
+    try {
+      const r = await fetch(`${API}/api/auth/register`, { method: 'POST', body: fd, credentials: 'include' });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || 'Registration failed.');
+      window.location.replace('/index.html');
+    } catch(e) {
+      showError('registerError', e.message);
+      setLoading('registerBtn', false);
+    }
+  }
+
+  // Allow Enter key to submit
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    const active = document.querySelector('.tab-panel.active').id;
+    if (active === 'panel-login') doLogin();
+    else doRegister();
+  });
+</script>
+</body>
+</html>

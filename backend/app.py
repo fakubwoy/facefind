@@ -6,7 +6,7 @@ FaceFind – Backend API (Railway Edition)
   (mount a Railway Volume at /data)
 """
 
-import os, io, re, uuid, time, json, pickle, zipfile, threading
+import os, io, re, uuid, time, json, pickle, zipfile, threading, hashlib, secrets
 import urllib.request, urllib.parse, logging
 from pathlib import Path
 from typing import Optional
@@ -16,7 +16,7 @@ import cv2
 import psycopg2
 import psycopg2.extras
 import redis as redis_lib
-from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks, Form
+from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks, Form, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
@@ -46,8 +46,25 @@ def init_db():
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id          TEXT PRIMARY KEY,
+                    email       TEXT UNIQUE NOT NULL,
+                    name        TEXT NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    created_at  DOUBLE PRECISION
+                );
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS sessions (
+                    token       TEXT PRIMARY KEY,
+                    user_id     TEXT NOT NULL,
+                    created_at  DOUBLE PRECISION
+                );
+            """)
+            cur.execute("""
                 CREATE TABLE IF NOT EXISTS datasets (
                     id          TEXT PRIMARY KEY,
+                    user_id     TEXT NOT NULL,
                     name        TEXT NOT NULL,
                     source      TEXT DEFAULT 'zip',
                     folder_id   TEXT,
@@ -130,39 +147,38 @@ def db_get_dataset(dataset_id: str) -> Optional[dict]:
         return result
     return None
 
-def db_list_datasets() -> dict:
-    cached = cache_get("datasets:all")
+def db_list_datasets(user_id: str) -> dict:
+    cached = cache_get(f"datasets:{user_id}")
     if cached:
         return cached
     with get_db() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT * FROM datasets ORDER BY created_at DESC")
+            cur.execute("SELECT * FROM datasets WHERE user_id = %s ORDER BY created_at DESC", (user_id,))
             rows = cur.fetchall()
     result = {row["id"]: dict(row) for row in rows}
-    cache_set("datasets:all", result, ttl=5)
+    cache_set(f"datasets:{user_id}", result, ttl=5)
     return result
 
 def db_upsert_dataset(ds: dict):
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO datasets (id, name, source, folder_id, status, total, processed, face_count, error, created_at)
-                VALUES (%(id)s, %(name)s, %(source)s, %(folder_id)s, %(status)s, %(total)s, %(processed)s, %(face_count)s, %(error)s, %(created_at)s)
+                INSERT INTO datasets (id, user_id, name, source, folder_id, status, total, processed, face_count, error, created_at)
+                VALUES (%(id)s, %(user_id)s, %(name)s, %(source)s, %(folder_id)s, %(status)s, %(total)s, %(processed)s, %(face_count)s, %(error)s, %(created_at)s)
                 ON CONFLICT (id) DO UPDATE SET
                     name=EXCLUDED.name, source=EXCLUDED.source, folder_id=EXCLUDED.folder_id,
                     status=EXCLUDED.status, total=EXCLUDED.total, processed=EXCLUDED.processed,
                     face_count=EXCLUDED.face_count, error=EXCLUDED.error
             """, {
-                "id": ds["id"], "name": ds["name"], "source": ds.get("source","zip"),
+                "id": ds["id"], "user_id": ds["user_id"], "name": ds["name"], "source": ds.get("source","zip"),
                 "folder_id": ds.get("folder_id"), "status": ds.get("status","queued"),
                 "total": ds.get("total",0), "processed": ds.get("processed",0),
                 "face_count": ds.get("face_count",0), "error": ds.get("error"),
                 "created_at": ds.get("created_at", time.time()),
             })
         conn.commit()
-    # Invalidate caches
     cache_delete(f"dataset:{ds['id']}")
-    cache_delete("datasets:all")
+    cache_delete(f"datasets:{ds['user_id']}")
 
 def db_update_dataset_fields(dataset_id: str, **fields):
     if not fields:
@@ -174,7 +190,10 @@ def db_update_dataset_fields(dataset_id: str, **fields):
             cur.execute(f"UPDATE datasets SET {set_clause} WHERE id=%s", values)
         conn.commit()
     cache_delete(f"dataset:{dataset_id}")
-    cache_delete("datasets:all")
+    # Also invalidate the user's dataset list cache
+    ds = db_get_dataset(dataset_id)
+    if ds:
+        cache_delete(f"datasets:{ds['user_id']}")
 
 def db_get_share(share_id: str) -> Optional[dict]:
     cached = cache_get(f"share:{share_id}")
@@ -429,6 +448,76 @@ def download_gdrive_folder(folder_id: str, dest_dir: Path, dataset_id: str):
     db_update_dataset_fields(dataset_id, status="queued")
     run_embedding_job(dataset_id)
 
+# ── Auth helpers ──────────────────────────────────────────────────────────────
+
+def hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def db_create_user(email: str, name: str, password: str) -> dict:
+    user_id = str(uuid.uuid4())
+    pw_hash = hash_password(password)
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO users (id, email, name, password_hash, created_at)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (user_id, email.lower(), name, pw_hash, time.time()))
+        conn.commit()
+    return {"id": user_id, "email": email.lower(), "name": name}
+
+def db_get_user_by_email(email: str) -> Optional[dict]:
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM users WHERE email = %s", (email.lower(),))
+            row = cur.fetchone()
+    return dict(row) if row else None
+
+def db_create_session(user_id: str) -> str:
+    token = secrets.token_hex(32)
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO sessions (token, user_id, created_at)
+                VALUES (%s, %s, %s)
+            """, (token, user_id, time.time()))
+        conn.commit()
+    return token
+
+def db_get_session_user(token: str) -> Optional[dict]:
+    if not token:
+        return None
+    cached = cache_get(f"session:{token}")
+    if cached:
+        return cached
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT u.* FROM sessions s
+                JOIN users u ON s.user_id = u.id
+                WHERE s.token = %s
+            """, (token,))
+            row = cur.fetchone()
+    if row:
+        user = dict(row)
+        cache_set(f"session:{token}", user, ttl=300)
+        return user
+    return None
+
+def db_delete_session(token: str):
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM sessions WHERE token = %s", (token,))
+        conn.commit()
+    cache_delete(f"session:{token}")
+
+def require_auth(request) -> dict:
+    from fastapi import Request
+    token = request.cookies.get("ff_token") or request.headers.get("X-Auth-Token", "")
+    user = db_get_session_user(token)
+    if not user:
+        raise HTTPException(401, "Not authenticated.")
+    return user
+
 # ── FastAPI app ───────────────────────────────────────────────────────────────
 app = FastAPI(title="FaceFind API", version="2.0.0")
 
@@ -444,18 +533,54 @@ def on_startup():
     init_db()
     get_redis()  # warm up connection
 
-# ── Dataset endpoints ─────────────────────────────────────────────────────────
+# ── Auth endpoints ────────────────────────────────────────────────────────────
+
+@app.post("/api/auth/register")
+def register(response: Response, email: str = Form(...), name: str = Form(...), password: str = Form(...)):
+    if len(password) < 6:
+        raise HTTPException(400, "Password must be at least 6 characters.")
+    if db_get_user_by_email(email):
+        raise HTTPException(409, "An account with this email already exists.")
+    user = db_create_user(email, name, password)
+    token = db_create_session(user["id"])
+    response.set_cookie("ff_token", token, httponly=True, samesite="lax", max_age=60*60*24*30)
+    return {"user": {"id": user["id"], "email": user["email"], "name": user["name"]}}
+
+@app.post("/api/auth/login")
+def login(response: Response, email: str = Form(...), password: str = Form(...)):
+    user = db_get_user_by_email(email)
+    if not user or user["password_hash"] != hash_password(password):
+        raise HTTPException(401, "Invalid email or password.")
+    token = db_create_session(user["id"])
+    response.set_cookie("ff_token", token, httponly=True, samesite="lax", max_age=60*60*24*30)
+    return {"user": {"id": user["id"], "email": user["email"], "name": user["name"]}}
+
+@app.post("/api/auth/logout")
+def logout(request: Request, response: Response):
+    token = request.cookies.get("ff_token", "")
+    if token:
+        db_delete_session(token)
+    response.delete_cookie("ff_token")
+    return {"ok": True}
+
+@app.get("/api/auth/me")
+def me(request: Request):
+    user = require_auth(request)
+    return {"id": user["id"], "email": user["email"], "name": user["name"]}
 
 @app.get("/api/datasets")
-def list_datasets():
-    return db_list_datasets()
+def list_datasets(request: Request):
+    user = require_auth(request)
+    return db_list_datasets(user["id"])
 
 @app.post("/api/datasets/upload-zip")
 async def upload_zip(
+    request: Request,
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     name: str = Form(default=""),
 ):
+    user = require_auth(request)
     if not file.filename.endswith(".zip"):
         raise HTTPException(400, "Please upload a .zip file.")
 
@@ -470,7 +595,8 @@ async def upload_zip(
     zip_path.unlink()
 
     ds = {
-        "id": dataset_id, "name": name or file.filename.replace(".zip",""),
+        "id": dataset_id, "user_id": user["id"],
+        "name": name or file.filename.replace(".zip",""),
         "source": "zip", "folder_id": None,
         "status": "queued", "total": 0, "processed": 0,
         "face_count": 0, "error": None, "created_at": time.time(),
@@ -481,10 +607,12 @@ async def upload_zip(
 
 @app.post("/api/datasets/gdrive")
 async def use_gdrive_folder(
+    request: Request,
     background_tasks: BackgroundTasks,
     folder_url: str = Form(...),
     name: str = Form(default=""),
 ):
+    user = require_auth(request)
     folder_id = extract_gdrive_folder_id(folder_url)
     if not folder_id:
         raise HTTPException(400, "Could not extract a folder ID from the provided URL.")
@@ -494,7 +622,8 @@ async def use_gdrive_folder(
     dataset_dir.mkdir()
 
     ds = {
-        "id": dataset_id, "name": name or f"Drive Folder ({folder_id[:8]}…)",
+        "id": dataset_id, "user_id": user["id"],
+        "name": name or f"Drive Folder ({folder_id[:8]}…)",
         "source": "gdrive", "folder_id": folder_id,
         "status": "downloading", "total": 0, "processed": 0,
         "face_count": 0, "error": None, "created_at": time.time(),
@@ -503,27 +632,9 @@ async def use_gdrive_folder(
     background_tasks.add_task(download_gdrive_folder, folder_id, dataset_dir, dataset_id)
     return {"dataset_id": dataset_id, "status": "downloading"}
 
-@app.post("/api/datasets/lfw")
-async def use_lfw_dataset(background_tasks: BackgroundTasks):
-    lfw_path = DATASETS_DIR / "lfw"
-    if not lfw_path.exists():
-        raise HTTPException(404, "LFW dataset not found.")
-    dataset_id = "lfw"
-    existing = db_get_dataset(dataset_id)
-    if existing and existing["status"] == "ready":
-        return {"dataset_id": dataset_id, "status": "already_ready"}
-    ds = {
-        "id": dataset_id, "name": "LFW (Labeled Faces in the Wild)",
-        "source": "lfw", "folder_id": None,
-        "status": "queued", "total": 0, "processed": 0,
-        "face_count": 0, "error": None, "created_at": time.time(),
-    }
-    db_upsert_dataset(ds)
-    background_tasks.add_task(run_embedding_job, dataset_id)
-    return {"dataset_id": dataset_id, "status": "queued"}
-
 @app.get("/api/datasets/{dataset_id}/status")
-def dataset_status(dataset_id: str):
+def dataset_status(dataset_id: str, request: Request):
+    require_auth(request)
     ds = db_get_dataset(dataset_id)
     if not ds:
         raise HTTPException(404, "Dataset not found.")
@@ -532,7 +643,8 @@ def dataset_status(dataset_id: str):
 # ── Share endpoints ───────────────────────────────────────────────────────────
 
 @app.post("/api/shares")
-def create_share(dataset_id: str = Form(...)):
+def create_share(request: Request, dataset_id: str = Form(...)):
+    require_auth(request)
     ds = db_get_dataset(dataset_id)
     if not ds:
         raise HTTPException(404, "Dataset not found.")
