@@ -409,7 +409,7 @@ def _gdrive_list_folder(folder_id: str, api_key: str, dataset_id: str) -> list:
     return all_files
 
 def download_gdrive_folder(folder_id: str, dest_dir: Path, dataset_id: str):
-    db_update_dataset_fields(dataset_id, status="downloading")
+    db_update_dataset_fields(dataset_id, status="downloading", total=0, processed=0)
     api_key    = os.environ.get("GOOGLE_API_KEY", "").strip()
     downloaded = 0
     last_error = ""
@@ -417,17 +417,18 @@ def download_gdrive_folder(folder_id: str, dest_dir: Path, dataset_id: str):
     if api_key:
         try:
             files = _gdrive_list_folder(folder_id, api_key, dataset_id)
-            log.info(f"[{dataset_id}] Downloading {len(files)} images via Drive API")
+            total = len(files)
+            log.info(f"[{dataset_id}] Downloading {total} images via Drive API")
+            db_update_dataset_fields(dataset_id, total=total, processed=0)
             for f in files:
                 out_path = dest_dir / f["name"]
-                log.info(f"[{dataset_id}] Downloading ({downloaded+1}/{len(files)}) {f['name']}")
+                log.info(f"[{dataset_id}] Downloading ({downloaded+1}/{total}) {f['name']}")
                 try:
                     _gdrive_download_file(f["id"], out_path)
                     downloaded += 1
                 except Exception as exc:
                     log.warning(f"[{dataset_id}] Skipped {f['name']}: {exc}")
-                if downloaded % 5 == 0:
-                    db_update_dataset_fields(dataset_id, processed=downloaded)
+                db_update_dataset_fields(dataset_id, processed=downloaded)
         except Exception as exc:
             last_error = str(exc)
             log.error(f"[{dataset_id}] Drive API error: {exc}")
@@ -643,6 +644,34 @@ def dataset_status(dataset_id: str, request: Request):
     if not ds:
         raise HTTPException(404, "Dataset not found.")
     return ds
+
+@app.delete("/api/datasets/{dataset_id}")
+def delete_dataset(dataset_id: str, request: Request):
+    user = require_auth(request)
+    ds = db_get_dataset(dataset_id)
+    if not ds:
+        raise HTTPException(404, "Dataset not found.")
+    if ds["user_id"] != user["id"]:
+        raise HTTPException(403, "Not your dataset.")
+
+    # Delete files from volume
+    import shutil
+    dataset_dir = DATASETS_DIR / dataset_id
+    emb_dir     = EMBEDDINGS_DIR / dataset_id
+    if dataset_dir.exists():
+        shutil.rmtree(dataset_dir)
+    if emb_dir.exists():
+        shutil.rmtree(emb_dir)
+
+    # Delete from DB (shares referencing this dataset are orphaned but harmless)
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM datasets WHERE id = %s", (dataset_id,))
+        conn.commit()
+    cache_delete(f"dataset:{dataset_id}")
+    cache_delete(f"datasets:{user['id']}")
+    log.info(f"Dataset {dataset_id} deleted by user {user['id']}")
+    return {"ok": True}
 
 # ── Share endpoints ───────────────────────────────────────────────────────────
 

@@ -598,6 +598,30 @@
     /* badge for downloading state */
     .badge-downloading { background: rgba(147,112,219,0.15); color: #b39ddb; }
 
+    .dataset-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .btn-delete {
+      background: none;
+      border: 1px solid rgba(248,113,113,0.3);
+      color: var(--error);
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn-delete:hover {
+      background: rgba(248,113,113,0.08);
+      border-color: var(--error);
+    }
+
     .inline-link {
       color: var(--accent);
       text-decoration: none;
@@ -913,11 +937,20 @@
         const r = await fetch(`${API}/api/datasets/${id}/status`, { credentials: 'include' });
         const d = await r.json();
 
-        const statusLabel = d.status === 'downloading'
-          ? `DOWNLOADING — fetching images from Drive…`
-          : `${d.status.toUpperCase()} — ${d.processed}/${d.total} images (${d.total > 0 ? Math.round((d.processed/d.total)*100) : 0}%)`;
+        let statusLabel, pct;
+        if (d.status === 'downloading') {
+          if (d.total > 0) {
+            pct = Math.round((d.processed / d.total) * 100);
+            statusLabel = `DOWNLOADING — ${d.processed}/${d.total} files (${pct}%)`;
+          } else {
+            pct = 5;
+            statusLabel = `DOWNLOADING — listing files from Drive…`;
+          }
+        } else {
+          pct = d.total > 0 ? Math.round((d.processed / d.total) * 100) : 0;
+          statusLabel = `${d.status.toUpperCase()} — ${d.processed}/${d.total} images (${pct}%)`;
+        }
 
-        const pct = d.total > 0 ? Math.round((d.processed / d.total) * 100) : (d.status === 'downloading' ? 10 : 0);
         document.getElementById('progressBar').style.width = pct + '%';
         document.getElementById('progressText').textContent = statusLabel;
         loadDatasets();
@@ -961,6 +994,9 @@
               <span class="badge badge-${ds.status}">${ds.status}</span>
               <span>${ds.face_count > 0 ? ds.face_count + ' faces' : (ds.total ? ds.total + ' imgs' : '')}</span>
             </div>
+            <div class="dataset-actions" onclick="event.stopPropagation()">
+              <button class="btn-delete" onclick="deleteDataset('${ds.id}', '${ds.name.replace(/'/g, "\\'")}')">🗑 Delete</button>
+            </div>
           </div>`;
       }).join('');
     } catch {}
@@ -994,6 +1030,24 @@
     const url = document.getElementById('shareUrl').textContent;
     navigator.clipboard.writeText(url).then(() => toast('Copied to clipboard!'));
   });
+
+  // ── Delete dataset ─────────────────────────────────────────────────────────
+  async function deleteDataset(id, name) {
+    if (!confirm(`Delete "${name}"?\n\nThis will permanently remove all images, embeddings, and share links for this dataset.`)) return;
+    try {
+      const r = await fetch(`${API}/api/datasets/${id}`, { method: 'DELETE', credentials: 'include' });
+      if (!r.ok) { const d = await r.json(); throw new Error(d.detail || 'Delete failed'); }
+      if (selectedDatasetId === id) {
+        selectedDatasetId = null;
+        document.getElementById('shareBtn').disabled = true;
+        document.getElementById('shareBox').classList.remove('visible');
+      }
+      toast(`"${name}" deleted.`);
+      loadDatasets();
+    } catch(e) {
+      toast(`Error: ${e.message}`);
+    }
+  }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   function log(msg, type='') {
