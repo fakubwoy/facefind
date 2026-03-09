@@ -511,23 +511,6 @@
     .copy-btn:hover { background: #d4eb3a; }
 
     /* Log */
-    .log-box {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      padding: 12px;
-      font-size: 11px;
-      color: var(--muted);
-      max-height: 120px;
-      overflow-y: auto;
-      margin-top: 16px;
-      display: none;
-    }
-
-    .log-box.visible { display: block; }
-    .log-line { margin-bottom: 4px; }
-    .log-line.ok  { color: var(--success); }
-    .log-line.err { color: var(--error); }
-
     /* Toast */
     .toast {
       position: fixed;
@@ -810,6 +793,13 @@
             <button class="btn-reset" onclick="resetZipUpload()">↩ Upload another ZIP</button>
           </div>
 
+          <!-- Selected file info -->
+          <div id="zipSelectedInfo" style="display:none;background:rgba(232,255,74,0.05);border:1px solid rgba(232,255,74,0.2);padding:12px 16px;margin-bottom:16px;">
+            <div style="font-size:11px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin-bottom:4px;">Selected File</div>
+            <div style="font-size:13px;color:var(--accent);font-weight:500;" id="zipFileName"></div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px;" id="zipFileSize"></div>
+          </div>
+
           <div class="field">
             <label>Dataset Name (optional)</label>
             <input type="text" id="datasetName" placeholder="e.g. Wedding 2024" />
@@ -879,8 +869,6 @@
             🔗 Link Drive Folder &amp; Start Embedding
           </button>
         </div>
-
-        <div class="log-box" id="logBox"></div>
       </div>
     </div>
 
@@ -982,10 +970,16 @@
   const uploadBtn = document.getElementById('uploadBtn');
   const dropZone  = document.getElementById('dropZone');
 
+  function showZipFileInfo(file) {
+    document.getElementById('zipFileName').textContent = file.name;
+    document.getElementById('zipFileSize').textContent = `${(file.size/1024/1024).toFixed(1)} MB`;
+    document.getElementById('zipSelectedInfo').style.display = 'block';
+  }
+
   zipFile.addEventListener('change', () => {
     uploadBtn.disabled = !zipFile.files.length;
     if (zipFile.files.length) {
-      log(`Selected: ${zipFile.files[0].name} (${(zipFile.files[0].size/1024/1024).toFixed(1)} MB)`);
+      showZipFileInfo(zipFile.files[0]);
     }
   });
 
@@ -1000,7 +994,7 @@
       dt.items.add(f);
       zipFile.files = dt.files;
       uploadBtn.disabled = false;
-      log(`Selected: ${f.name} (${(f.size/1024/1024).toFixed(1)} MB)`);
+      showZipFileInfo(f);
     }
   });
 
@@ -1019,23 +1013,21 @@
     uploadBtn.disabled = true;
     // Hide input UI, show progress panel
     dropZone.style.display = 'none';
+    document.getElementById('zipSelectedInfo').style.display = 'none';
     document.getElementById('datasetName').parentElement.style.display = 'none';
     document.querySelector('#compressImages').parentElement.parentElement.style.display = 'none';
     uploadBtn.style.display = 'none';
     showInlineProgress('zip', 'Uploading', `Sending ${(file.size/1024/1024).toFixed(1)} MB to server…`, 0);
-    log(`Uploading ${file.name}${compress ? ' (with compression)' : ''}…`);
 
     try {
       const r = await fetch(`${API}/api/datasets/upload-zip`, { method: 'POST', body: fd, credentials: 'include' });
       const d = await r.json();
       if (!r.ok) throw new Error(d.detail || 'Upload failed');
 
-      log(`Dataset created: ${d.dataset_id}`, 'ok');
-      log('Embedding job started in background…');
       pollStatus(d.dataset_id, 'zip');
       loadDatasets();
     } catch (e) {
-      log(`Error: ${e.message}`, 'err');
+      toast(`Error: ${e.message}`);
       resetZipUpload();
     }
   });
@@ -1049,6 +1041,7 @@
 
   function resetZipUpload() {
     dropZone.style.display = '';
+    document.getElementById('zipSelectedInfo').style.display = 'none';
     const nameField = document.getElementById('datasetName').parentElement;
     nameField.style.display = '';
     const compressField = document.querySelector('#compressImages').parentElement.parentElement;
@@ -1074,7 +1067,6 @@
     document.getElementById('driveNameField').style.display = 'none';
     btn.style.display = 'none';
     showInlineProgress('drive', 'Connecting', 'Linking Drive folder…', 0);
-    log(`Linking Drive folder…`);
 
     const fd = new FormData();
     fd.append('folder_url', url);
@@ -1085,12 +1077,9 @@
       const d = await r.json();
       if (!r.ok) throw new Error(d.detail || 'Failed to link Drive folder');
 
-      log(`Drive dataset created: ${d.dataset_id}`, 'ok');
-      log('Downloading images & embedding in background…');
       pollStatus(d.dataset_id, 'drive');
       loadDatasets();
     } catch (e) {
-      log(`Error: ${e.message}`, 'err');
       toast(`Error: ${e.message}`);
       resetDriveUpload();
     }
@@ -1207,7 +1196,6 @@
             if (which === 'zip') showZipSuccess(zipFile.files[0]?.name || '', id);
             else showDriveSuccess(id);
           }, 800);
-          log(`✓ Done! ${d.face_count} face embeddings indexed.`, 'ok');
           toast(`Dataset ready — ${d.face_count} faces indexed!`);
         }
 
@@ -1216,7 +1204,7 @@
           updateInlineProgress(which, 'Error', d.error || 'Job failed', pct, '');
           document.getElementById(which + 'Ring').style.stroke = 'var(--error)';
           document.getElementById(which + 'Pct').style.color   = 'var(--error)';
-          log(`Job failed: ${d.error || ''}`, 'err');
+          toast(`Error: ${d.error || 'Job failed'}`);
         }
       } catch {}
     };
@@ -1377,7 +1365,6 @@
       toast('Images added! Re-embedding in background...');
       closeAddImagesDialog();
       loadDatasets();
-      log(`Images added to dataset ${currentAddImagesDatasetId}`, 'ok');
     } catch (e) {
       toast(`Error: ${e.message}`);
       addImagesBtn.disabled = false;
@@ -1386,16 +1373,6 @@
   });
 
   // ── Helpers ────────────────────────────────────────────────────────────────
-  function log(msg, type='') {
-    const box = document.getElementById('logBox');
-    box.classList.add('visible');
-    const el = document.createElement('div');
-    el.className = `log-line ${type}`;
-    el.textContent = `> ${msg}`;
-    box.appendChild(el);
-    box.scrollTop = box.scrollHeight;
-  }
-
   function toast(msg) {
     const t = document.getElementById('toast');
     t.textContent = msg;
