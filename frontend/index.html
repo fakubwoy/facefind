@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FaceFind — Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0f;
+      --surface: #111118;
+      --border: #1e1e2e;
+      --accent: #e8ff4a;
+      --accent2: #ff6b35;
+      --text: #e2e2f0;
+      --muted: #555570;
+      --success: #4ade80;
+      --warn: #facc15;
+      --error: #f87171;
+      --radius: 2px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      min-height: 100vh;
+      padding: 0;
+    }
+
+    /* Grid background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(232,255,74,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(232,255,74,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .layout {
+      position: relative;
+      z-index: 1;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 32px;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 28px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logo {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+    }
+
+    .logo-mark {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: 22px;
+      letter-spacing: -0.5px;
+      color: var(--accent);
+    }
+
+    .logo-sub {
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    .header-tag {
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 1px;
+      padding: 4px 10px;
+      border: 1px solid var(--border);
+    }
+
+    /* Hero */
+    .hero {
+      padding: 72px 0 48px;
+    }
+
+    .hero-eyebrow {
+      font-size: 11px;
+      letter-spacing: 3px;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+
+    .hero-title {
+      font-family: 'Syne', sans-serif;
+      font-size: clamp(36px, 5vw, 64px);
+      font-weight: 800;
+      line-height: 1.05;
+      letter-spacing: -1px;
+      margin-bottom: 20px;
+    }
+
+    .hero-title span {
+      color: var(--accent);
+    }
+
+    .hero-desc {
+      font-size: 14px;
+      color: var(--muted);
+      max-width: 480px;
+      line-height: 1.7;
+    }
+
+    /* Main grid */
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 24px;
+      padding-bottom: 60px;
+    }
+
+    @media (max-width: 768px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    /* Cards */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 28px;
+    }
+
+    .card-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-title::before {
+      content: '';
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      background: var(--accent);
+    }
+
+    /* Upload zone */
+    .drop-zone {
+      border: 2px dashed var(--border);
+      padding: 48px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+    }
+
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color: var(--accent);
+      background: rgba(232,255,74,0.03);
+    }
+
+    .drop-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+
+    .drop-icon {
+      font-size: 40px;
+      margin-bottom: 12px;
+      opacity: 0.4;
+    }
+
+    .drop-label {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .drop-label strong {
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    .drop-hint {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 8px;
+      opacity: 0.6;
+    }
+
+    /* Inputs */
+    .field {
+      margin-top: 16px;
+    }
+
+    .field label {
+      display: block;
+      font-size: 11px;
+      letter-spacing: 1px;
+      color: var(--muted);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+    }
+
+    .field input[type="text"] {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 13px;
+      padding: 10px 14px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .field input[type="text"]:focus {
+      border-color: var(--accent);
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 24px;
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      cursor: pointer;
+      border: none;
+      transition: all 0.15s;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #0a0a0f;
+      font-weight: 500;
+      width: 100%;
+      justify-content: center;
+      margin-top: 20px;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: #d4eb3a;
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+      width: 100%;
+      justify-content: center;
+      margin-top: 8px;
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* Progress */
+    .progress-wrap {
+      margin-top: 20px;
+      display: none;
+    }
+
+    .progress-wrap.visible { display: block; }
+
+    .progress-bar-bg {
+      background: var(--border);
+      height: 3px;
+      width: 100%;
+    }
+
+    .progress-bar {
+      background: var(--accent);
+      height: 3px;
+      width: 0%;
+      transition: width 0.4s ease;
+    }
+
+    .progress-text {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 8px;
+    }
+
+    /* Status badge */
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      font-size: 10px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .badge-queued   { background: rgba(250,204,21,0.1); color: var(--warn); }
+    .badge-processing { background: rgba(232,255,74,0.1); color: var(--accent); }
+    .badge-ready    { background: rgba(74,222,128,0.1); color: var(--success); }
+    .badge-error    { background: rgba(248,113,113,0.1); color: var(--error); }
+
+    /* Dataset list */
+    .dataset-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .dataset-item {
+      padding: 16px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+
+    .dataset-item:hover {
+      border-color: var(--muted);
+    }
+
+    .dataset-item.selected {
+      border-color: var(--accent);
+    }
+
+    .dataset-name {
+      font-family: 'Syne', sans-serif;
+      font-weight: 600;
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+
+    .dataset-meta {
+      font-size: 11px;
+      color: var(--muted);
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    /* Share section */
+    .share-box {
+      margin-top: 20px;
+      padding: 16px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      display: none;
+    }
+
+    .share-box.visible { display: block; }
+
+    .share-url-wrap {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      margin-top: 12px;
+    }
+
+    .share-url {
+      flex: 1;
+      background: var(--border);
+      padding: 10px 12px;
+      font-size: 12px;
+      color: var(--text);
+      word-break: break-all;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .copy-btn {
+      background: var(--accent);
+      color: #0a0a0f;
+      border: none;
+      padding: 10px 14px;
+      cursor: pointer;
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 1px;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+
+    .copy-btn:hover { background: #d4eb3a; }
+
+    /* Log */
+    .log-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      padding: 12px;
+      font-size: 11px;
+      color: var(--muted);
+      max-height: 120px;
+      overflow-y: auto;
+      margin-top: 16px;
+      display: none;
+    }
+
+    .log-box.visible { display: block; }
+    .log-line { margin-bottom: 4px; }
+    .log-line.ok  { color: var(--success); }
+    .log-line.err { color: var(--error); }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 32px;
+      right: 32px;
+      background: var(--surface);
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      padding: 12px 20px;
+      font-size: 12px;
+      letter-spacing: 0.5px;
+      transform: translateY(80px);
+      opacity: 0;
+      transition: all 0.3s;
+      z-index: 100;
+    }
+
+    .toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    /* Empty state */
+    .empty {
+      padding: 32px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 12px;
+      border: 1px dashed var(--border);
+    }
+
+    /* Divider */
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 20px 0;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 24px;
+      gap: 0;
+    }
+
+    .tab-btn {
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      padding: 10px 18px;
+      cursor: pointer;
+      transition: all 0.15s;
+      margin-bottom: -1px;
+    }
+
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* Success state */
+    .upload-success {
+      display: none;
+      border: 2px solid var(--success);
+      padding: 28px 24px;
+      text-align: center;
+      background: rgba(74,222,128,0.04);
+      position: relative;
+    }
+
+    .upload-success.visible { display: block; }
+
+    .success-icon { font-size: 36px; margin-bottom: 10px; }
+
+    .success-title {
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 15px;
+      color: var(--success);
+      margin-bottom: 6px;
+    }
+
+    .success-meta {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .success-meta strong { color: var(--text); }
+
+    .btn-reset {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 6px 14px;
+      cursor: pointer;
+      margin-top: 14px;
+      transition: all 0.15s;
+    }
+
+    .btn-reset:hover { border-color: var(--muted); color: var(--text); }
+
+    /* Drive input area */
+    .drive-zone {
+      border: 2px dashed var(--border);
+      padding: 32px 24px;
+      text-align: center;
+      transition: border-color 0.2s;
+    }
+
+    .drive-zone:focus-within {
+      border-color: var(--accent);
+      background: rgba(232,255,74,0.02);
+    }
+
+    .drive-icon { font-size: 36px; margin-bottom: 12px; opacity: 0.5; }
+
+    .drive-label {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 14px;
+      line-height: 1.6;
+    }
+
+    .drive-label strong { color: var(--accent); }
+
+    .drive-input {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      padding: 10px 14px;
+      outline: none;
+      transition: border-color 0.2s;
+      text-align: left;
+    }
+
+    .drive-input:focus { border-color: var(--accent); }
+
+    .drive-hint {
+      font-size: 10px;
+      color: var(--muted);
+      margin-top: 8px;
+      opacity: 0.6;
+      line-height: 1.5;
+    }
+
+    /* badge for downloading state */
+    .badge-downloading { background: rgba(147,112,219,0.15); color: #b39ddb; }
+
+    .inline-link {
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 12px;
+    }
+
+    .inline-link:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <header>
+    <div class="logo">
+      <span class="logo-mark">FaceFind</span>
+      <span class="logo-sub">Admin Console</span>
+    </div>
+    <span class="header-tag">v1.0 · Local</span>
+  </header>
+
+  <section class="hero">
+    <p class="hero-eyebrow">Face Recognition Pipeline</p>
+    <h1 class="hero-title">Upload. Embed.<br><span>Share.</span></h1>
+    <p class="hero-desc">Upload a photo dataset, generate face embeddings, then share a link — anyone with the link can upload a selfie and find themselves in your collection.</p>
+  </section>
+
+  <div class="grid">
+    <!-- Left: Upload -->
+    <div>
+      <div class="card">
+        <div class="card-title">Upload Dataset</div>
+
+        <!-- Tab switcher -->
+        <div class="tabs">
+          <button class="tab-btn active" onclick="switchTab('zip', this)">📦 ZIP File</button>
+          <button class="tab-btn" onclick="switchTab('drive', this)">🔗 Google Drive</button>
+        </div>
+
+        <!-- ── ZIP tab ── -->
+        <div class="tab-panel active" id="tab-zip">
+          <!-- Drop zone (shown when no file selected) -->
+          <div class="drop-zone" id="dropZone">
+            <input type="file" id="zipFile" accept=".zip" />
+            <div class="drop-icon">📦</div>
+            <div class="drop-label">
+              <strong>Drop a ZIP file here</strong><br>
+              or click to browse
+            </div>
+            <div class="drop-hint">ZIP should contain folders of images (e.g. person_name/photo.jpg)</div>
+          </div>
+
+          <!-- Success state (shown after successful upload) -->
+          <div class="upload-success" id="zipSuccess">
+            <div class="success-icon">✅</div>
+            <div class="success-title">ZIP Uploaded Successfully</div>
+            <div class="success-meta" id="zipSuccessMeta">Embedding job queued.</div>
+            <button class="btn-reset" onclick="resetZipUpload()">↩ Upload another ZIP</button>
+          </div>
+
+          <div class="field">
+            <label>Dataset Name (optional)</label>
+            <input type="text" id="datasetName" placeholder="e.g. Wedding 2024" />
+          </div>
+
+          <button class="btn btn-primary" id="uploadBtn" disabled>
+            ⬆ Upload &amp; Start Embedding
+          </button>
+        </div>
+
+        <!-- ── Drive tab ── -->
+        <div class="tab-panel" id="tab-drive">
+          <!-- Drive input zone -->
+          <div class="drive-zone" id="driveZone">
+            <div class="drive-icon">📂</div>
+            <div class="drive-label">
+              Paste a <strong>public Google Drive folder</strong> URL below.<br>
+              The folder must be set to "Anyone with the link can view".
+            </div>
+            <input class="drive-input" type="text" id="driveFolderUrl"
+                   placeholder="https://drive.google.com/drive/folders/…" />
+            <div class="drive-hint">
+              Requires <code style="color:var(--accent)">pip install gdown</code> or a
+              <code style="color:var(--accent)">GOOGLE_API_KEY</code> env variable.
+            </div>
+          </div>
+
+          <!-- Success state for Drive -->
+          <div class="upload-success" id="driveSuccess">
+            <div class="success-icon">✅</div>
+            <div class="success-title">Drive Folder Linked!</div>
+            <div class="success-meta" id="driveSuccessMeta">Downloading &amp; embedding in background.</div>
+            <button class="btn-reset" onclick="resetDriveUpload()">↩ Link another folder</button>
+          </div>
+
+          <div class="field" id="driveNameField">
+            <label>Dataset Name (optional)</label>
+            <input type="text" id="driveDatasetName" placeholder="e.g. Conference 2024" />
+          </div>
+
+          <button class="btn btn-primary" id="driveBtn">
+            🔗 Link Drive Folder &amp; Start Embedding
+          </button>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="card-title">Or Use LFW Demo Dataset</div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">If you've already run <code style="color:var(--accent)">scripts/download_lfw.sh</code>, click below to index it.</p>
+        <button class="btn btn-secondary" id="lfwBtn">⚡ Index LFW Dataset</button>
+
+        <div class="progress-wrap" id="progressWrap">
+          <div class="progress-bar-bg"><div class="progress-bar" id="progressBar"></div></div>
+          <div class="progress-text" id="progressText">Initializing...</div>
+        </div>
+
+        <div class="log-box" id="logBox"></div>
+      </div>
+    </div>
+
+    <!-- Right: Datasets + Share -->
+    <div style="display:flex;flex-direction:column;gap:24px;">
+      <div class="card">
+        <div class="card-title">Your Datasets</div>
+        <div class="dataset-list" id="datasetList">
+          <div class="empty">No datasets yet. Upload one to get started.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Generate Share Link</div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">Select a ready dataset above, then generate a shareable link. Anyone with the link can find their face in your dataset.</p>
+        <button class="btn btn-primary" id="shareBtn" disabled>
+          🔗 Generate Share Link
+        </button>
+        <div class="share-box" id="shareBox">
+          <div style="font-size:11px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin-bottom:4px;">Share URL</div>
+          <div class="share-url-wrap">
+            <div class="share-url" id="shareUrl"></div>
+            <button class="copy-btn" id="copyBtn">COPY</button>
+          </div>
+          <p style="font-size:11px;color:var(--muted);margin-top:8px;">Send this link to people so they can upload a selfie and find their photos.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const API = 'http://localhost:8000';
+  let selectedDatasetId = null;
+  let pollingInterval = null;
+
+  // ── Tab switching ──────────────────────────────────────────────────────────
+  function switchTab(name, btn) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + name).classList.add('active');
+  }
+
+  // ── ZIP: File selection ────────────────────────────────────────────────────
+  const zipFile   = document.getElementById('zipFile');
+  const uploadBtn = document.getElementById('uploadBtn');
+  const dropZone  = document.getElementById('dropZone');
+
+  zipFile.addEventListener('change', () => {
+    uploadBtn.disabled = !zipFile.files.length;
+    if (zipFile.files.length) {
+      log(`Selected: ${zipFile.files[0].name} (${(zipFile.files[0].size/1024/1024).toFixed(1)} MB)`);
+    }
+  });
+
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    const f = e.dataTransfer.files[0];
+    if (f && f.name.endsWith('.zip')) {
+      const dt = new DataTransfer();
+      dt.items.add(f);
+      zipFile.files = dt.files;
+      uploadBtn.disabled = false;
+      log(`Selected: ${f.name} (${(f.size/1024/1024).toFixed(1)} MB)`);
+    }
+  });
+
+  // ── ZIP: Upload ────────────────────────────────────────────────────────────
+  uploadBtn.addEventListener('click', async () => {
+    const file = zipFile.files[0];
+    if (!file) return;
+
+    const name = document.getElementById('datasetName').value.trim();
+    const fd   = new FormData();
+    fd.append('file', file);
+    fd.append('name', name || file.name.replace('.zip',''));
+
+    uploadBtn.disabled = true;
+    showProgress(true);
+    log(`Uploading ${file.name}…`);
+
+    try {
+      const r = await fetch(`${API}/api/datasets/upload-zip`, { method: 'POST', body: fd });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || 'Upload failed');
+
+      // Show success state
+      showZipSuccess(file.name, d.dataset_id);
+      log(`Dataset created: ${d.dataset_id}`, 'ok');
+      log('Embedding job started in background…');
+      pollStatus(d.dataset_id);
+      loadDatasets();
+    } catch (e) {
+      log(`Error: ${e.message}`, 'err');
+      showProgress(false);
+      uploadBtn.disabled = false;
+    }
+  });
+
+  function showZipSuccess(filename, datasetId) {
+    dropZone.style.display = 'none';
+    document.getElementById('zipSuccess').classList.add('visible');
+    document.getElementById('zipSuccessMeta').innerHTML =
+      `<strong>${filename}</strong> uploaded — dataset ID: <strong>${datasetId}</strong><br>Embedding is running in the background.`;
+  }
+
+  function resetZipUpload() {
+    dropZone.style.display = '';
+    document.getElementById('zipSuccess').classList.remove('visible');
+    zipFile.value = '';
+    uploadBtn.disabled = true;
+    document.getElementById('datasetName').value = '';
+  }
+
+  // ── Drive: Link folder ─────────────────────────────────────────────────────
+  document.getElementById('driveBtn').addEventListener('click', async () => {
+    const url  = document.getElementById('driveFolderUrl').value.trim();
+    const name = document.getElementById('driveDatasetName').value.trim();
+    if (!url) { toast('Please paste a Google Drive folder URL.'); return; }
+
+    const btn = document.getElementById('driveBtn');
+    btn.disabled = true;
+    btn.textContent = '⏳ Linking…';
+    showProgress(true);
+    log(`Linking Drive folder…`);
+
+    const fd = new FormData();
+    fd.append('folder_url', url);
+    fd.append('name', name);
+
+    try {
+      const r = await fetch(`${API}/api/datasets/gdrive`, { method: 'POST', body: fd });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || 'Failed to link Drive folder');
+
+      showDriveSuccess(url, d.dataset_id);
+      log(`Drive dataset created: ${d.dataset_id}`, 'ok');
+      log('Downloading images & embedding in background…');
+      pollStatus(d.dataset_id);
+      loadDatasets();
+    } catch (e) {
+      log(`Error: ${e.message}`, 'err');
+      toast(`Error: ${e.message}`);
+      showProgress(false);
+      btn.disabled = false;
+      btn.textContent = '🔗 Link Drive Folder & Start Embedding';
+    }
+  });
+
+  function showDriveSuccess(url, datasetId) {
+    document.getElementById('driveZone').style.display = 'none';
+    document.getElementById('driveNameField').style.display = 'none';
+    document.getElementById('driveBtn').style.display = 'none';
+    document.getElementById('driveSuccess').classList.add('visible');
+
+    const short = url.length > 52 ? url.slice(0, 52) + '…' : url;
+    document.getElementById('driveSuccessMeta').innerHTML =
+      `<strong>${short}</strong><br>Dataset ID: <strong>${datasetId}</strong><br>Images are downloading &amp; embedding in the background.`;
+  }
+
+  function resetDriveUpload() {
+    document.getElementById('driveZone').style.display = '';
+    document.getElementById('driveNameField').style.display = '';
+    document.getElementById('driveBtn').style.display = '';
+    document.getElementById('driveBtn').disabled = false;
+    document.getElementById('driveBtn').textContent = '🔗 Link Drive Folder & Start Embedding';
+    document.getElementById('driveSuccess').classList.remove('visible');
+    document.getElementById('driveFolderUrl').value = '';
+    document.getElementById('driveDatasetName').value = '';
+  }
+
+  // ── LFW ───────────────────────────────────────────────────────────────────
+  document.getElementById('lfwBtn').addEventListener('click', async () => {
+    try {
+      const r = await fetch(`${API}/api/datasets/lfw`, { method: 'POST' });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail);
+      if (d.status === 'already_ready') {
+        toast('LFW is already indexed and ready!');
+      } else {
+        log('LFW indexing started…', 'ok');
+        showProgress(true);
+        pollStatus('lfw');
+      }
+      loadDatasets();
+    } catch (e) {
+      toast(`Error: ${e.message}`);
+    }
+  });
+
+  // ── Status polling ─────────────────────────────────────────────────────────
+  function pollStatus(id) {
+    if (pollingInterval) clearInterval(pollingInterval);
+    pollingInterval = setInterval(async () => {
+      try {
+        const r = await fetch(`${API}/api/datasets/${id}/status`);
+        const d = await r.json();
+
+        const statusLabel = d.status === 'downloading'
+          ? `DOWNLOADING — fetching images from Drive…`
+          : `${d.status.toUpperCase()} — ${d.processed}/${d.total} images (${d.total > 0 ? Math.round((d.processed/d.total)*100) : 0}%)`;
+
+        const pct = d.total > 0 ? Math.round((d.processed / d.total) * 100) : (d.status === 'downloading' ? 10 : 0);
+        document.getElementById('progressBar').style.width = pct + '%';
+        document.getElementById('progressText').textContent = statusLabel;
+        loadDatasets();
+
+        if (d.status === 'ready') {
+          clearInterval(pollingInterval);
+          log(`✓ Done! ${d.face_count} face embeddings indexed.`, 'ok');
+          showProgress(false);
+          toast(`Dataset ready — ${d.face_count} faces indexed!`);
+        }
+        if (d.status === 'error') {
+          clearInterval(pollingInterval);
+          log(`Embedding job failed. ${d.error || ''}`, 'err');
+          showProgress(false);
+        }
+      } catch {}
+    }, 2000);
+  }
+
+  // ── Dataset list ───────────────────────────────────────────────────────────
+  async function loadDatasets() {
+    try {
+      const r = await fetch(`${API}/api/datasets`);
+      const data = await r.json();
+      const entries = Object.values(data);
+      const list = document.getElementById('datasetList');
+
+      if (!entries.length) {
+        list.innerHTML = '<div class="empty">No datasets yet. Upload one to get started.</div>';
+        return;
+      }
+
+      list.innerHTML = entries.sort((a,b) => b.created_at - a.created_at).map(ds => {
+        const srcIcon = ds.source === 'gdrive' ? '🔗 ' : '';
+        return `
+          <div class="dataset-item ${ds.id === selectedDatasetId ? 'selected' : ''}"
+               onclick="selectDataset('${ds.id}', '${ds.status}')">
+            <div class="dataset-name">${srcIcon}${ds.name}</div>
+            <div class="dataset-meta">
+              <span class="badge badge-${ds.status}">${ds.status}</span>
+              <span>${ds.face_count > 0 ? ds.face_count + ' faces' : (ds.total ? ds.total + ' imgs' : '')}</span>
+            </div>
+          </div>`;
+      }).join('');
+    } catch {}
+  }
+
+  function selectDataset(id, status) {
+    selectedDatasetId = id;
+    document.getElementById('shareBtn').disabled = (status !== 'ready');
+    loadDatasets();
+  }
+
+  // ── Share ──────────────────────────────────────────────────────────────────
+  document.getElementById('shareBtn').addEventListener('click', async () => {
+    if (!selectedDatasetId) return;
+    const fd = new FormData();
+    fd.append('dataset_id', selectedDatasetId);
+    try {
+      const r = await fetch(`${API}/api/shares`, { method: 'POST', body: fd });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail);
+      const shareUrl = `${window.location.origin}/share.html?id=${d.share_id}`;
+      document.getElementById('shareUrl').textContent = shareUrl;
+      document.getElementById('shareBox').classList.add('visible');
+      toast('Share link generated!');
+    } catch(e) {
+      toast(`Error: ${e.message}`);
+    }
+  });
+
+  document.getElementById('copyBtn').addEventListener('click', () => {
+    const url = document.getElementById('shareUrl').textContent;
+    navigator.clipboard.writeText(url).then(() => toast('Copied to clipboard!'));
+  });
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  function log(msg, type='') {
+    const box = document.getElementById('logBox');
+    box.classList.add('visible');
+    const el = document.createElement('div');
+    el.className = `log-line ${type}`;
+    el.textContent = `> ${msg}`;
+    box.appendChild(el);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function showProgress(show) {
+    document.getElementById('progressWrap').classList.toggle('visible', show);
+  }
+
+  function toast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3000);
+  }
+
+  // ── Init ───────────────────────────────────────────────────────────────────
+  loadDatasets();
+  setInterval(loadDatasets, 5000);
+</script>
+</body>
+</html>
