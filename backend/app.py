@@ -84,6 +84,10 @@ def init_db():
                     created_at   DOUBLE PRECISION
                 );
             """)
+            # Migration: add user_id to datasets table if it doesn't exist yet
+            cur.execute("""
+                ALTER TABLE datasets ADD COLUMN IF NOT EXISTS user_id TEXT NOT NULL DEFAULT '';
+            """)
         conn.commit()
     log.info("DB tables ready")
 
