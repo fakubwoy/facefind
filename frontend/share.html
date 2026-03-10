@@ -406,6 +406,107 @@
 
     .error-banner.show { display: block; }
 
+    /* Face Picker */
+    .face-picker-section {
+      max-width: 560px;
+      margin: 0 auto 48px;
+    }
+
+    .face-picker-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 32px;
+    }
+
+    .face-picker-header {
+      margin-bottom: 24px;
+    }
+
+    .face-picker-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .face-picker-sub {
+      font-size: 12px;
+      color: var(--muted);
+      letter-spacing: 0.5px;
+    }
+
+    .face-picker-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+
+    .face-chip {
+      position: relative;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .face-chip img {
+      width: 100px;
+      height: 100px;
+      object-fit: cover;
+      display: block;
+      border: 3px solid var(--border);
+      transition: border-color 0.15s, transform 0.15s;
+    }
+
+    .face-chip:hover img {
+      border-color: rgba(192,132,252,0.5);
+      transform: scale(1.03);
+    }
+
+    .face-chip.selected img {
+      border-color: var(--accent);
+    }
+
+    .face-chip-check {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #070710;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .face-chip.selected .face-chip-check {
+      display: flex;
+    }
+
+    .face-chip-label {
+      text-align: center;
+      font-size: 10px;
+      color: var(--muted);
+      margin-top: 5px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .face-picker-hint {
+      font-size: 11px;
+      color: var(--muted);
+      text-align: center;
+      letter-spacing: 0.5px;
+    }
+
+    .face-picker-hint.has-selection {
+      color: var(--accent);
+    }
+
     /* Input mode tabs */
     .input-tabs {
       display: flex;
@@ -649,6 +750,24 @@
     <button class="search-btn" onclick="reset()" style="max-width:240px;margin:20px auto 0;">Try Again</button>
   </div>
 
+  <!-- Face Picker (multi-face) -->
+  <div class="face-picker-section" id="facePickerSection" style="display:none;">
+    <div class="face-picker-card">
+      <div class="face-picker-header">
+        <div class="face-picker-title">Multiple faces detected</div>
+        <div class="face-picker-sub">Select the face(s) you want to search for</div>
+      </div>
+      <div class="face-picker-grid" id="facePickerGrid"></div>
+      <div class="face-picker-actions">
+        <div class="face-picker-hint" id="facePickerHint">Select at least one face</div>
+        <button class="search-btn" id="facePickerSearchBtn" onclick="doFaceSearch()" style="margin-top:12px;" disabled>
+          🔍 &nbsp;Search Selected Faces
+        </button>
+        <button onclick="reset()" style="width:100%;margin-top:10px;background:none;border:1px solid var(--border);color:var(--muted);font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:10px;cursor:pointer;">↩ Start Over</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Results -->
   <div class="results-section" id="resultsSection">
     <div class="results-header">
@@ -820,13 +939,17 @@
   }
 
   // ── Search ─────────────────────────────────────────────────────────────────
+  let currentFile = null; // the File/Blob being searched
+  let selectedFaceIndices = new Set();
+
   searchBtn.addEventListener('click', async () => {
     const payload = capturedBlob || uploadedFile;
     if (!payload || !shareId) return;
+    currentFile = payload;
 
     hideError();
     showState('loading');
-    document.getElementById('loadingText').textContent = 'Detecting face & scanning collection...';
+    document.getElementById('loadingText').textContent = 'Detecting faces in your photo...';
 
     const fd = new FormData();
     fd.append('file', capturedBlob
@@ -835,24 +958,108 @@
     );
 
     try {
+      const r = await fetch(`${API}/api/shares/${shareId}/detect-faces`, { method: 'POST', body: fd });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || 'Detection failed');
+
+      if (!d.face_detected || d.faces.length === 0) {
+        showState('noface');
+        return;
+      }
+
+      if (d.faces.length === 1) {
+        // Only one face — search directly
+        await runSearch([0]);
+      } else {
+        // Multiple faces — show picker
+        buildFacePicker(d.faces);
+        showState('facepicker');
+      }
+    } catch(e) {
+      showState('upload');
+      showError(`Detection failed: ${e.message}`);
+    }
+  });
+
+  function buildFacePicker(faces) {
+    selectedFaceIndices = new Set();
+    const grid = document.getElementById('facePickerGrid');
+    grid.innerHTML = '';
+    faces.forEach(f => {
+      const chip = document.createElement('div');
+      chip.className = 'face-chip';
+      chip.dataset.index = f.index;
+      chip.innerHTML = `
+        <img src="${f.thumbnail}" alt="Face ${f.index + 1}" />
+        <div class="face-chip-check">✓</div>
+        <div class="face-chip-label">Face ${f.index + 1}</div>
+      `;
+      chip.addEventListener('click', () => toggleFace(chip, f.index));
+      grid.appendChild(chip);
+    });
+    updatePickerBtn();
+  }
+
+  function toggleFace(chip, index) {
+    if (selectedFaceIndices.has(index)) {
+      selectedFaceIndices.delete(index);
+      chip.classList.remove('selected');
+    } else {
+      selectedFaceIndices.add(index);
+      chip.classList.add('selected');
+    }
+    updatePickerBtn();
+  }
+
+  function updatePickerBtn() {
+    const btn = document.getElementById('facePickerSearchBtn');
+    const hint = document.getElementById('facePickerHint');
+    const count = selectedFaceIndices.size;
+    btn.disabled = count === 0;
+    if (count === 0) {
+      hint.textContent = 'Select at least one face';
+      hint.classList.remove('has-selection');
+    } else {
+      hint.textContent = `${count} face${count > 1 ? 's' : ''} selected`;
+      hint.classList.add('has-selection');
+    }
+  }
+
+  async function doFaceSearch() {
+    if (selectedFaceIndices.size === 0) return;
+    await runSearch([...selectedFaceIndices]);
+  }
+
+  async function runSearch(faceIndices) {
+    showState('loading');
+    document.getElementById('loadingText').textContent = 'Scanning collection...';
+
+    const payload = currentFile || capturedBlob || uploadedFile;
+    const fd = new FormData();
+    fd.append('file', payload instanceof Blob && !(payload instanceof File)
+      ? new File([payload], 'selfie.jpg', { type: 'image/jpeg' })
+      : payload
+    );
+    fd.append('face_indices', faceIndices.join(','));
+
+    try {
       const r = await fetch(`${API}/api/shares/${shareId}/search`, { method: 'POST', body: fd });
       const d = await r.json();
       if (!r.ok) throw new Error(d.detail || 'Search failed');
-
       if (!d.face_detected) { showState('noface'); return; }
       renderResults(d);
     } catch(e) {
       showState('upload');
       showError(`Search failed: ${e.message}`);
     }
-  });
+  }
 
   // ── Results ────────────────────────────────────────────────────────────────
   function renderResults(data) {
     const matches = data.matches || [];
     document.getElementById('latencyBadge').textContent = `${data.latency_ms}ms`;
     document.getElementById('resultsCount').textContent =
-      `${matches.length} photo${matches.length !== 1 ? 's' : ''} found · ${data.num_faces} face${data.num_faces !== 1 ? 's' : ''} detected in your selfie`;
+      `${matches.length} photo${matches.length !== 1 ? 's' : ''} found · searched ${selectedFaceIndices.size || 1} face${(selectedFaceIndices.size || 1) !== 1 ? 's' : ''}`;
 
     const grid = document.getElementById('photoGrid');
     grid.innerHTML = '';
@@ -901,6 +1108,7 @@
     document.getElementById('loadingState').classList.toggle('show', state === 'loading');
     document.getElementById('noFaceState').classList.toggle('show', state === 'noface');
     document.getElementById('resultsSection').classList.toggle('show', state === 'results');
+    document.getElementById('facePickerSection').style.display = (state === 'facepicker') ? '' : 'none';
     document.querySelector('.upload-card').style.display = (state === 'upload') ? '' : 'none';
   }
 
@@ -908,12 +1116,16 @@
     // Reset file upload
     selfieFile.value = '';
     uploadedFile = null;
+    currentFile = null;
     selfiePreview.classList.remove('show');
     dropText.style.display = '';
     // Reset camera
     capturedBlob = null;
     stopCamera();
     capturedPreview.classList.remove('show');
+    // Reset face picker
+    selectedFaceIndices = new Set();
+    document.getElementById('facePickerGrid').innerHTML = '';
     searchBtn.disabled = true;
     hideError();
     showState('upload');

@@ -6,7 +6,7 @@ FaceFind – Backend API (Railway Edition)
   (mount a Railway Volume at /data)
 """
 
-import os, io, re, uuid, time, json, pickle, zipfile, threading, hashlib, secrets
+import os, io, re, uuid, time, json, pickle, zipfile, threading, hashlib, secrets, base64
 import urllib.request, urllib.parse, logging
 from pathlib import Path
 from typing import Optional
@@ -814,8 +814,54 @@ def get_share(share_id: str):
 
 # ── Search endpoint ───────────────────────────────────────────────────────────
 
+@app.post("/api/shares/{share_id}/detect-faces")
+async def detect_faces_in_selfie(share_id: str, file: UploadFile = File(...)):
+    """Detect all faces in an uploaded image and return cropped thumbnails as base64."""
+    share = db_get_share(share_id)
+    if not share:
+        raise HTTPException(404, "Share link not found.")
+
+    contents = await file.read()
+    try:
+        img = decode_image(contents)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+    model = get_face_model()
+    faces = model.get(img)
+    if not faces:
+        return JSONResponse({"face_detected": False, "faces": []})
+
+    # Sort faces left-to-right for consistent ordering
+    faces_sorted = sorted(faces, key=lambda f: f.bbox[0])
+
+    face_crops = []
+    h, w = img.shape[:2]
+    for i, face in enumerate(faces_sorted):
+        x1, y1, x2, y2 = [int(v) for v in face.bbox]
+        # Add 20% padding around face
+        pad_x = int((x2 - x1) * 0.2)
+        pad_y = int((y2 - y1) * 0.2)
+        x1c = max(0, x1 - pad_x)
+        y1c = max(0, y1 - pad_y)
+        x2c = min(w, x2 + pad_x)
+        y2c = min(h, y2 + pad_y)
+        crop = img[y1c:y2c, x1c:x2c]
+        # Resize crop to 128x128 thumbnail
+        thumb = cv2.resize(crop, (128, 128))
+        _, buf = cv2.imencode('.jpg', thumb, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
+        b64 = base64.b64encode(buf.tobytes()).decode('utf-8')
+        face_crops.append({
+            "index": i,
+            "thumbnail": f"data:image/jpeg;base64,{b64}",
+            "embedding": faces_sorted[i].normed_embedding.astype("float32").tolist(),
+        })
+
+    return {"face_detected": True, "faces": face_crops}
+
+
 @app.post("/api/shares/{share_id}/search")
-async def search_by_selfie(share_id: str, file: UploadFile = File(...)):
+async def search_by_selfie(share_id: str, file: UploadFile = File(...), face_indices: str = Form(default=None)):
     share = db_get_share(share_id)
     if not share:
         raise HTTPException(404, "Share link not found.")
@@ -830,15 +876,42 @@ async def search_by_selfie(share_id: str, file: UploadFile = File(...)):
         raise HTTPException(400, str(e))
 
     t0 = time.time()
-    query_emb, faces = extract_embedding(img)
-    if query_emb is None:
+    model = get_face_model()
+    all_faces = model.get(img)
+    if not all_faces:
         return JSONResponse({"face_detected": False, "matches": [], "latency_ms": round((time.time()-t0)*1000,1)})
 
-    results = search_in_dataset(share["dataset_id"], query_emb, top_k=100)
+    # Sort faces left-to-right for consistent ordering
+    all_faces_sorted = sorted(all_faces, key=lambda f: f.bbox[0])
+
+    # Determine which faces to search
+    if face_indices:
+        try:
+            selected = [int(i) for i in face_indices.split(",") if i.strip().isdigit()]
+            faces_to_search = [all_faces_sorted[i] for i in selected if i < len(all_faces_sorted)]
+        except Exception:
+            faces_to_search = all_faces_sorted
+    else:
+        # Default: use the largest face (original behaviour)
+        faces_to_search = [max(all_faces_sorted, key=lambda f: (f.bbox[2]-f.bbox[0])*(f.bbox[3]-f.bbox[1]))]
+
+    # Search each selected face and merge results (deduplicate by image_path, keep best score)
+    merged: dict = {}
+    for face in faces_to_search:
+        emb = face.normed_embedding.astype("float32")
+        results = search_in_dataset(share["dataset_id"], emb, top_k=100)
+        for m in results:
+            key = m["image_path"]
+            if key not in merged or m["score"] > merged[key]["score"]:
+                merged[key] = m
+
+    # Sort merged results by score descending
+    sorted_results = sorted(merged.values(), key=lambda x: x["score"], reverse=True)
+
     return {
         "face_detected": True,
-        "num_faces":     len(faces),
-        "matches":       results,
+        "num_faces":     len(all_faces_sorted),
+        "matches":       sorted_results,
         "latency_ms":    round((time.time()-t0)*1000, 1),
         "dataset_id":    share["dataset_id"],
     }
