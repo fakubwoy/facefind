@@ -233,9 +233,17 @@ def get_face_model():
         with _model_lock:
             if _face_model is None:
                 from insightface.app import FaceAnalysis
-                model = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])
-                model.prepare(ctx_id=-1, det_size=(640, 640))
+                # buffalo_sc is the small/compressed variant (~120MB vs ~1.2GB for buffalo_l).
+                # It uses MobileFaceNet for recognition — ~5% less accurate but uses ~90% less RAM.
+                # Use INSIGHTFACE_MODEL=buffalo_l env var to override back to the large model.
+                model_name = os.environ.get("INSIGHTFACE_MODEL", "buffalo_sc")
+                # det_size=(320,320) halves the detection input area vs (640,640),
+                # cutting peak inference RAM by ~4x with minimal accuracy loss on normal photos.
+                det_w = int(os.environ.get("DET_SIZE", "320"))
+                model = FaceAnalysis(name=model_name, providers=["CPUExecutionProvider"])
+                model.prepare(ctx_id=-1, det_size=(det_w, det_w))
                 _face_model = model
+                log.info(f"Face model loaded: {model_name}, det_size={det_w}")
     return _face_model
 
 # ── Image helpers ─────────────────────────────────────────────────────────────
@@ -353,7 +361,49 @@ def run_embedding_job(dataset_id: str):
     db_update_dataset_fields(dataset_id, status="ready", face_count=len(embeddings))
     log.info(f"[{dataset_id}] Done — {len(embeddings)} face embeddings")
 
+    # Unload model after batch embedding to free RAM; it will lazy-reload on next search.
+    # This is safe because embedding is infrequent (one-off per dataset upload).
+    if os.environ.get("UNLOAD_MODEL_AFTER_EMBED", "true").lower() == "true":
+        global _face_model
+        with _model_lock:
+            _face_model = None
+        import gc
+        gc.collect()
+        log.info(f"[{dataset_id}] Face model unloaded to free RAM")
+
 # ── Search ────────────────────────────────────────────────────────────────────
+
+# In-process FAISS index cache: avoid re-reading from disk on every request.
+# Capped at MAX_LOADED_INDEXES to bound memory when many datasets exist.
+import collections
+MAX_LOADED_INDEXES = int(os.environ.get("MAX_LOADED_INDEXES", "2"))
+_index_cache: "collections.OrderedDict[str, tuple]" = collections.OrderedDict()
+_index_cache_lock = threading.Lock()
+
+def _get_index_and_meta(dataset_id: str):
+    with _index_cache_lock:
+        if dataset_id in _index_cache:
+            _index_cache.move_to_end(dataset_id)
+            return _index_cache[dataset_id]
+
+    emb_dir    = EMBEDDINGS_DIR / dataset_id
+    index_path = emb_dir / "face_index.faiss"
+    meta_path  = emb_dir / "metadata.pkl"
+    if not index_path.exists():
+        return None, None
+
+    import faiss
+    index = faiss.read_index(str(index_path))
+    with open(meta_path, "rb") as f:
+        metadata = pickle.load(f)
+
+    with _index_cache_lock:
+        _index_cache[dataset_id] = (index, metadata)
+        _index_cache.move_to_end(dataset_id)
+        while len(_index_cache) > MAX_LOADED_INDEXES:
+            _index_cache.popitem(last=False)
+
+    return index, metadata
 
 def search_in_dataset(dataset_id: str, query_emb: np.ndarray, top_k: int = 50):
     # Cache key = hex of first 16 bytes of embedding + dataset_id
@@ -362,17 +412,9 @@ def search_in_dataset(dataset_id: str, query_emb: np.ndarray, top_k: int = 50):
     if cached:
         return cached
 
-    emb_dir    = EMBEDDINGS_DIR / dataset_id
-    index_path = emb_dir / "face_index.faiss"
-    meta_path  = emb_dir / "metadata.pkl"
-
-    if not index_path.exists():
+    index, metadata = _get_index_and_meta(dataset_id)
+    if index is None:
         return []
-
-    import faiss
-    index = faiss.read_index(str(index_path))
-    with open(meta_path, "rb") as f:
-        metadata = pickle.load(f)
 
     q = query_emb.reshape(1, -1)
     scores, indices = index.search(q, min(top_k, index.ntotal))
