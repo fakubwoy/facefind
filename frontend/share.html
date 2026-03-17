@@ -1071,16 +1071,18 @@
         const item = document.createElement('div');
         item.className = 'photo-item';
         const scoreWidth = Math.round(m.score * 100);
-        const imgSrc = `${API}/api/image/${data.dataset_id}/${m.image_path}`;
+        const thumbSrc = `${API}/api/thumb/${data.dataset_id}/${m.image_path}`;
+        const fullSrc  = `${API}/api/image/${data.dataset_id}/${m.image_path}`;
         item.innerHTML = `
           <div class="score-bar" style="width:${scoreWidth}%"></div>
-          <img src="${imgSrc}" loading="lazy" alt="${m.label}"
+          <img src="${thumbSrc}" loading="lazy" alt="${m.label}"
                onerror="this.closest('.photo-item').style.display='none'" />
           <div class="photo-overlay">
             ${m.label.replace(/_/g,' ')} &nbsp;·&nbsp; ${Math.round(m.score*100)}% match
           </div>
         `;
-        item.addEventListener('click', () => openLightbox(imgSrc, m));
+        // Grid shows thumbnail; lightbox loads full-res on click
+        item.addEventListener('click', () => openLightbox(fullSrc, m));
         grid.appendChild(item);
       });
     }

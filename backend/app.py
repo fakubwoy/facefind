@@ -30,9 +30,10 @@ DATA_DIR       = Path(os.environ.get("DATA_DIR", "/data"))
 DATASETS_DIR   = DATA_DIR / "datasets"
 EMBEDDINGS_DIR = DATA_DIR / "embeddings"
 UPLOADS_DIR    = DATA_DIR / "uploads"
+THUMBS_DIR     = DATA_DIR / "thumbs"   # persistent thumbnail cache
 FRONTEND_DIR   = Path(__file__).parent.parent / "frontend"
 
-for d in [DATASETS_DIR, EMBEDDINGS_DIR, UPLOADS_DIR]:
+for d in [DATASETS_DIR, EMBEDDINGS_DIR, UPLOADS_DIR, THUMBS_DIR]:
     d.mkdir(parents=True, exist_ok=True)
 
 # ── Postgres ──────────────────────────────────────────────────────────────────
@@ -966,6 +967,41 @@ def serve_image(dataset_id: str, image_path: str):
     if not full_path.exists():
         raise HTTPException(404, "Image not found.")
     return FileResponse(str(full_path))
+
+# ── Thumbnail serving ─────────────────────────────────────────────────────────
+# Serves a resized JPEG for the results grid.
+# - First request: resize + save to /data/thumbs/{dataset_id}/{path}.jpg, then serve
+# - Subsequent requests: serve directly from disk cache (no resize work)
+# - HTTP Cache-Control: 7 days so browsers don't re-fetch at all on revisit
+# - Default size: 400px wide — crisp on retina, ~10–20KB per image vs 2–5MB original
+
+THUMB_WIDTH = int(os.environ.get("THUMB_WIDTH", "400"))
+
+@app.get("/api/thumb/{dataset_id}/{image_path:path}")
+def serve_thumb(dataset_id: str, image_path: str):
+    src_path   = DATASETS_DIR / dataset_id / image_path
+    if not src_path.exists():
+        raise HTTPException(404, "Image not found.")
+
+    # Thumb stored as .jpg regardless of original format
+    thumb_path = THUMBS_DIR / dataset_id / (image_path + ".thumb.jpg")
+    thumb_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if not thumb_path.exists():
+        img = cv2.imread(str(src_path))
+        if img is None:
+            raise HTTPException(422, "Cannot decode image.")
+        h, w = img.shape[:2]
+        if w > THUMB_WIDTH:
+            new_h = int(h * THUMB_WIDTH / w)
+            img   = cv2.resize(img, (THUMB_WIDTH, new_h), interpolation=cv2.INTER_AREA)
+        cv2.imwrite(str(thumb_path), img, [int(cv2.IMWRITE_JPEG_QUALITY), 82])
+
+    return FileResponse(
+        str(thumb_path),
+        media_type="image/jpeg",
+        headers={"Cache-Control": "public, max-age=604800, immutable"},  # 7 days
+    )
 
 # ── Health ────────────────────────────────────────────────────────────────────
 
