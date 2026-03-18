@@ -73,6 +73,11 @@ def init_db():
             cur.execute("""
                 ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE;
             """)
+            # Mark ALL existing users as verified so they aren't locked out
+            # (accounts created before OTP was introduced are considered trusted)
+            cur.execute("""
+                UPDATE users SET email_verified = TRUE WHERE email_verified = FALSE;
+            """)
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS sessions (
                     token       TEXT PRIMARY KEY,
@@ -566,28 +571,77 @@ def hash_password(password: str) -> str:
 
 # ── Email / OTP helpers ───────────────────────────────────────────────────────
 
-SMTP_HOST     = os.environ.get("SMTP_HOST", "smtp.gmail.com")
-SMTP_PORT     = int(os.environ.get("SMTP_PORT", "587"))
-SMTP_USER     = os.environ.get("SMTP_USER", "")
-SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
-EMAIL_FROM    = os.environ.get("EMAIL_FROM", SMTP_USER)
 OTP_EXPIRY    = int(os.environ.get("OTP_EXPIRY_SECONDS", "600"))  # 10 minutes
 
+# ── Email provider config ─────────────────────────────────────────────────────
+# Priority: Resend API (recommended for Railway) → SMTP SSL → SMTP STARTTLS
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")          # https://resend.com  (free tier: 100/day)
+EMAIL_FROM     = os.environ.get("EMAIL_FROM", "FaceFind <onboarding@resend.dev>")
+
+SMTP_HOST      = os.environ.get("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT      = int(os.environ.get("SMTP_PORT", "465"))        # 465=SSL, 587=STARTTLS
+SMTP_USER      = os.environ.get("SMTP_USER", "")
+SMTP_PASSWORD  = os.environ.get("SMTP_PASSWORD", "").replace(" ", "")  # strip spaces from app passwords
+
 def send_email(to: str, subject: str, html_body: str):
-    """Send an HTML email via SMTP. Raises if SMTP is not configured."""
-    if not SMTP_USER or not SMTP_PASSWORD:
-        raise RuntimeError("SMTP is not configured. Set SMTP_USER and SMTP_PASSWORD env vars.")
+    """
+    Send HTML email. Tries providers in order:
+      1. Resend HTTP API  (set RESEND_API_KEY)
+      2. SMTP SSL/465     (set SMTP_USER + SMTP_PASSWORD, SMTP_PORT=465)
+      3. SMTP STARTTLS    (set SMTP_USER + SMTP_PASSWORD, SMTP_PORT=587)
+    Railway blocks outbound port 25/587 from containers — use Resend or port 465.
+    """
+    if RESEND_API_KEY:
+        _send_via_resend(to, subject, html_body)
+    elif SMTP_USER and SMTP_PASSWORD:
+        _send_via_smtp(to, subject, html_body)
+    else:
+        raise RuntimeError(
+            "Email not configured. Set RESEND_API_KEY (recommended) "
+            "or SMTP_USER + SMTP_PASSWORD environment variables."
+        )
+
+def _send_via_resend(to: str, subject: str, html_body: str):
+    """Send via Resend.com HTTP API — works on Railway (no port restrictions)."""
+    payload = json.dumps({
+        "from":    EMAIL_FROM,
+        "to":      [to],
+        "subject": subject,
+        "html":    html_body,
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        "https://api.resend.com/emails",
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {RESEND_API_KEY}",
+            "Content-Type":  "application/json",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        body = resp.read()
+    log.info(f"[Resend] Email sent to {to}: {subject} — {body[:80]}")
+
+def _send_via_smtp(to: str, subject: str, html_body: str):
+    """Send via SMTP. Uses SSL on port 465, STARTTLS on any other port."""
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"]    = EMAIL_FROM
     msg["To"]      = to
     msg.attach(MIMEText(html_body, "html"))
-    with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as s:
-        s.ehlo()
-        s.starttls()
-        s.login(SMTP_USER, SMTP_PASSWORD)
-        s.sendmail(EMAIL_FROM, [to], msg.as_string())
-    log.info(f"Email sent to {to}: {subject}")
+    if SMTP_PORT == 465:
+        import ssl
+        ctx = ssl.create_default_context()
+        with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, context=ctx, timeout=15) as s:
+            s.login(SMTP_USER, SMTP_PASSWORD)
+            s.sendmail(EMAIL_FROM, [to], msg.as_string())
+    else:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as s:
+            s.ehlo()
+            s.starttls()
+            s.login(SMTP_USER, SMTP_PASSWORD)
+            s.sendmail(EMAIL_FROM, [to], msg.as_string())
+    log.info(f"[SMTP] Email sent to {to}: {subject}")
 
 def generate_otp(email: str, purpose: str) -> str:
     """Generate a 6-digit OTP, store in DB, return the code."""
