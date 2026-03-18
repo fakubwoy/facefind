@@ -3,7 +3,7 @@ FaceFind – Backend API (Railway Edition)
 - Postgres for metadata (datasets, shares)
 - Redis for caching dataset status + search results
 - Local filesystem volume for images + FAISS indexes
-  (mount a Railway Volume at /data)
+- Brevo (Sendinblue) for email OTP verification
 """
 
 import os, io, re, uuid, time, json, pickle, zipfile, threading, hashlib, secrets, base64
@@ -19,6 +19,7 @@ import cv2
 import psycopg2
 import psycopg2.extras
 import redis as redis_lib
+import requests  # <-- ADD THIS IMPORT
 from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks, Form, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -74,7 +75,6 @@ def init_db():
                 ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE;
             """)
             # Mark ALL existing users as verified so they aren't locked out
-            # (accounts created before OTP was introduced are considered trusted)
             cur.execute("""
                 UPDATE users SET email_verified = TRUE WHERE email_verified = FALSE;
             """)
@@ -257,12 +257,7 @@ def get_face_model():
         with _model_lock:
             if _face_model is None:
                 from insightface.app import FaceAnalysis
-                # buffalo_sc is the small/compressed variant (~120MB vs ~1.2GB for buffalo_l).
-                # It uses MobileFaceNet for recognition — ~5% less accurate but uses ~90% less RAM.
-                # Use INSIGHTFACE_MODEL=buffalo_l env var to override back to the large model.
                 model_name = os.environ.get("INSIGHTFACE_MODEL", "buffalo_sc")
-                # det_size=(320,320) halves the detection input area vs (640,640),
-                # cutting peak inference RAM by ~4x with minimal accuracy loss on normal photos.
                 det_w = int(os.environ.get("DET_SIZE", "320"))
                 model = FaceAnalysis(name=model_name, providers=["CPUExecutionProvider"])
                 model.prepare(ctx_id=-1, det_size=(det_w, det_w))
@@ -366,7 +361,6 @@ def run_embedding_job(dataset_id: str):
             log.warning(f"[{dataset_id}] {img_path.name}: {exc}")
 
         # Update progress more frequently for better UI feedback
-        # Every image for small datasets (<50), every 5 for larger
         update_freq = 1 if len(image_paths) < 50 else 5
         if (i + 1) % update_freq == 0 or i == len(image_paths) - 1:
             db_update_dataset_fields(dataset_id, processed=i+1)
@@ -385,8 +379,7 @@ def run_embedding_job(dataset_id: str):
     db_update_dataset_fields(dataset_id, status="ready", face_count=len(embeddings))
     log.info(f"[{dataset_id}] Done — {len(embeddings)} face embeddings")
 
-    # Unload model after batch embedding to free RAM; it will lazy-reload on next search.
-    # This is safe because embedding is infrequent (one-off per dataset upload).
+    # Unload model after batch embedding to free RAM
     if os.environ.get("UNLOAD_MODEL_AFTER_EMBED", "true").lower() == "true":
         global _face_model
         with _model_lock:
@@ -397,8 +390,6 @@ def run_embedding_job(dataset_id: str):
 
 # ── Search ────────────────────────────────────────────────────────────────────
 
-# In-process FAISS index cache: avoid re-reading from disk on every request.
-# Capped at MAX_LOADED_INDEXES to bound memory when many datasets exist.
 import collections
 MAX_LOADED_INDEXES = int(os.environ.get("MAX_LOADED_INDEXES", "2"))
 _index_cache: "collections.OrderedDict[str, tuple]" = collections.OrderedDict()
@@ -430,7 +421,6 @@ def _get_index_and_meta(dataset_id: str):
     return index, metadata
 
 def search_in_dataset(dataset_id: str, query_emb: np.ndarray, top_k: int = 50):
-    # Cache key = hex of first 16 bytes of embedding + dataset_id
     emb_key = f"search:{dataset_id}:{query_emb[:16].tobytes().hex()}"
     cached = cache_get(emb_key)
     if cached:
@@ -570,83 +560,69 @@ def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
 
 # ── Email / OTP helpers ───────────────────────────────────────────────────────
-
 OTP_EXPIRY    = int(os.environ.get("OTP_EXPIRY_SECONDS", "600"))  # 10 minutes
 
 # ── Email provider config ─────────────────────────────────────────────────────
-# Priority: Resend API (recommended for Railway) → SMTP SSL → SMTP STARTTLS
-RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")          # https://resend.com  (free tier: 100/day)
-EMAIL_FROM     = os.environ.get("EMAIL_FROM", "FaceFind <onboarding@resend.dev>")
+# Using Brevo (formerly Sendinblue) API - works on Railway Hobby tier
 
-SMTP_HOST      = os.environ.get("SMTP_HOST", "smtp.gmail.com")
-SMTP_PORT      = int(os.environ.get("SMTP_PORT", "465"))        # 465=SSL, 587=STARTTLS
-SMTP_USER      = os.environ.get("SMTP_USER", "")
-SMTP_PASSWORD  = os.environ.get("SMTP_PASSWORD", "").replace(" ", "")  # strip spaces from app passwords
+BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "")
+EMAIL_FROM_NAME = os.environ.get("EMAIL_FROM_NAME", "FaceFind")
+EMAIL_FROM_ADDRESS = os.environ.get("EMAIL_FROM_ADDRESS", "admin.facefind@gmail.com")
 
 def send_email(to: str, subject: str, html_body: str):
     """
-    Send HTML email. Tries providers in order:
-      1. Resend HTTP API  (set RESEND_API_KEY)
-      2. SMTP SSL/465     (set SMTP_USER + SMTP_PASSWORD, SMTP_PORT=465)
-      3. SMTP STARTTLS    (set SMTP_USER + SMTP_PASSWORD, SMTP_PORT=587)
-    Railway blocks outbound port 25/587 from containers — use Resend or port 465.
+    Send HTML email via Brevo API (works on Railway Hobby tier - no SMTP needed)
     """
-    if RESEND_API_KEY:
-        _send_via_resend(to, subject, html_body)
-    elif SMTP_USER and SMTP_PASSWORD:
-        _send_via_smtp(to, subject, html_body)
-    else:
+    if not BREVO_API_KEY:
         raise RuntimeError(
-            "Email not configured. Set RESEND_API_KEY (recommended) "
-            "or SMTP_USER + SMTP_PASSWORD environment variables."
+            "Email not configured. Set BREVO_API_KEY in Railway environment variables."
         )
+    
+    _send_via_brevo(to, subject, html_body)
 
-def _send_via_resend(to: str, subject: str, html_body: str):
-    """Send via Resend.com HTTP API — works on Railway (no port restrictions)."""
-    payload = json.dumps({
-        "from":    EMAIL_FROM,
-        "to":      [to],
-        "subject": subject,
-        "html":    html_body,
-    }).encode("utf-8")
-    req = urllib.request.Request(
-        "https://api.resend.com/emails",
-        data=payload,
-        headers={
-            "Authorization": f"Bearer {RESEND_API_KEY}",
-            "Content-Type":  "application/json",
+def _send_via_brevo(to: str, subject: str, html_body: str):
+    """Send via Brevo (Sendinblue) HTTP API — works on all Railway plans."""
+    
+    url = "https://api.brevo.com/v3/smtp/email"
+    
+    payload = {
+        "sender": {
+            "name": EMAIL_FROM_NAME,
+            "email": EMAIL_FROM_ADDRESS
         },
-        method="POST",
-    )
+        "to": [
+            {
+                "email": to,
+                "name": ""
+            }
+        ],
+        "subject": subject,
+        "htmlContent": html_body
+    }
+    
+    headers = {
+        "accept": "application/json",
+        "api-key": BREVO_API_KEY,
+        "content-type": "application/json"
+    }
+    
     try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            body = resp.read()
-        log.info(f"[Resend] Email sent to {to}: {subject} — {body[:80]}")
-    except urllib.error.HTTPError as e:
-        error_body = e.read().decode("utf-8", errors="replace")
-        log.error(f"[Resend] HTTP {e.code} error: {error_body}")
-        raise RuntimeError(f"Resend API error {e.code}: {error_body}")
-
-def _send_via_smtp(to: str, subject: str, html_body: str):
-    """Send via SMTP. Uses SSL on port 465, STARTTLS on any other port."""
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"]    = EMAIL_FROM
-    msg["To"]      = to
-    msg.attach(MIMEText(html_body, "html"))
-    if SMTP_PORT == 465:
-        import ssl
-        ctx = ssl.create_default_context()
-        with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, context=ctx, timeout=15) as s:
-            s.login(SMTP_USER, SMTP_PASSWORD)
-            s.sendmail(EMAIL_FROM, [to], msg.as_string())
-    else:
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as s:
-            s.ehlo()
-            s.starttls()
-            s.login(SMTP_USER, SMTP_PASSWORD)
-            s.sendmail(EMAIL_FROM, [to], msg.as_string())
-    log.info(f"[SMTP] Email sent to {to}: {subject}")
+        response = requests.post(url, json=payload, headers=headers, timeout=15)
+        
+        if response.status_code not in [200, 201, 202, 204]:
+            error_data = response.json() if response.text else {}
+            error_msg = error_data.get('message', 'Unknown error')
+            log.error(f"[Brevo] API error {response.status_code}: {error_msg}")
+            raise RuntimeError(f"Brevo API error: {error_msg}")
+        
+        log.info(f"[Brevo] Email sent to {to}: {subject}")
+        
+    except requests.exceptions.RequestException as e:
+        log.error(f"[Brevo] Request failed: {e}")
+        raise RuntimeError(f"Failed to send email: {str(e)}")
+    except Exception as e:
+        log.error(f"[Brevo] Unexpected error: {e}")
+        raise RuntimeError(f"Email sending failed: {str(e)}")
 
 def generate_otp(email: str, purpose: str) -> str:
     """Generate a 6-digit OTP, store in DB, return the code."""
@@ -1180,12 +1156,6 @@ def serve_image(dataset_id: str, image_path: str):
     return FileResponse(str(full_path))
 
 # ── Thumbnail serving ─────────────────────────────────────────────────────────
-# Serves a resized JPEG for the results grid.
-# - First request: resize + save to /data/thumbs/{dataset_id}/{path}.jpg, then serve
-# - Subsequent requests: serve directly from disk cache (no resize work)
-# - HTTP Cache-Control: 7 days so browsers don't re-fetch at all on revisit
-# - Default size: 400px wide — crisp on retina, ~10–20KB per image vs 2–5MB original
-
 THUMB_WIDTH = int(os.environ.get("THUMB_WIDTH", "400"))
 
 @app.get("/api/thumb/{dataset_id}/{image_path:path}")
@@ -1213,6 +1183,18 @@ def serve_thumb(dataset_id: str, image_path: str):
         media_type="image/jpeg",
         headers={"Cache-Control": "public, max-age=604800, immutable"},  # 7 days
     )
+
+# ── Debug endpoint to check email config ─────────────────────────────────────
+@app.get("/api/debug/email-config")
+def debug_email_config():
+    """Debug endpoint to check email configuration"""
+    return {
+        "brevo_key_present": bool(BREVO_API_KEY),
+        "brevo_key_preview": BREVO_API_KEY[:10] + "..." if BREVO_API_KEY else None,
+        "email_from_name": EMAIL_FROM_NAME,
+        "email_from_address": EMAIL_FROM_ADDRESS,
+        "status": "Configured" if BREVO_API_KEY else "Missing BREVO_API_KEY"
+    }
 
 # ── Health ────────────────────────────────────────────────────────────────────
 
