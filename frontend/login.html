@@ -380,6 +380,80 @@
 
     .feature-pill svg { color: var(--success); }
 
+    /* OTP input */
+    .otp-step { display: none; }
+    .otp-step.show { display: block; animation: fadeIn 0.25s ease; }
+
+    .otp-hint {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 20px;
+      line-height: 1.6;
+    }
+    .otp-hint strong { color: var(--text2); }
+
+    .otp-input-wrap {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+
+    .otp-digit {
+      width: 48px;
+      height: 58px;
+      text-align: center;
+      font-size: 22px;
+      font-weight: 700;
+      font-family: 'Plus Jakarta Sans', monospace;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      background: var(--bg);
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .otp-digit:focus {
+      border-color: var(--primary);
+      background: var(--surface);
+      box-shadow: 0 0 0 3px rgba(79,70,229,0.1);
+    }
+
+    .resend-row {
+      text-align: center;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+    .resend-btn {
+      background: none;
+      border: none;
+      color: var(--primary);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 0;
+    }
+    .resend-btn:disabled { color: var(--muted); cursor: default; }
+
+    .back-step {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      padding: 0;
+      margin-bottom: 20px;
+      transition: color 0.2s;
+    }
+    .back-step:hover { color: var(--text); }
+
     @keyframes fadeInDown {
       from { opacity: 0; transform: translateY(-16px); }
       to   { opacity: 1; transform: translateY(0); }
@@ -457,31 +531,61 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
           <span id="registerErrorText"></span>
         </div>
-        <div class="field">
-          <label>Your name</label>
-          <div class="input-wrap">
-            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M3 20c0-4.4 4-8 9-8s9 3.6 9 8"/></svg>
-            <input type="text" id="registerName" placeholder="Your full name" autocomplete="name" />
+
+        <!-- Step 1: Details -->
+        <div id="registerStep1">
+          <div class="field">
+            <label>Your name</label>
+            <div class="input-wrap">
+              <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M3 20c0-4.4 4-8 9-8s9 3.6 9 8"/></svg>
+              <input type="text" id="registerName" placeholder="Your full name" autocomplete="name" />
+            </div>
           </div>
-        </div>
-        <div class="field">
-          <label>Email address</label>
-          <div class="input-wrap">
-            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-            <input type="email" id="registerEmail" placeholder="you@example.com" autocomplete="email" />
+          <div class="field">
+            <label>Email address</label>
+            <div class="input-wrap">
+              <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+              <input type="email" id="registerEmail" placeholder="you@example.com" autocomplete="email" />
+            </div>
           </div>
-        </div>
-        <div class="field">
-          <label>Password</label>
-          <div class="input-wrap">
-            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            <input type="password" id="registerPassword" placeholder="Min. 6 characters" autocomplete="new-password" />
+          <div class="field">
+            <label>Password</label>
+            <div class="input-wrap">
+              <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <input type="password" id="registerPassword" placeholder="Min. 6 characters" autocomplete="new-password" />
+            </div>
           </div>
+          <button class="btn" id="registerBtn" onclick="doSendOtp()">
+            Send Verification Code
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </button>
         </div>
-        <button class="btn" id="registerBtn" onclick="doRegister()">
-          Create Account
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-        </button>
+
+        <!-- Step 2: OTP -->
+        <div id="registerStep2" class="otp-step">
+          <button class="back-step" onclick="showStep(1)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+            Change email
+          </button>
+          <p class="otp-hint">We sent a 6-digit code to <strong id="otpEmailHint"></strong>. Enter it below.</p>
+          <div class="otp-input-wrap" id="otpDigits">
+            <input class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" />
+            <input class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" />
+            <input class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" />
+            <input class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" />
+            <input class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" />
+            <input class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" />
+          </div>
+          <div class="resend-row">
+            Didn't receive it?
+            <button class="resend-btn" id="resendBtn" onclick="doResendOtp()">Resend code</button>
+            <span id="resendTimer"></span>
+          </div>
+          <button class="btn" id="verifyBtn" onclick="doRegister()">
+            Verify &amp; Create Account
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -511,6 +615,7 @@
       .then(r => { if (r.ok) window.location.replace('/admin.html'); })
       .catch(() => {});
 
+    /* ── Tab switching ───────────────────────────────────── */
     function switchTab(name) {
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
@@ -519,17 +624,13 @@
       document.getElementById('tabSlider').classList.toggle('right', name === 'register');
     }
 
-    function setLoading(btnId, loading) {
+    /* ── Generic helpers ─────────────────────────────────── */
+    function setLoading(btnId, loading, label) {
       const btn = document.getElementById(btnId);
       btn.disabled = loading;
-      if (loading) {
-        btn.innerHTML = '<span class="spinner"></span> Please wait…';
-      } else {
-        const isLogin = btnId === 'loginBtn';
-        btn.innerHTML = isLogin
-          ? 'Sign In <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>'
-          : 'Create Account <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>';
-      }
+      btn.innerHTML = loading
+        ? '<span class="spinner"></span> Please wait…'
+        : (label + ' <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>');
     }
 
     function showError(id, msg) {
@@ -537,22 +638,19 @@
       document.getElementById(id + 'Text').textContent = msg;
       err.classList.add('show');
     }
+    function hideError(id) { document.getElementById(id).classList.remove('show'); }
 
-    function hideError(id) {
-      document.getElementById(id).classList.remove('show');
-    }
-
+    /* ── Login ───────────────────────────────────────────── */
     async function doLogin() {
       hideError('loginError');
       const email    = document.getElementById('loginEmail').value.trim();
       const password = document.getElementById('loginPassword').value;
       if (!email || !password) { showError('loginError', 'Please enter your email and password.'); return; }
 
-      setLoading('loginBtn', true);
+      setLoading('loginBtn', true, 'Sign In');
       const fd = new FormData();
       fd.append('email', email);
       fd.append('password', password);
-
       try {
         const r = await fetch(`${API}/api/auth/login`, { method: 'POST', body: fd, credentials: 'include' });
         const d = await r.json();
@@ -560,24 +658,135 @@
         window.location.replace('/admin.html');
       } catch(e) {
         showError('loginError', e.message);
-        setLoading('loginBtn', false);
+        setLoading('loginBtn', false, 'Sign In');
       }
     }
 
-    async function doRegister() {
+    /* ── Register — Step 1: Send OTP ─────────────────────── */
+    let _resendTimer = null;
+
+    async function doSendOtp() {
       hideError('registerError');
       const name     = document.getElementById('registerName').value.trim();
       const email    = document.getElementById('registerEmail').value.trim();
       const password = document.getElementById('registerPassword').value;
       if (!name || !email || !password) { showError('registerError', 'Please fill in all fields.'); return; }
-      if (password.length < 6) { showError('registerError', 'Password must be at least 6 characters.'); return; }
+      if (password.length < 6)          { showError('registerError', 'Password must be at least 6 characters.'); return; }
 
-      setLoading('registerBtn', true);
+      setLoading('registerBtn', true, 'Send Verification Code');
+      const fd = new FormData();
+      fd.append('email', email);
+      fd.append('purpose', 'register');
+      try {
+        const r = await fetch(`${API}/api/auth/send-otp`, { method: 'POST', body: fd });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.detail || 'Failed to send code.');
+        showStep(2, email);
+      } catch(e) {
+        showError('registerError', e.message);
+      } finally {
+        setLoading('registerBtn', false, 'Send Verification Code');
+      }
+    }
+
+    async function doResendOtp() {
+      const email = document.getElementById('registerEmail').value.trim();
+      const fd = new FormData();
+      fd.append('email', email);
+      fd.append('purpose', 'register');
+      document.getElementById('resendBtn').disabled = true;
+      try {
+        const r = await fetch(`${API}/api/auth/send-otp`, { method: 'POST', body: fd });
+        if (!r.ok) { const d = await r.json(); throw new Error(d.detail); }
+        startResendCountdown(60);
+        clearOtpDigits();
+      } catch(e) {
+        showError('registerError', e.message || 'Failed to resend code.');
+        document.getElementById('resendBtn').disabled = false;
+      }
+    }
+
+    function showStep(n, email) {
+      document.getElementById('registerStep1').style.display = n === 1 ? '' : 'none';
+      const step2 = document.getElementById('registerStep2');
+      if (n === 2) {
+        step2.classList.add('show');
+        document.getElementById('otpEmailHint').textContent = email || document.getElementById('registerEmail').value.trim();
+        clearOtpDigits();
+        document.querySelector('.otp-digit').focus();
+        startResendCountdown(60);
+      } else {
+        step2.classList.remove('show');
+        clearTimeout(_resendTimer);
+      }
+      hideError('registerError');
+    }
+
+    /* ── OTP digit box helpers ───────────────────────────── */
+    function clearOtpDigits() {
+      document.querySelectorAll('.otp-digit').forEach(d => d.value = '');
+    }
+
+    function getOtpCode() {
+      return [...document.querySelectorAll('.otp-digit')].map(d => d.value).join('');
+    }
+
+    // Auto-advance digits on input
+    document.querySelectorAll('.otp-digit').forEach((el, i, arr) => {
+      el.addEventListener('input', () => {
+        el.value = el.value.replace(/[^0-9]/g, '').slice(-1);
+        if (el.value && i < arr.length - 1) arr[i + 1].focus();
+        if (getOtpCode().length === 6) doRegister();
+      });
+      el.addEventListener('keydown', e => {
+        if (e.key === 'Backspace' && !el.value && i > 0) arr[i - 1].focus();
+      });
+      el.addEventListener('paste', e => {
+        const text = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '').slice(0, 6);
+        if (text.length === 6) {
+          e.preventDefault();
+          arr.forEach((d, idx) => d.value = text[idx] || '');
+          doRegister();
+        }
+      });
+    });
+
+    /* ── Resend countdown ────────────────────────────────── */
+    function startResendCountdown(seconds) {
+      const btn   = document.getElementById('resendBtn');
+      const timer = document.getElementById('resendTimer');
+      btn.disabled = true;
+      clearInterval(_resendTimer);
+      let remaining = seconds;
+      timer.textContent = ` (${remaining}s)`;
+      _resendTimer = setInterval(() => {
+        remaining--;
+        if (remaining <= 0) {
+          clearInterval(_resendTimer);
+          btn.disabled = false;
+          timer.textContent = '';
+        } else {
+          timer.textContent = ` (${remaining}s)`;
+        }
+      }, 1000);
+    }
+
+    /* ── Register — Step 2: Verify OTP & create account ─── */
+    async function doRegister() {
+      hideError('registerError');
+      const name     = document.getElementById('registerName').value.trim();
+      const email    = document.getElementById('registerEmail').value.trim();
+      const password = document.getElementById('registerPassword').value;
+      const otpCode  = getOtpCode();
+
+      if (otpCode.length !== 6) { showError('registerError', 'Please enter the full 6-digit code.'); return; }
+
+      setLoading('verifyBtn', true, 'Verify &amp; Create Account');
       const fd = new FormData();
       fd.append('name', name);
       fd.append('email', email);
       fd.append('password', password);
-
+      fd.append('otp_code', otpCode);
       try {
         const r = await fetch(`${API}/api/auth/register`, { method: 'POST', body: fd, credentials: 'include' });
         const d = await r.json();
@@ -585,15 +794,19 @@
         window.location.replace('/admin.html');
       } catch(e) {
         showError('registerError', e.message);
-        setLoading('registerBtn', false);
+        clearOtpDigits();
+        document.querySelector('.otp-digit').focus();
+        setLoading('verifyBtn', false, 'Verify &amp; Create Account');
       }
     }
 
+    /* ── Enter key ───────────────────────────────────────── */
     document.addEventListener('keydown', e => {
       if (e.key !== 'Enter') return;
       const active = document.querySelector('.tab-panel.active').id;
-      if (active === 'panel-login') doLogin();
-      else doRegister();
+      if (active === 'panel-login') { doLogin(); return; }
+      const step2visible = document.getElementById('registerStep2').classList.contains('show');
+      if (step2visible) doRegister(); else doSendOtp();
     });
   </script>
 </body>

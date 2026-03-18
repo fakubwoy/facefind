@@ -7,6 +7,9 @@ FaceFind – Backend API (Railway Edition)
 """
 
 import os, io, re, uuid, time, json, pickle, zipfile, threading, hashlib, secrets, base64
+import smtplib, random
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 import urllib.request, urllib.parse, logging
 from pathlib import Path
 from typing import Optional
@@ -48,12 +51,27 @@ def init_db():
         with conn.cursor() as cur:
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS users (
-                    id          TEXT PRIMARY KEY,
-                    email       TEXT UNIQUE NOT NULL,
-                    name        TEXT NOT NULL,
-                    password_hash TEXT NOT NULL,
-                    created_at  DOUBLE PRECISION
+                    id              TEXT PRIMARY KEY,
+                    email           TEXT UNIQUE NOT NULL,
+                    name            TEXT NOT NULL,
+                    password_hash   TEXT NOT NULL,
+                    email_verified  BOOLEAN DEFAULT FALSE,
+                    created_at      DOUBLE PRECISION
                 );
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS otp_codes (
+                    id          TEXT PRIMARY KEY,
+                    email       TEXT NOT NULL,
+                    code        TEXT NOT NULL,
+                    purpose     TEXT NOT NULL,
+                    expires_at  DOUBLE PRECISION,
+                    used        BOOLEAN DEFAULT FALSE
+                );
+            """)
+            # Migration: add email_verified to existing users table
+            cur.execute("""
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE;
             """)
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS sessions (
@@ -546,15 +564,109 @@ def download_gdrive_folder(folder_id: str, dest_dir: Path, dataset_id: str):
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
 
-def db_create_user(email: str, name: str, password: str) -> dict:
+# ── Email / OTP helpers ───────────────────────────────────────────────────────
+
+SMTP_HOST     = os.environ.get("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT     = int(os.environ.get("SMTP_PORT", "587"))
+SMTP_USER     = os.environ.get("SMTP_USER", "")
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
+EMAIL_FROM    = os.environ.get("EMAIL_FROM", SMTP_USER)
+OTP_EXPIRY    = int(os.environ.get("OTP_EXPIRY_SECONDS", "600"))  # 10 minutes
+
+def send_email(to: str, subject: str, html_body: str):
+    """Send an HTML email via SMTP. Raises if SMTP is not configured."""
+    if not SMTP_USER or not SMTP_PASSWORD:
+        raise RuntimeError("SMTP is not configured. Set SMTP_USER and SMTP_PASSWORD env vars.")
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"]    = EMAIL_FROM
+    msg["To"]      = to
+    msg.attach(MIMEText(html_body, "html"))
+    with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as s:
+        s.ehlo()
+        s.starttls()
+        s.login(SMTP_USER, SMTP_PASSWORD)
+        s.sendmail(EMAIL_FROM, [to], msg.as_string())
+    log.info(f"Email sent to {to}: {subject}")
+
+def generate_otp(email: str, purpose: str) -> str:
+    """Generate a 6-digit OTP, store in DB, return the code."""
+    # Invalidate any previous unused OTPs for this email+purpose
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE otp_codes SET used=TRUE WHERE email=%s AND purpose=%s AND used=FALSE",
+                (email.lower(), purpose)
+            )
+        conn.commit()
+    code      = str(random.randint(100000, 999999))
+    otp_id    = str(uuid.uuid4())
+    expires_at = time.time() + OTP_EXPIRY
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO otp_codes (id, email, code, purpose, expires_at, used) VALUES (%s,%s,%s,%s,%s,FALSE)",
+                (otp_id, email.lower(), code, purpose, expires_at)
+            )
+        conn.commit()
+    return code
+
+def verify_otp(email: str, code: str, purpose: str) -> bool:
+    """Check OTP; marks it used and returns True if valid, False otherwise."""
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, expires_at FROM otp_codes WHERE email=%s AND code=%s AND purpose=%s AND used=FALSE",
+                (email.lower(), code.strip(), purpose)
+            )
+            row = cur.fetchone()
+        if not row:
+            return False
+        if time.time() > row["expires_at"]:
+            return False
+        with conn.cursor() as cur:
+            cur.execute("UPDATE otp_codes SET used=TRUE WHERE id=%s", (row["id"],))
+        conn.commit()
+    return True
+
+def send_otp_email(email: str, code: str, purpose: str):
+    """Send a nicely formatted OTP email."""
+    if purpose == "register":
+        subject = "Verify your FaceFind account"
+        action  = "confirm your email address"
+    else:
+        subject = "Your FaceFind sign-in code"
+        action  = "sign in to your account"
+    html = f"""
+    <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:480px;margin:0 auto;background:#f9f7f4;padding:32px 24px">
+      <div style="text-align:center;margin-bottom:24px">
+        <span style="font-size:28px;font-weight:800;color:#4f46e5;letter-spacing:-1px">FaceFind</span>
+      </div>
+      <div style="background:#fff;border-radius:16px;padding:36px;box-shadow:0 4px 16px rgba(0,0,0,0.07)">
+        <h2 style="margin:0 0 8px;font-size:20px;color:#1c1917">Your verification code</h2>
+        <p style="margin:0 0 28px;font-size:14px;color:#78716c">
+          Use the code below to {action}. It expires in 10 minutes.
+        </p>
+        <div style="text-align:center;background:#eef2ff;border-radius:12px;padding:24px 0;letter-spacing:10px;font-size:36px;font-weight:800;color:#4f46e5;margin-bottom:28px">
+          {code}
+        </div>
+        <p style="margin:0;font-size:12px;color:#a8a29e;text-align:center">
+          If you didn't request this, you can safely ignore this email.
+        </p>
+      </div>
+    </div>
+    """
+    send_email(email, subject, html)
+
+def db_create_user(email: str, name: str, password: str, email_verified: bool = False) -> dict:
     user_id = str(uuid.uuid4())
     pw_hash = hash_password(password)
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO users (id, email, name, password_hash, created_at)
-                VALUES (%s, %s, %s, %s, %s)
-            """, (user_id, email.lower(), name, pw_hash, time.time()))
+                INSERT INTO users (id, email, name, password_hash, email_verified, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (user_id, email.lower(), name, pw_hash, email_verified, time.time()))
         conn.commit()
     return {"id": user_id, "email": email.lower(), "name": name}
 
@@ -628,13 +740,51 @@ def on_startup():
 
 # ── Auth endpoints ────────────────────────────────────────────────────────────
 
+@app.post("/api/auth/send-otp")
+def send_otp(email: str = Form(...), purpose: str = Form(default="register")):
+    """
+    Send a 6-digit OTP to the given email.
+    purpose = 'register' (new account) | 'login' (existing account passwordless, optional).
+    For registration, also validates that email isn't already taken.
+    """
+    email = email.lower().strip()
+    if purpose == "register":
+        existing = db_get_user_by_email(email)
+        if existing and existing.get("email_verified"):
+            raise HTTPException(409, "An account with this email already exists.")
+    try:
+        code = generate_otp(email, purpose)
+        send_otp_email(email, code, purpose)
+    except RuntimeError as e:
+        raise HTTPException(503, str(e))
+    except Exception as e:
+        log.error(f"OTP email failed: {e}")
+        raise HTTPException(502, "Failed to send verification email. Please try again.")
+    return {"ok": True, "message": "Verification code sent."}
+
 @app.post("/api/auth/register")
-def register(response: Response, email: str = Form(...), name: str = Form(...), password: str = Form(...)):
+def register(
+    response:  Response,
+    email:     str = Form(...),
+    name:      str = Form(...),
+    password:  str = Form(...),
+    otp_code:  str = Form(...),
+):
+    email = email.lower().strip()
     if len(password) < 6:
         raise HTTPException(400, "Password must be at least 6 characters.")
-    if db_get_user_by_email(email):
+    existing = db_get_user_by_email(email)
+    if existing and existing.get("email_verified"):
         raise HTTPException(409, "An account with this email already exists.")
-    user = db_create_user(email, name, password)
+    if not verify_otp(email, otp_code, "register"):
+        raise HTTPException(400, "Invalid or expired verification code.")
+    # If an unverified stub existed, delete it so we can re-insert cleanly
+    if existing and not existing.get("email_verified"):
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM users WHERE email=%s", (email,))
+            conn.commit()
+    user  = db_create_user(email, name, password, email_verified=True)
     token = db_create_session(user["id"])
     response.set_cookie("ff_token", token, httponly=True, samesite="lax", max_age=60*60*24*30)
     return {"user": {"id": user["id"], "email": user["email"], "name": user["name"]}}
@@ -644,6 +794,8 @@ def login(response: Response, email: str = Form(...), password: str = Form(...))
     user = db_get_user_by_email(email)
     if not user or user["password_hash"] != hash_password(password):
         raise HTTPException(401, "Invalid email or password.")
+    if not user.get("email_verified"):
+        raise HTTPException(403, "Please verify your email before signing in.")
     token = db_create_session(user["id"])
     response.set_cookie("ff_token", token, httponly=True, samesite="lax", max_age=60*60*24*30)
     return {"user": {"id": user["id"], "email": user["email"], "name": user["name"]}}
