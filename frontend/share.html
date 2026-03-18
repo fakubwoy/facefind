@@ -3,7 +3,22 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FaceFind — Find Your Photos</title>
+  <title>FaceFind — Find Your Photos in This Collection</title>
+  <meta name="description" content="Upload a selfie to instantly find every photo you appear in. AI-powered face recognition search — no account needed." />
+
+  <!-- Open Graph — controls WhatsApp, iMessage, Telegram previews when guests share the link -->
+  <meta property="og:type"        content="website" />
+  <meta property="og:title"       content="Find Yourself in the Photos — FaceFind" />
+  <meta property="og:description" content="Upload a selfie and instantly find every photo you appear in from this event. Powered by FaceFind face recognition." />
+  <meta property="og:image"       content="https://facefind-production.up.railway.app/og-image.jpg" />
+  <meta property="og:site_name"   content="FaceFind" />
+
+  <!-- Twitter / X Card -->
+  <meta name="twitter:card"        content="summary_large_image" />
+  <meta name="twitter:title"       content="Find Yourself in the Photos — FaceFind" />
+  <meta name="twitter:description" content="Upload a selfie and find every photo you appear in. Powered by FaceFind." />
+  <meta name="twitter:image"       content="https://facefind-production.up.railway.app/og-image.jpg" />
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
   <style>
@@ -784,6 +799,17 @@
     <div class="photo-grid" id="photoGrid"></div>
   </div>
 </div>
+
+<!-- Powered-by footer — every shared page links back, building SEO authority -->
+<footer style="text-align:center;padding:40px 0 32px;border-top:1px solid var(--border);margin-top:48px;">
+  <a href="https://facefind-production.up.railway.app" style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);text-decoration:none;display:inline-flex;align-items:center;gap:8px;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--muted)'">
+    <span style="display:inline-block;width:6px;height:6px;background:var(--accent);border-radius:50%;"></span>
+    Powered by FaceFind — face search for events
+  </a>
+  <div style="margin-top:8px;font-size:10px;color:var(--muted);opacity:0.5;letter-spacing:1px;">
+    Let anyone find their photos at facefind-production.up.railway.app
+  </div>
+</footer>
 
 <!-- Lightbox -->
 <div class="lightbox" id="lightbox" onclick="closeLightbox()">

@@ -4,6 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FaceFind — Sign In</title>
+  <meta name="description" content="Sign in to FaceFind to upload photo collections and generate face search links for your events, weddings, and gatherings." />
+  <meta name="robots" content="noindex, follow" />
+  <link rel="canonical" href="https://facefind-production.up.railway.app/login.html" />
+  <meta property="og:title"       content="FaceFind — Sign In" />
+  <meta property="og:description" content="Sign in to manage your face search photo collections." />
+  <meta property="og:url"         content="https://facefind-production.up.railway.app/login.html" />
+  <meta property="og:type"        content="website" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
   <style>
@@ -62,6 +69,8 @@
       font-size: 28px;
       color: var(--accent);
       letter-spacing: -0.5px;
+      text-decoration: none;
+      display: block;
     }
 
     .logo-sub {
@@ -72,6 +81,19 @@
       text-transform: uppercase;
       margin-top: 4px;
     }
+
+    .back-link {
+      display: block;
+      text-align: center;
+      font-size: 10px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--muted);
+      text-decoration: none;
+      margin-top: 8px;
+      transition: color 0.15s;
+    }
+    .back-link:hover { color: var(--accent); }
 
     .card {
       background: var(--surface);
@@ -187,8 +209,9 @@
 <body>
 <div class="wrap">
   <div class="logo">
-    <div class="logo-mark">FaceFind</div>
+    <a href="/" class="logo-mark">FaceFind</a>
     <span class="logo-sub">Admin Console</span>
+    <a href="/" class="back-link">← back to home</a>
   </div>
 
   <div class="card">
@@ -237,7 +260,7 @@
 
   // If already logged in, go straight to admin
   fetch(`${API}/api/auth/me`, { credentials: 'include' })
-    .then(r => { if (r.ok) window.location.replace('/index.html'); })
+    .then(r => { if (r.ok) window.location.replace('/admin.html'); })
     .catch(() => {});
 
   function switchTab(name) {
@@ -280,7 +303,7 @@
       const r = await fetch(`${API}/api/auth/login`, { method: 'POST', body: fd, credentials: 'include' });
       const d = await r.json();
       if (!r.ok) throw new Error(d.detail || 'Login failed.');
-      window.location.replace('/index.html');
+      window.location.replace('/admin.html');
     } catch(e) {
       showError('loginError', e.message);
       setLoading('loginBtn', false);
@@ -305,7 +328,7 @@
       const r = await fetch(`${API}/api/auth/register`, { method: 'POST', body: fd, credentials: 'include' });
       const d = await r.json();
       if (!r.ok) throw new Error(d.detail || 'Registration failed.');
-      window.location.replace('/index.html');
+      window.location.replace('/admin.html');
     } catch(e) {
       showError('registerError', e.message);
       setLoading('registerBtn', false);
