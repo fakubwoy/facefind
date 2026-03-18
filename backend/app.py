@@ -618,9 +618,14 @@ def _send_via_resend(to: str, subject: str, html_body: str):
         },
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=15) as resp:
-        body = resp.read()
-    log.info(f"[Resend] Email sent to {to}: {subject} — {body[:80]}")
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            body = resp.read()
+        log.info(f"[Resend] Email sent to {to}: {subject} — {body[:80]}")
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode("utf-8", errors="replace")
+        log.error(f"[Resend] HTTP {e.code} error: {error_body}")
+        raise RuntimeError(f"Resend API error {e.code}: {error_body}")
 
 def _send_via_smtp(to: str, subject: str, html_body: str):
     """Send via SMTP. Uses SSL on port 465, STARTTLS on any other port."""
