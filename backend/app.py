@@ -3,13 +3,14 @@ FaceFind – Backend API (Railway Edition)
 - Postgres for metadata (datasets, shares)
 - Redis for caching dataset status + search results
 - Local filesystem volume for images + FAISS indexes
-- Brevo (Sendinblue) for email OTP verification
+- Gmail API for email OTP verification (works on Railway)
 """
 
 import os, io, re, uuid, time, json, pickle, zipfile, threading, hashlib, secrets, base64
 import smtplib, random
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.message import EmailMessage
 import urllib.request, urllib.parse, logging
 from pathlib import Path
 from typing import Optional
@@ -19,11 +20,16 @@ import cv2
 import psycopg2
 import psycopg2.extras
 import redis as redis_lib
-import requests  # <-- ADD THIS IMPORT
+import requests
 from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks, Form, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
+
+# Gmail API imports
+from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request as GoogleRequest
+from googleapiclient.discovery import build
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -562,67 +568,64 @@ def hash_password(password: str) -> str:
 # ── Email / OTP helpers ───────────────────────────────────────────────────────
 OTP_EXPIRY    = int(os.environ.get("OTP_EXPIRY_SECONDS", "600"))  # 10 minutes
 
-# ── Email provider config ─────────────────────────────────────────────────────
-# Using Brevo (formerly Sendinblue) API - works on Railway Hobby tier
-
-BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "")
-EMAIL_FROM_NAME = os.environ.get("EMAIL_FROM_NAME", "FaceFind")
-EMAIL_FROM_ADDRESS = os.environ.get("EMAIL_FROM_ADDRESS", "admin.facefind@gmail.com")
+# ── Gmail API Email Sending ───────────────────────────────────────────────────
 
 def send_email(to: str, subject: str, html_body: str):
     """
-    Send HTML email via Brevo API (works on Railway Hobby tier - no SMTP needed)
+    Send HTML email via Gmail API (works on Railway - uses HTTPS port 443)
     """
-    if not BREVO_API_KEY:
+    # Get credentials from environment variables
+    client_id = os.environ.get("GMAIL_CLIENT_ID")
+    client_secret = os.environ.get("GMAIL_CLIENT_SECRET")
+    refresh_token = os.environ.get("GMAIL_REFRESH_TOKEN")
+    
+    if not all([client_id, client_secret, refresh_token]):
+        log.error("Gmail API credentials not configured")
         raise RuntimeError(
-            "Email not configured. Set BREVO_API_KEY in Railway environment variables."
+            "Email not configured. Set GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, and GMAIL_REFRESH_TOKEN in Railway environment variables."
         )
     
-    _send_via_brevo(to, subject, html_body)
-
-def _send_via_brevo(to: str, subject: str, html_body: str):
-    """Send via Brevo (Sendinblue) HTTP API — works on all Railway plans."""
+    # Create credentials object with refresh token
+    credentials = Credentials(
+        token=None,  # Will be refreshed automatically
+        refresh_token=refresh_token,
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=client_id,
+        client_secret=client_secret,
+        scopes=["https://www.googleapis.com/auth/gmail.send"]
+    )
     
-    url = "https://api.brevo.com/v3/smtp/email"
-    
-    payload = {
-        "sender": {
-            "name": EMAIL_FROM_NAME,
-            "email": EMAIL_FROM_ADDRESS
-        },
-        "to": [
-            {
-                "email": to,
-                "name": ""
-            }
-        ],
-        "subject": subject,
-        "htmlContent": html_body
-    }
-    
-    headers = {
-        "accept": "application/json",
-        "api-key": BREVO_API_KEY,
-        "content-type": "application/json"
-    }
-    
+    # Refresh token automatically if needed
     try:
-        response = requests.post(url, json=payload, headers=headers, timeout=15)
-        
-        if response.status_code not in [200, 201, 202, 204]:
-            error_data = response.json() if response.text else {}
-            error_msg = error_data.get('message', 'Unknown error')
-            log.error(f"[Brevo] API error {response.status_code}: {error_msg}")
-            raise RuntimeError(f"Brevo API error: {error_msg}")
-        
-        log.info(f"[Brevo] Email sent to {to}: {subject}")
-        
-    except requests.exceptions.RequestException as e:
-        log.error(f"[Brevo] Request failed: {e}")
-        raise RuntimeError(f"Failed to send email: {str(e)}")
+        if credentials.expired:
+            credentials.refresh(GoogleRequest())
     except Exception as e:
-        log.error(f"[Brevo] Unexpected error: {e}")
-        raise RuntimeError(f"Email sending failed: {str(e)}")
+        log.error(f"Failed to refresh token: {e}")
+        raise RuntimeError(f"Gmail API authentication failed: {str(e)}")
+    
+    # Create the email message
+    message = EmailMessage()
+    message.set_content("Please enable HTML to view this message")
+    message.add_alternative(html_body, subtype="html")
+    message["To"] = to
+    message["From"] = "admin.facefind@gmail.com"
+    message["Subject"] = subject
+    
+    # Encode the message (Gmail API requires base64url format)
+    encoded_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
+    
+    # Send via Gmail API
+    try:
+        service = build("gmail", "v1", credentials=credentials)
+        send_message = service.users().messages().send(
+            userId="me", 
+            body={"raw": encoded_message}
+        ).execute()
+        log.info(f"Email sent to {to}: {subject}")
+        return send_message
+    except Exception as e:
+        log.error(f"Gmail API error: {e}")
+        raise RuntimeError(f"Failed to send email: {str(e)}")
 
 def generate_otp(email: str, purpose: str) -> str:
     """Generate a 6-digit OTP, store in DB, return the code."""
@@ -672,6 +675,7 @@ def send_otp_email(email: str, code: str, purpose: str):
     else:
         subject = "Your FaceFind sign-in code"
         action  = "sign in to your account"
+    
     html = f"""
     <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:480px;margin:0 auto;background:#f9f7f4;padding:32px 24px">
       <div style="text-align:center;margin-bottom:24px">
@@ -691,6 +695,7 @@ def send_otp_email(email: str, code: str, purpose: str):
       </div>
     </div>
     """
+    
     send_email(email, subject, html)
 
 def db_create_user(email: str, name: str, password: str, email_verified: bool = False) -> dict:
@@ -1185,15 +1190,20 @@ def serve_thumb(dataset_id: str, image_path: str):
     )
 
 # ── Debug endpoint to check email config ─────────────────────────────────────
-@app.get("/api/debug/email-config")
-def debug_email_config():
+@app.get("/api/debug/email")
+def debug_email():
     """Debug endpoint to check email configuration"""
+    client_id = os.environ.get("GMAIL_CLIENT_ID", "")
+    client_secret = os.environ.get("GMAIL_CLIENT_SECRET", "")
+    refresh_token = os.environ.get("GMAIL_REFRESH_TOKEN", "")
+    
     return {
-        "brevo_key_present": bool(BREVO_API_KEY),
-        "brevo_key_preview": BREVO_API_KEY[:10] + "..." if BREVO_API_KEY else None,
-        "email_from_name": EMAIL_FROM_NAME,
-        "email_from_address": EMAIL_FROM_ADDRESS,
-        "status": "Configured" if BREVO_API_KEY else "Missing BREVO_API_KEY"
+        "client_id_present": bool(client_id),
+        "client_id_preview": client_id[:10] + "..." if client_id else None,
+        "client_secret_present": bool(client_secret),
+        "refresh_token_present": bool(refresh_token),
+        "refresh_token_preview": refresh_token[:10] + "..." if refresh_token else None,
+        "status": "Configured" if all([client_id, client_secret, refresh_token]) else "Missing credentials"
     }
 
 # ── Health ────────────────────────────────────────────────────────────────────
@@ -1206,6 +1216,7 @@ def health():
         "timestamp": time.time(),
         "redis":     "connected" if r else "disabled",
         "db":        "postgres",
+        "email":     "configured" if all([os.environ.get("GMAIL_CLIENT_ID"), os.environ.get("GMAIL_CLIENT_SECRET"), os.environ.get("GMAIL_REFRESH_TOKEN")]) else "not configured"
     }
 
 # ── Frontend static files ─────────────────────────────────────────────────────
