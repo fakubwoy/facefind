@@ -608,7 +608,7 @@ def send_email(to: str, subject: str, html_body: str):
     message.set_content("Please enable HTML to view this message")
     message.add_alternative(html_body, subtype="html")
     message["To"] = to
-    message["From"] = "admin.facefind@gmail.com"
+    message["From"] = "FaceFind <admin.facefind@gmail.com>"
     message["Subject"] = subject
     
     # Encode the message (Gmail API requires base64url format)
