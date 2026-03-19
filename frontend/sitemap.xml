@@ -8,9 +8,19 @@
   </url>
 
   <url>
+    <loc>https://facefind-production.up.railway.app/pricing.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <url>
     <loc>https://facefind-production.up.railway.app/login.html</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
+
+  <!-- download.html is intentionally excluded: noindex + requires auth -->
+  <!-- admin.html  is intentionally excluded: noindex + requires auth -->
+  <!-- share.html  is intentionally excluded: noindex + dynamic per-share URL -->
 
 </urlset>

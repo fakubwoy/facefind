@@ -116,6 +116,23 @@
     }
     .logout-btn:hover { border-color: var(--error); color: var(--error); background: rgba(220,38,38,0.05); }
 
+    .header-nav-link {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+      text-decoration: none;
+      padding: 7px 14px;
+      border-radius: var(--radius-sm);
+      border: 1.5px solid var(--border);
+      background: none;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .header-nav-link:hover { border-color: var(--border2); color: var(--text2); background: var(--surface2); }
+    .header-nav-link.hidden { display: none; }
+
     /* ── Layout ── */
     .layout {
       max-width: 1140px;
@@ -862,6 +879,10 @@
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M3 20c0-4.4 4-8 9-8s9 3.6 9 8"/></svg>
         —
       </div>
+      <a href="/download.html" class="header-nav-link hidden" id="selfHostedNavLink">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Self-Hosted
+      </a>
       <button class="logout-btn" onclick="doLogout()">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
         Sign Out
@@ -1157,12 +1178,18 @@
   let pollingInterval = null;
 
   // ── Auth guard ─────────────────────────────────────────────────────────────
+  const SELF_HOSTED_PLANS = ['personal_lite','personal_pro','personal_max','photo_starter','photo_pro'];
+
   async function checkAuth() {
     try {
       const r = await fetch(`${API}/api/auth/me`, { credentials: 'include' });
       if (!r.ok) { window.location.replace('/login.html'); return; }
       const user = await r.json();
       document.getElementById('userTag').innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M3 20c0-4.4 4-8 9-8s9 3.6 9 8"/></svg>${user.name || user.email}`;
+      // Show the Self-Hosted nav link only for plans that include self-hosted access
+      if (SELF_HOSTED_PLANS.includes(user.plan)) {
+        document.getElementById('selfHostedNavLink').classList.remove('hidden');
+      }
     } catch {
       window.location.replace('/login.html');
     }
@@ -1854,8 +1881,13 @@
     // Style upgrade button
     if (cfg.isProPhoto) {
       upBtn.className = 'plan-upgrade-btn gold';
+      upBtn.href = '/download.html';
       upBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg> Manage plan`;
     } else if (currentPlan !== 'free') {
+      upBtn.href = '/download.html';
+      upBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg> Self-Hosted & Upgrade';
+    } else {
+      upBtn.href = '/pricing.html';
       upBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg> Upgrade plan';
     }
 

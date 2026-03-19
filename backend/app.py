@@ -1438,19 +1438,22 @@ def download_info(request: Request):
 
     key_data = dict(key_row) if key_row else None
 
-    return {
-        "plan": plan,
-        "self_hosted_eligible": limits is not None,
-        "limits": limits,
-        "license_key": {
-            "key":             key_data["key"],
-            "expires_at":      key_data["expires_at"],
-            "activations":     key_data["activations"],
-            "max_activations": key_data["max_activations"],
-            "plan":            key_data["plan"],
-        } if key_data else None,
-        "user": {"name": user["name"], "email": user["email"]},
-    }
+    return JSONResponse(
+        content={
+            "plan": plan,
+            "self_hosted_eligible": limits is not None,
+            "limits": limits,
+            "license_key": {
+                "key":             key_data["key"],
+                "expires_at":      key_data["expires_at"],
+                "activations":     key_data["activations"],
+                "max_activations": key_data["max_activations"],
+                "plan":            key_data["plan"],
+            } if key_data else None,
+            "user": {"name": user["name"], "email": user["email"]},
+        },
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @app.post("/api/download/generate-key")
@@ -1684,6 +1687,9 @@ def health():
     }
 
 # ── Frontend static files ─────────────────────────────────────────────────────
+# Serves all .html files in FRONTEND_DIR, including:
+#   index.html, login.html, admin.html, share.html, pricing.html, download.html
+# download.html performs its own auth check via /api/download/info on load.
 
 if FRONTEND_DIR.exists():
     app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")

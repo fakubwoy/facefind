@@ -1,6 +1,7 @@
 User-agent: *
 Allow: /
 Disallow: /admin.html
+Disallow: /download.html
 Disallow: /api/
 
 # Allow AI crawlers explicitly (some require this)

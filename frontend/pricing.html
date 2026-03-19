@@ -251,6 +251,15 @@
       transition: all 0.2s;
     }
     #adminHeader .ah-signout:hover { border-color: #dc2626; color: #dc2626; background: rgba(220,38,38,0.05); }
+    #adminHeader .ah-nav-link {
+      font-size: 13px; font-weight: 600; color: #78716c;
+      text-decoration: none; padding: 7px 14px;
+      border-radius: 8px; border: 1.5px solid #e8e3db;
+      background: none; transition: all 0.2s;
+      display: flex; align-items: center; gap: 6px;
+    }
+    #adminHeader .ah-nav-link:hover { border-color: #d4cfc7; color: #44403c; background: #f2efe9; }
+    #adminHeader .ah-nav-link.hidden { display: none; }
   </style>
 </head>
 <body>
@@ -268,6 +277,10 @@
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M3 20c0-4.4 4-8 9-8s9 3.6 9 8"/></svg>
       —
     </div>
+    <a href="/download.html" class="ah-nav-link hidden" id="ahSelfHostedLink">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Self-Hosted
+    </a>
     <button class="ah-signout" onclick="ahSignOut()">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
       Sign Out
@@ -675,20 +688,25 @@
   //   - Nav CTA → "Go to dashboard" (with avatar initial)
   //   - Free strip CTA → "Go to dashboard"
   //   - All plan card CTAs → "Upgrade to X" (keeps existing label text, changes href)
+  //   - For self-hosted eligible plans → plan card CTAs point to /download.html
   //   - Footer sign-in link → "Dashboard"
   (function () {
     const API = '';
 
+    // Plans that include self-hosted access — these get routed to download.html
+    const SELF_HOSTED_PLANS = ['personal_lite','personal_pro','personal_max','photo_starter','photo_pro'];
+
     // Plan card IDs and their label text (used when logged in)
     const PLAN_CTAS = [
-      { id: 'p1-cta',  label: 'Upgrade to Lite' },
-      { id: 'p2-cta',  label: 'Upgrade to Pro' },
-      { id: 'p3-cta',  label: 'Upgrade to Max' },
-      { id: 'ph1-cta', label: 'Upgrade to Studio Starter' },
-      { id: 'ph2-cta', label: 'Upgrade to Studio Pro' },
+      { id: 'p1-cta',  label: 'Upgrade to Lite',           plan: 'personal_lite'  },
+      { id: 'p2-cta',  label: 'Upgrade to Pro',            plan: 'personal_pro'   },
+      { id: 'p3-cta',  label: 'Upgrade to Max',            plan: 'personal_max'   },
+      { id: 'ph1-cta', label: 'Upgrade to Studio Starter', plan: 'photo_starter'  },
+      { id: 'ph2-cta', label: 'Upgrade to Studio Pro',     plan: 'photo_pro'      },
     ];
 
     const ARROW_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>';
+    const DL_SVG    = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
 
     fetch(`${API}/api/auth/me`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
@@ -698,6 +716,8 @@
 
         const name  = user.name || user.email || '';
         const initial = name.trim()[0]?.toUpperCase() || '?';
+        const userPlan = user.plan || 'free';
+        const isEligible = SELF_HOSTED_PLANS.includes(userPlan);
 
         // ── Swap nav: hide pricing nav, show admin-style header ──────────────
         const pricingNav = document.getElementById('mainNav');
@@ -705,6 +725,10 @@
 
         const adminHeader = document.getElementById('adminHeader');
         if (adminHeader) adminHeader.style.display = 'flex';
+
+        // Show Self-Hosted link in admin header if eligible
+        const ahSelfHosted = document.getElementById('ahSelfHostedLink');
+        if (ahSelfHosted && isEligible) ahSelfHosted.classList.remove('hidden');
 
         // Populate user name in the admin header
         const ahUserTag = document.getElementById('ahUserTag');
@@ -721,10 +745,17 @@
           freeStripCta.innerHTML = 'Go to dashboard ' + ARROW_SVG;
         }
 
-        // ── Plan card CTAs: "Upgrade to X" → admin.html ──────────────────────
-        PLAN_CTAS.forEach(({ id, label }) => {
+        // ── Plan card CTAs ────────────────────────────────────────────────────
+        // If the user already has self-hosted access, link to /download.html.
+        // Otherwise route to /admin.html (where they manage their subscription).
+        PLAN_CTAS.forEach(({ id, label, plan }) => {
           const el = document.getElementById(id);
-          if (el) {
+          if (!el) return;
+          if (isEligible) {
+            // Already on a paid self-hosted plan → go download
+            el.href = '/download.html';
+            el.innerHTML = (plan === userPlan ? 'Download &amp; Manage ' + DL_SVG : label + ' ' + ARROW_SVG);
+          } else {
             el.href = '/admin.html';
             el.innerHTML = label + ' ' + ARROW_SVG;
           }
