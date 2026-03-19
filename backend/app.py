@@ -878,7 +878,7 @@ def db_get_session_user(token: str) -> Optional[dict]:
             row = cur.fetchone()
     if row:
         user = dict(row)
-        cache_set(f"session:{token}", user, ttl=300)
+        cache_set(f"session:{token}", user, ttl=30)
         return user
     return None
 
@@ -1045,7 +1045,7 @@ def register(
     user  = db_create_user(email, name, password, email_verified=True)
     token = db_create_session(user["id"])
     response.set_cookie("ff_token", token, httponly=True, samesite="lax", max_age=60*60*24*30)
-    return {"user": {"id": user["id"], "email": user["email"], "name": user["name"]}}
+    return {"user": {"id": user["id"], "email": user["email"], "name": user["name"], "plan": "free"}}
 
 @app.post("/api/auth/login")
 def login(response: Response, email: str = Form(...), password: str = Form(...)):
@@ -1056,7 +1056,7 @@ def login(response: Response, email: str = Form(...), password: str = Form(...))
         raise HTTPException(403, "Please verify your email before signing in.")
     token = db_create_session(user["id"])
     response.set_cookie("ff_token", token, httponly=True, samesite="lax", max_age=60*60*24*30)
-    return {"user": {"id": user["id"], "email": user["email"], "name": user["name"]}}
+    return {"user": {"id": user["id"], "email": user["email"], "name": user["name"], "plan": user.get("plan") or "free"}}
 
 @app.post("/api/auth/logout")
 def logout(request: Request, response: Response):
@@ -1069,7 +1069,7 @@ def logout(request: Request, response: Response):
 @app.get("/api/auth/me")
 def me(request: Request):
     user = require_auth(request)
-    return {"id": user["id"], "email": user["email"], "name": user["name"]}
+    return {"id": user["id"], "email": user["email"], "name": user["name"], "plan": user.get("plan") or "free"}
 
 # ── Dataset endpoints ─────────────────────────────────────────────────────────
 
@@ -1438,22 +1438,19 @@ def download_info(request: Request):
 
     key_data = dict(key_row) if key_row else None
 
-    return JSONResponse(
-        content={
-            "plan": plan,
-            "self_hosted_eligible": limits is not None,
-            "limits": limits,
-            "license_key": {
-                "key":             key_data["key"],
-                "expires_at":      key_data["expires_at"],
-                "activations":     key_data["activations"],
-                "max_activations": key_data["max_activations"],
-                "plan":            key_data["plan"],
-            } if key_data else None,
-            "user": {"name": user["name"], "email": user["email"]},
-        },
-        headers={"Cache-Control": "no-store"},
-    )
+    return {
+        "plan": plan,
+        "self_hosted_eligible": limits is not None,
+        "limits": limits,
+        "license_key": {
+            "key":             key_data["key"],
+            "expires_at":      key_data["expires_at"],
+            "activations":     key_data["activations"],
+            "max_activations": key_data["max_activations"],
+            "plan":            key_data["plan"],
+        } if key_data else None,
+        "user": {"name": user["name"], "email": user["email"]},
+    }
 
 
 @app.post("/api/download/generate-key")
@@ -1646,9 +1643,21 @@ def admin_set_plan(request: Request, target_email: str = Form(...), plan: str = 
             cur.execute("UPDATE users SET plan=%s WHERE email=%s", (plan, target_email.lower()))
             if cur.rowcount == 0:
                 raise HTTPException(404, "User not found.")
+            # Fetch all active session tokens for this user so we can bust their cache
+            cur.execute("""
+                SELECT s.token FROM sessions s
+                JOIN users u ON s.user_id = u.id
+                WHERE u.email = %s
+            """, (target_email.lower(),))
+            tokens = [r["token"] for r in cur.fetchall()]
         conn.commit()
 
-    log.info(f"Plan updated: {target_email} → {plan}")
+    # Invalidate every cached session for this user so the new plan is
+    # picked up immediately on their next request (no need to log out/in).
+    for tok in tokens:
+        cache_delete(f"session:{tok}")
+
+    log.info(f"Plan updated: {target_email} → {plan} (invalidated {len(tokens)} session cache(s))")
     return {"ok": True, "email": target_email, "plan": plan}
 
 # ── Debug endpoint to check email config ──────────────────────────────────────
@@ -1687,9 +1696,6 @@ def health():
     }
 
 # ── Frontend static files ─────────────────────────────────────────────────────
-# Serves all .html files in FRONTEND_DIR, including:
-#   index.html, login.html, admin.html, share.html, pricing.html, download.html
-# download.html performs its own auth check via /api/download/info on load.
 
 if FRONTEND_DIR.exists():
     app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
