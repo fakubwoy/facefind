@@ -784,6 +784,11 @@
       from { opacity: 0; }
       to   { opacity: 1; }
     }
+    @keyframes spinRing {
+      0%   { stroke-dashoffset: 165; }
+      50%  { stroke-dashoffset: 55;  }
+      100% { stroke-dashoffset: 165; }
+    }
 
     /* ── Plan banner ── */
     .plan-banner {
@@ -1312,7 +1317,26 @@
   }
 
   // ── Progress ring helper ───────────────────────────────────────────────────
+  // Indeterminate state — pulsing ring for queued/model-loading phase
+  function updateIndeterminate(which, phase, detail) {
+    const panel = document.getElementById(which + 'ProgressPanel');
+    if (!panel.classList.contains('visible')) panel.classList.add('visible');
+    document.getElementById(which + 'Phase').textContent  = phase;
+    document.getElementById(which + 'Detail').textContent = detail;
+    const ring = document.getElementById(which + 'Ring');
+    ring.style.strokeDasharray  = '55 165';
+    ring.style.animation        = 'spinRing 1.4s ease-in-out infinite';
+    document.getElementById(which + 'Pct').textContent     = '…';
+    document.getElementById(which + 'ProgressFill').style.width = '15%';
+    document.getElementById(which + 'Etp').textContent    = '';
+  }
+
   function updateInlineProgress(which, phase, detail, pct, etp) {
+    // Reset any indeterminate animation back to normal determinate state
+    const ring = document.getElementById(which + 'Ring');
+    ring.style.animation        = '';
+    ring.style.strokeDasharray  = '220';
+    ring.style.strokeDashoffset = '';
     const panel = document.getElementById(which + 'ProgressPanel');
     if (!panel.classList.contains('visible')) panel.classList.add('visible');
 
@@ -1353,14 +1377,25 @@
         const r = await fetch(`${API}/api/datasets/${id}/status`, { credentials: 'include' });
         const d = await r.json();
 
-        const pct    = d.total > 0 ? Math.round((d.processed / d.total) * 100) : 0;
+        // While queued or while model is loading (processing but total not set yet),
+        // show an indeterminate pulse rather than a stuck 0% bar.
+        const modelLoading = (d.status === 'queued') ||
+                             (d.status === 'processing' && d.total === 0);
+
+        const pct    = modelLoading ? -1  // sentinel → indeterminate
+                     : d.total > 0 ? Math.round((d.processed / d.total) * 100)
+                     : 0;
         const phase  = d.status === 'downloading' ? 'Downloading'
-                     : d.status === 'processing'  ? 'Indexing faces'
-                     : d.status === 'ready'        ? 'Complete'
-                     : d.status === 'error'        ? 'Error'
+                     : d.status === 'queued'       ? 'Loading AI model'
+                     : d.status === 'processing' && d.total === 0 ? 'Loading AI model'
+                     : d.status === 'processing'   ? 'Indexing faces'
+                     : d.status === 'ready'         ? 'Complete'
+                     : d.status === 'error'         ? 'Error'
                      : 'Queued';
         const detail = d.status === 'downloading'
-          ? `Downloading from Google Drive…`
+          ? 'Downloading from Google Drive…'
+          : modelLoading
+          ? 'Warming up face recognition model — this takes ~30s on first run…'
           : d.status === 'processing' && d.total > 0
           ? `${d.processed} / ${d.total} images processed`
           : d.status === 'ready'
@@ -1368,14 +1403,18 @@
           : d.error || '—';
 
         let etpStr = '';
-        if (d.eta_seconds > 0) {
+        if (!modelLoading && d.eta_seconds > 0) {
           const m = Math.floor(d.eta_seconds / 60);
           const s = d.eta_seconds % 60;
           etpStr = m > 0 ? `${m}m ${s}s` : `${s}s`;
         }
 
-        updateInlineProgress(which, phase, detail, pct, etpStr);
-        loadDatasets();
+        if (pct === -1) {
+          // Indeterminate — pulse the ring without a hard percentage
+          updateIndeterminate(which, phase, detail);
+        } else {
+          updateInlineProgress(which, phase, detail, pct, etpStr);
+        }
 
         if (d.status === 'ready') {
           clearInterval(pollingInterval);
@@ -1400,7 +1439,7 @@
     };
 
     checkStatus();
-    pollingInterval = setInterval(checkStatus, 1000);
+    pollingInterval = setInterval(checkStatus, 2000);
   }
 
   // ── Dataset list ───────────────────────────────────────────────────────────
@@ -1709,7 +1748,9 @@
   checkAuth();
   loadDatasets();
   loadPlanBanner();
-  setInterval(loadDatasets, 5000);
+  // Background refresh — skips while active polling is running to avoid
+  // doubling requests. Slowed to 10s; polling handles live updates at 2s.
+  setInterval(() => { if (!pollingInterval) loadDatasets(); }, 10000);
 </script>
 </body>
 </html>
