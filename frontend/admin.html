@@ -1372,6 +1372,11 @@
   function startPolling(which, id) {
     if (pollingInterval) clearInterval(pollingInterval);
 
+    // Track last seen values so we only refresh the collections list
+    // when something actually changes — not on every tick.
+    let lastStatus    = null;
+    let lastProcessed = -1;
+
     const checkStatus = async () => {
       try {
         const r = await fetch(`${API}/api/datasets/${id}/status`, { credentials: 'include' });
@@ -1410,14 +1415,24 @@
         }
 
         if (pct === -1) {
-          // Indeterminate — pulse the ring without a hard percentage
           updateIndeterminate(which, phase, detail);
         } else {
           updateInlineProgress(which, phase, detail, pct, etpStr);
         }
 
+        // Refresh the collections list only when status or progress changes
+        // — keeps the right panel live without a request every single tick.
+        const statusChanged    = d.status    !== lastStatus;
+        const progressChanged  = d.processed !== lastProcessed;
+        if (statusChanged || progressChanged) {
+          loadDatasets();
+          lastStatus    = d.status;
+          lastProcessed = d.processed;
+        }
+
         if (d.status === 'ready') {
           clearInterval(pollingInterval);
+          pollingInterval = null;
           updateInlineProgress(which, 'Complete', `${d.face_count} face embeddings indexed`, 100, '');
           setTimeout(() => {
             if (which === 'zip') showZipSuccess(zipFile.files[0]?.name || '', id);
@@ -1429,6 +1444,7 @@
 
         if (d.status === 'error') {
           clearInterval(pollingInterval);
+          pollingInterval = null;
           updateInlineProgress(which, 'Error', d.error || 'Job failed', pct, '');
           document.getElementById(which + 'Ring').style.stroke = 'var(--error)';
           document.getElementById(which + 'Pct').style.color   = 'var(--error)';
