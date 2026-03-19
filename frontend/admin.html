@@ -1095,36 +1095,65 @@
       <button onclick="closeAddImagesDialog()" class="modal-close">&times;</button>
 
       <h3>Add More Photos</h3>
-      <p id="addImagesDatasetName"></p>
+      <p id="addImagesDatasetName" style="font-size:13px;color:var(--muted);margin-bottom:20px;"></p>
 
-      <div class="drop-zone" id="addImagesDropZone" style="margin-bottom:16px;">
-        <input type="file" id="addImagesFile" accept=".zip" />
-        <div class="drop-icon">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      <!-- Drop zone (hidden during upload) -->
+      <div id="addImagesUploadForm">
+        <div class="drop-zone" id="addImagesDropZone" style="margin-bottom:16px;">
+          <input type="file" id="addImagesFile" accept=".zip" />
+          <div class="drop-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          </div>
+          <div class="drop-label">
+            <strong>Drop your ZIP file here</strong><br>or click to browse
+          </div>
+          <div class="drop-hint">New images will be added to the existing collection</div>
         </div>
-        <div class="drop-label">
-          <strong>Drop your ZIP file here</strong><br>or click to browse
+
+        <div id="addImagesSelectedInfo">
+          <div class="file-info-label">Selected File</div>
+          <div id="addImagesFileName"></div>
+          <div id="addImagesFileSize"></div>
         </div>
-        <div class="drop-hint">New images will be added to the existing collection</div>
+
+        <div class="field-checkbox" style="margin-bottom:18px;margin-top:14px;">
+          <input type="checkbox" id="addImagesCompress" />
+          <div>
+            <div class="field-checkbox-label">Compress images to save storage</div>
+            <div class="field-checkbox-hint">Compresses to 85% JPEG quality, max 1920px. Saves ~60–80% storage.</div>
+          </div>
+        </div>
+
+        <button class="btn btn-primary" id="addImagesBtn" disabled style="margin-top:0;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Add Photos &amp; Re-index
+        </button>
       </div>
 
-      <div id="addImagesSelectedInfo">
-        <div style="font-size:11px;font-weight:700;color:var(--primary);text-transform:uppercase;margin-bottom:4px;">Selected File</div>
-        <div id="addImagesFileName"></div>
-        <div id="addImagesFileSize"></div>
-      </div>
-
-      <div class="field-checkbox" style="margin-bottom:18px;margin-top:4px;">
-        <input type="checkbox" id="addImagesCompress" />
-        <div>
-          <div class="field-checkbox-label">Compress images</div>
+      <!-- Progress panel (shown during upload + re-indexing) -->
+      <div class="progress-panel" id="addProgressPanel">
+        <div class="progress-panel-fill" id="addProgressFill"></div>
+        <div class="ring-wrap">
+          <svg viewBox="0 0 80 80">
+            <circle class="ring-track" cx="40" cy="40" r="35"/>
+            <circle class="ring-progress" id="addRing" cx="40" cy="40" r="35"/>
+          </svg>
+          <div class="ring-pct" id="addPct">0%</div>
         </div>
+        <div class="progress-panel-phase" id="addPhase">Uploading</div>
+        <div class="progress-panel-detail" id="addDetail">—</div>
+        <div class="progress-panel-eta" id="addEtp"></div>
       </div>
 
-      <button class="btn btn-primary" id="addImagesBtn" disabled style="margin-top:0;">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-        Add Photos &amp; Re-index
-      </button>
+      <!-- Success state -->
+      <div class="upload-success" id="addSuccess">
+        <div class="success-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div class="success-title">Photos added successfully</div>
+        <div class="success-meta" id="addSuccessMeta">Re-indexing complete.</div>
+        <button class="btn-reset" onclick="closeAddImagesDialog()">Done</button>
+      </div>
     </div>
   </div>
 
@@ -1149,7 +1178,7 @@
 
   async function doLogout() {
     await fetch(`${API}/api/auth/logout`, { method: 'POST', credentials: 'include' });
-    window.location.replace('/login.html');
+    window.location.replace('/');
   }
 
   // ── Tab switching ──────────────────────────────────────────────────────────
@@ -1568,16 +1597,13 @@
   function showAddImagesDialog(datasetId, datasetName) {
     currentAddImagesDatasetId = datasetId;
     document.getElementById('addImagesDatasetName').textContent = `Adding to: ${datasetName}`;
+    resetAddImagesForm();
     document.getElementById('addImagesModal').classList.add('show');
-    document.getElementById('addImagesFile').value = '';
-    document.getElementById('addImagesSelectedInfo').style.display = 'none';
-    document.getElementById('addImagesCompress').checked = false;
-    document.getElementById('addImagesBtn').disabled = true;
   }
 
   function closeAddImagesDialog() {
     document.getElementById('addImagesModal').classList.remove('show');
-    document.getElementById('addImagesSelectedInfo').style.display = 'none';
+    resetAddImagesForm();
     currentAddImagesDatasetId = null;
   }
 
@@ -1621,36 +1647,35 @@
     fd.append('file', file);
     fd.append('compress', compress ? 'true' : 'false');
 
-    addImagesBtn.disabled = true;
-    addImagesBtn.innerHTML = '<span style="display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite"></span> Uploading…';
+    // Switch modal to progress view
+    document.getElementById('addImagesUploadForm').style.display = 'none';
+    document.getElementById('addSuccess').classList.remove('visible');
+    updateInlineProgress('add', 'Uploading', 'Sending file to server…', 0, '');
 
     const xhr = new XMLHttpRequest();
     xhr.withCredentials = true;
 
-    // Show byte-level upload progress on the button label
     xhr.upload.addEventListener('progress', e => {
       if (!e.lengthComputable) return;
       const pct    = Math.round((e.loaded / e.total) * 100);
       const loaded = (e.loaded / 1024 / 1024).toFixed(1);
       const total  = (e.total  / 1024 / 1024).toFixed(1);
-      addImagesBtn.innerHTML = `<span style="display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite"></span> ${pct}% — ${loaded} / ${total} MB`;
+      updateInlineProgress('add', 'Uploading', `${loaded} MB / ${total} MB`, pct, '');
     });
 
     xhr.upload.addEventListener('load', () => {
-      addImagesBtn.innerHTML = '<span style="display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite"></span> Re-indexing…';
+      updateIndeterminate('add', 'Loading AI model', 'Warming up face recognition model…');
     });
 
     xhr.addEventListener('load', () => {
       let d;
       try { d = JSON.parse(xhr.responseText); } catch { d = {}; }
       if (xhr.status < 200 || xhr.status >= 300) {
+        // Show error, restore form so user can try again
         toast(`Error: ${d.detail || 'Failed to add images'}`);
-        addImagesBtn.disabled = false;
-        addImagesBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Add Photos & Re-index';
+        resetAddImagesForm();
         return;
       }
-      toast('Photos added! Re-indexing collection…');
-      closeAddImagesDialog();
       selectedDatasetId = targetId;
       loadDatasets();
       startReembeddingPolling(targetId);
@@ -1658,13 +1683,28 @@
 
     xhr.addEventListener('error', () => {
       toast('Upload failed — network error');
-      addImagesBtn.disabled = false;
-      addImagesBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Add Photos & Re-index';
+      resetAddImagesForm();
     });
 
     xhr.open('POST', `${API}/api/datasets/${targetId}/add-images`);
     xhr.send(fd);
   });
+
+  function resetAddImagesForm() {
+    document.getElementById('addImagesUploadForm').style.display = '';
+    document.getElementById('addProgressPanel').classList.remove('visible');
+    document.getElementById('addSuccess').classList.remove('visible');
+    document.getElementById('addImagesFile').value = '';
+    document.getElementById('addImagesSelectedInfo').style.display = 'none';
+    document.getElementById('addImagesBtn').disabled = true;
+    document.getElementById('addImagesBtn').innerHTML =
+      '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Add Photos &amp; Re-index';
+    // Reset ring colour in case it was red
+    document.getElementById('addRing').style.stroke  = '';
+    document.getElementById('addPct').style.color    = '';
+    document.getElementById('addRing').style.strokeDasharray = '';
+    document.getElementById('addRing').style.animation = '';
+  }
 
   let reembeddingPollInterval = null;
   function startReembeddingPolling(datasetId) {
@@ -1681,7 +1721,32 @@
         const r = await fetch(`${API}/api/datasets/${datasetId}/status`, { credentials: 'include' });
         const d = await r.json();
 
-        // Only call loadDatasets when something actually changed
+        // Drive modal progress panel with same logic as main upload
+        const modelLoading = (d.status === 'queued') ||
+                             (d.status === 'processing' && d.total === 0);
+        const pct = modelLoading ? -1
+                  : d.total > 0  ? Math.round((d.processed / d.total) * 100)
+                  : 0;
+        const phase  = modelLoading            ? 'Loading AI model'
+                     : d.status === 'processing' ? 'Re-indexing faces'
+                     : d.status === 'ready'       ? 'Complete'
+                     : d.status === 'error'        ? 'Error'
+                     : 'Queued';
+        const detail = modelLoading
+          ? 'Warming up face recognition model…'
+          : d.status === 'processing' && d.total > 0
+          ? `${d.processed} / ${d.total} images processed`
+          : d.status === 'ready'
+          ? `${d.face_count} face embeddings indexed`
+          : d.error || '—';
+
+        if (pct === -1) {
+          updateIndeterminate('add', phase, detail);
+        } else {
+          updateInlineProgress('add', phase, detail, pct, '');
+        }
+
+        // Only refresh collections list when something changed
         const statusChanged   = d.status    !== lastStatus;
         const progressChanged = d.processed !== lastProcessed;
         if (statusChanged || progressChanged) {
@@ -1693,11 +1758,22 @@
         if (d.status === 'ready') {
           clearInterval(reembeddingPollInterval);
           reembeddingPollInterval = null;
+          updateInlineProgress('add', 'Complete', `${d.face_count} faces indexed`, 100, '');
+          // Show success state in modal after short delay
+          setTimeout(() => {
+            document.getElementById('addProgressPanel').classList.remove('visible');
+            document.getElementById('addSuccessMeta').textContent =
+              `${d.face_count} face embeddings indexed. Collection is ready to share.`;
+            document.getElementById('addSuccess').classList.add('visible');
+          }, 800);
           loadDatasets();
           toast(`Re-indexing complete! ${d.face_count} faces indexed.`);
         } else if (d.status === 'error') {
           clearInterval(reembeddingPollInterval);
           reembeddingPollInterval = null;
+          updateInlineProgress('add', 'Error', d.error || 'Job failed', pct, '');
+          document.getElementById('addRing').style.stroke = 'var(--error)';
+          document.getElementById('addPct').style.color   = 'var(--error)';
           loadDatasets();
           toast(`Re-indexing failed: ${d.error || 'Unknown error'}`);
         }
