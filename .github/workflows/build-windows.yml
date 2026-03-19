@@ -1,9 +1,7 @@
 name: Build Windows EXE
 
 on:
-  # Run manually from the Actions tab
   workflow_dispatch:
-  # Also run automatically whenever you push to prod
   push:
     branches:
       - prod
@@ -13,26 +11,22 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      # ── 1. Check out your code ──────────────────────────────────────────────
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           ref: prod
 
-      # ── 2. Set up Python ────────────────────────────────────────────────────
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      # ── 3. Install dependencies ─────────────────────────────────────────────
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install pyinstaller
           pip install -r requirements.txt
 
-      # ── 4. Write the launcher entry point ───────────────────────────────────
       - name: Write launcher script
         shell: python
         run: |
@@ -141,7 +135,6 @@ jobs:
           with open("facefind_launcher.py", "w") as f:
               f.write(code)
 
-      # ── 5. Build the EXE ─────────────────────────────────────────────────────
       - name: Build EXE with PyInstaller
         run: |
           pyinstaller `
@@ -166,11 +159,25 @@ jobs:
             --hidden-import "numpy" `
             --hidden-import "redis" `
             --hidden-import "multipart" `
+            --hidden-import "email" `
+            --hidden-import "email.mime" `
+            --hidden-import "email.mime.text" `
+            --hidden-import "email.mime.multipart" `
+            --hidden-import "email.mime.base" `
+            --hidden-import "email.message" `
+            --hidden-import "email.generator" `
+            --hidden-import "email.parser" `
+            --hidden-import "email.header" `
+            --hidden-import "smtplib" `
+            --hidden-import "google.oauth2.credentials" `
+            --hidden-import "google.auth.transport.requests" `
+            --hidden-import "googleapiclient.discovery" `
+            --collect-all "insightface" `
+            --collect-all "onnxruntime" `
             --clean `
             --noconfirm `
             facefind_launcher.py
 
-      # ── 6. Upload the EXE as a downloadable artifact ─────────────────────────
       - name: Upload EXE artifact
         uses: actions/upload-artifact@v4
         with:
