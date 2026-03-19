@@ -1610,6 +1610,37 @@ async def validate_license(request: Request):
     }
 
 
+@app.post("/api/license/userinfo")
+async def license_userinfo(request: Request):
+    """
+    Called by the self-hosted launcher to fetch the user account linked to a license key.
+    Used to auto-login the user locally without them needing to enter credentials.
+    Returns just enough info to create a local session: email, name, plan.
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body.")
+
+    key_str = (body.get("key") or "").strip().upper()
+    if not key_str:
+        raise HTTPException(400, "key is required.")
+
+    key_data = db_get_license_key(key_str)
+    if not key_data or key_data["revoked"]:
+        raise HTTPException(403, "Invalid or revoked license key.")
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT email, name, plan FROM users WHERE id = %s", (key_data["user_id"],))
+            row = cur.fetchone()
+
+    if not row:
+        raise HTTPException(404, "User not found.")
+
+    return {"email": row["email"], "name": row["name"], "plan": row["plan"]}
+
+
 @app.post("/api/license/revoke")
 def revoke_license(request: Request):
     """
