@@ -37,7 +37,7 @@ jobs:
 
           VALIDATION_URL = "https://facefind-production.up.railway.app/api/license/validate"
           PORT           = int(os.environ.get("PORT", 8000))
-          ACTIVATE_PORT  = PORT + 1  # temporary activation server on PORT+1
+          ACTIVATE_PORT  = PORT + 1
 
           if getattr(sys, "frozen", False):
               BASE_DIR = Path(sys.executable).parent
@@ -49,8 +49,6 @@ jobs:
           KEY_FILE        = BASE_DIR / ".license_key"
           MACHINE_ID_FILE = BASE_DIR / ".machine_id"
           DATA_DIR        = BASE_DIR / "data"
-
-          # ── Helpers ───────────────────────────────────────────────────────────
 
           def get_machine_id():
               if MACHINE_ID_FILE.exists():
@@ -79,18 +77,14 @@ jobs:
               except Exception as e:
                   return None, str(e)
 
-          # ── Activation HTTP server ────────────────────────────────────────────
-          # Serves activate.html and handles /activate/* API calls.
-          # Runs only when no saved license key exists.
-
-          _activation_done  = threading.Event()
+          _activation_done   = threading.Event()
           _activation_result = {}
 
           ACTIVATE_HTML_PATH = BUNDLE / "activate.html"
 
           class ActivationHandler(BaseHTTPRequestHandler):
               def log_message(self, fmt, *args):
-                  pass  # suppress request logs
+                  pass
 
               def _json(self, code, data):
                   body = json.dumps(data).encode()
@@ -110,7 +104,6 @@ jobs:
 
               def do_GET(self):
                   if self.path in ("/", "/activate", "/activate/"):
-                      # Serve the activation page
                       html = ACTIVATE_HTML_PATH.read_bytes()
                       self.send_response(200)
                       self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -134,10 +127,8 @@ jobs:
                           _activation_result["key"]  = key
                           _activation_result["plan"] = data.get("plan", "unknown")
                           self._json(200, {"ok": True, "plan": data.get("plan", "unknown")})
-                          # Signal main thread after a short delay so browser can show success screen
                           threading.Timer(3.5, _activation_done.set).start()
                       elif error and KEY_FILE.exists():
-                          # Offline grace — cached key still present
                           _activation_result["key"] = KEY_FILE.read_text().strip()
                           self._json(200, {"ok": True, "plan": "offline"})
                           threading.Timer(3.5, _activation_done.set).start()
@@ -154,19 +145,17 @@ jobs:
                   server.handle_request()
               server.server_close()
 
-          # ── Main ──────────────────────────────────────────────────────────────
-
           def launch_main_app():
               os.environ["DATA_DIR"]     = str(DATA_DIR)
               os.environ["FRONTEND_DIR"] = str(BUNDLE / "frontend")
               sys.path.insert(0, str(BUNDLE / "backend"))
-              print(f"\n  Starting FaceFind at http://localhost:{PORT}")
-              print("  Press Ctrl+C to stop.\n")
+              print(f"Starting FaceFind at http://localhost:{PORT}")
+              print("  Press Ctrl+C to stop.")
               import uvicorn
               uvicorn.run("app:app", host="0.0.0.0", port=PORT, log_level="warning")
 
           def main():
-              print("\n  FaceFind Self-Hosted")
+              print("FaceFind Self-Hosted")
               print("  -------------------------------------")
 
               DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -174,7 +163,6 @@ jobs:
               saved_key = KEY_FILE.read_text().strip() if KEY_FILE.exists() else ""
 
               if saved_key:
-                  # Key already saved — validate silently then launch
                   print("  Checking license...")
                   mid = get_machine_id()
                   data, error = validate_key(saved_key, mid)
@@ -184,36 +172,27 @@ jobs:
                       print(f"  Could not reach license server ({error})")
                       print("  Running in offline mode using saved license.")
                   else:
-                      # Saved key is now invalid — delete it and fall through to activation UI
-                      print("  Saved license key is no longer valid. Launching activation…")
+                      print("  Saved license key is no longer valid. Launching activation...")
                       KEY_FILE.unlink(missing_ok=True)
                       saved_key = ""
 
               if not saved_key:
-                  # No valid saved key — show the browser activation UI
                   print(f"  Opening activation page at http://localhost:{ACTIVATE_PORT}")
-                  print("  Complete activation in your browser to continue.\n")
-
-                  # Start activation HTTP server in background thread
+                  print("  Complete activation in your browser to continue.")
                   t = threading.Thread(target=run_activation_server, daemon=True)
                   t.start()
-
-                  # Open browser to activation page
                   threading.Timer(1.0, lambda: webbrowser.open(f"http://localhost:{ACTIVATE_PORT}")).start()
-
-                  # Block until activation completes
                   _activation_done.wait()
                   t.join(timeout=2)
                   print(f"  Activation complete - Plan: {_activation_result.get('plan', 'unknown')}")
 
-              # Open browser to main app after a short delay
               threading.Timer(3.0, lambda: webbrowser.open(f"http://localhost:{PORT}")).start()
               launch_main_app()
 
           if __name__ == "__main__":
               main()
           '''
-          with open("facefind_launcher.py", "w") as f:
+          with open("facefind_launcher.py", "w", encoding="utf-8") as f:
               f.write(code)
 
       - name: Build EXE with PyInstaller
