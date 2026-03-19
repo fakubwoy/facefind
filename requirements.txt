@@ -5,6 +5,7 @@ redis
 numpy
 opencv-python-headless
 insightface
+onnxruntime
 faiss-cpu
 python-multipart
 gdown

@@ -384,15 +384,7 @@ def run_embedding_job(dataset_id: str):
 
     db_update_dataset_fields(dataset_id, status="ready", face_count=len(embeddings))
     log.info(f"[{dataset_id}] Done — {len(embeddings)} face embeddings")
-
-    # Unload model after batch embedding to free RAM
-    if os.environ.get("UNLOAD_MODEL_AFTER_EMBED", "true").lower() == "true":
-        global _face_model
-        with _model_lock:
-            _face_model = None
-        import gc
-        gc.collect()
-        log.info(f"[{dataset_id}] Face model unloaded to free RAM")
+    # Model stays loaded permanently — no unload after embedding.
 
 # ── Search ────────────────────────────────────────────────────────────────────
 
@@ -777,6 +769,13 @@ app.add_middleware(
 def on_startup():
     init_db()
     get_redis()  # warm up connection
+    # Pre-load the face model at startup so the first upload/search
+    # doesn't pay the 30-60s cold-start cost.
+    try:
+        get_face_model()
+        log.info("Face model pre-loaded at startup")
+    except Exception as e:
+        log.warning(f"Face model pre-load failed (will retry on first use): {e}")
 
 # ── Auth endpoints ────────────────────────────────────────────────────────────
 
