@@ -280,11 +280,11 @@ def db_upsert_dataset(ds: dict):
 def db_update_dataset_fields(dataset_id: str, **fields):
     if not fields:
         return
-    set_clause = ", ".join(f"{k}=%s" for k in fields)
+    set_clause = ", ".join(f"{k}=?" for k in fields)
     values = list(fields.values()) + [dataset_id]
     with get_db() as conn:
         with conn.cursor() as cur:
-            cur.execute(f"UPDATE datasets SET {set_clause} WHERE id=%s", values)
+            cur.execute(f"UPDATE datasets SET {set_clause} WHERE id=?", values)
         conn.commit()
     cache_delete(f"dataset:{dataset_id}")
     # Also invalidate the user's dataset list cache
@@ -1632,7 +1632,7 @@ def admin_set_plan(request: Request, target_email: str = Form(...), plan: str = 
 
     with get_db() as conn:
         with conn.cursor() as cur:
-            cur.execute("UPDATE users SET plan=%s WHERE email=%s", (plan, target_email.lower()))
+            cur.execute("UPDATE users SET plan=? WHERE email=?", (plan, target_email.lower()))
             if cur.rowcount == 0:
                 raise HTTPException(404, "User not found.")
         conn.commit()
