@@ -270,11 +270,8 @@ def get_face_model():
         with _model_lock:
             if _face_model is None:
                 from insightface.app import FaceAnalysis
-                # buffalo_l = full ArcFace R100, far more accurate than buffalo_sc
-                # buffalo_sc is a lightweight cut-down model — avoid for accuracy
-                model_name = os.environ.get("INSIGHTFACE_MODEL", "buffalo_l")
-                # 640 catches small/distant faces that 320 misses; critical for accuracy
-                det_w = int(os.environ.get("DET_SIZE", "640"))
+                model_name = os.environ.get("INSIGHTFACE_MODEL", "buffalo_sc")
+                det_w = int(os.environ.get("DET_SIZE", "320"))
                 model = FaceAnalysis(name=model_name, providers=["CPUExecutionProvider"])
                 model.prepare(ctx_id=-1, det_size=(det_w, det_w))
                 _face_model = model
@@ -289,23 +286,6 @@ def decode_image(data: bytes) -> np.ndarray:
     if img is None:
         raise ValueError("Cannot decode image.")
     return img
-
-def preprocess_for_embedding(img_bgr: np.ndarray) -> np.ndarray:
-    # Upscale very small images — ArcFace needs a decent-resolution face crop.
-    # If the shorter side is under 300px, scale up so tiny faces have more detail.
-    h, w = img_bgr.shape[:2]
-    if min(h, w) < 300:
-        scale = 300 / min(h, w)
-        img_bgr = cv2.resize(img_bgr, (int(w * scale), int(h * scale)),
-                             interpolation=cv2.INTER_CUBIC)
-
-    # CLAHE on the L channel of LAB to normalise exposure without touching hue.
-    lab = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2LAB)
-    l, a, b = cv2.split(lab)
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    l_eq  = clahe.apply(l)
-    lab_eq = cv2.merge([l_eq, a, b])
-    return cv2.cvtColor(lab_eq, cv2.COLOR_LAB2BGR)
 
 def encode_to_jpg(img_bgr: np.ndarray, quality: int = 92) -> bytes:
     """Encode an OpenCV image to JPEG bytes at the given quality."""
@@ -355,6 +335,24 @@ def extract_embedding(img_bgr: np.ndarray):
     return best.normed_embedding.astype("float32"), faces
 
 FREE_TIER_MAX_BYTES = 6 * 1024 * 1024  # 6 MB per image
+
+# ── Per-plan image & dataset limits ──────────────────────────────────────────
+PLAN_LIMITS = {
+    "free":          {"max_images": 100,    "max_datasets": 1},
+    "personal_lite": {"max_images": 2000,   "max_datasets": 5},
+    "personal_pro":  {"max_images": 10000,  "max_datasets": 15},
+    "personal_max":  {"max_images": 30000,  "max_datasets": 30},
+    "photo_starter": {"max_images": 100000, "max_datasets": 50},
+    "photo_pro":     {"max_images": 500000, "max_datasets": 9999},
+}
+
+def get_plan_limits(user: dict) -> dict:
+    plan = user.get("plan", "free") or "free"
+    return PLAN_LIMITS.get(plan, PLAN_LIMITS["free"])
+
+def count_images_in_dir(directory: Path) -> int:
+    exts = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
+    return sum(1 for p in directory.rglob("*") if p.suffix.lower() in exts)
 
 def compress_images_in_dir(directory: Path,
                            free_tier: bool = False,
@@ -424,31 +422,12 @@ def run_embedding_job(dataset_id: str):
     embeddings, metadata = [], []
     model = get_face_model()
 
-    # Minimum face size in pixels. Faces smaller than this produce unreliable
-    # embeddings — tunable via env var (default 50px).
-    MIN_FACE_PX   = int(os.environ.get("MIN_FACE_PX", "50"))
-    # Detection confidence threshold — below ~0.70 is usually partial/occluded.
-    MIN_DET_SCORE = float(os.environ.get("MIN_DET_SCORE", "0.70"))
-
     for i, img_path in enumerate(image_paths):
         try:
             img = cv2.imread(str(img_path))
             if img is None:
                 continue
-            img = preprocess_for_embedding(img)
             for face in model.get(img):
-                x1, y1, x2, y2 = face.bbox
-                face_w, face_h = x2 - x1, y2 - y1
-
-                # Skip tiny faces — their embeddings are very noisy
-                if face_w < MIN_FACE_PX or face_h < MIN_FACE_PX:
-                    continue
-
-                # Skip low-confidence detections (side-profiles, heavy occlusion)
-                det_score = float(getattr(face, "det_score", 1.0))
-                if det_score < MIN_DET_SCORE:
-                    continue
-
                 emb  = face.normed_embedding.astype("float32")
                 bbox = [int(x) for x in face.bbox.tolist()]
                 embeddings.append(emb)
@@ -456,7 +435,6 @@ def run_embedding_job(dataset_id: str):
                     "image_path": str(img_path.relative_to(dataset_dir)),
                     "label":      img_path.parent.name,
                     "bbox":       bbox,
-                    "det_score":  round(det_score, 3),
                 })
         except Exception as exc:
             log.warning(f"[{dataset_id}] {img_path.name}: {exc}")
@@ -534,38 +512,20 @@ def search_in_dataset(dataset_id: str, query_emb: np.ndarray, top_k: int = 50):
     q = query_emb.reshape(1, -1)
     scores, indices = index.search(q, min(top_k, index.ntotal))
 
-    # Collect best score per (image_path, face_bbox) pair so that multiple
-    # distinct faces in the same photo can all appear as separate matches,
-    # while still deduplicating exact duplicate embeddings.
-    best_per_face: dict = {}
+    results, seen = [], set()
     for score, idx in zip(scores[0], indices[0]):
-        if idx < 0:
-            continue
-        score_f = float(score)
-        # ArcFace cosine similarity: same-person pairs reliably exceed 0.45.
-        # 0.30 is far too low and floods results with wrong faces.
-        min_score = float(os.environ.get("MIN_MATCH_SCORE", "0.45"))
-        if score_f < min_score:
+        if idx < 0 or float(score) < 0.30:
             continue
         meta = metadata[idx]
-        # Key = image + bbox so two different faces in the same image both match
-        face_key = (meta["image_path"], tuple(meta["bbox"]))
-        if face_key not in best_per_face or score_f > best_per_face[face_key]["score"]:
-            best_per_face[face_key] = {
-                "score":      round(score_f, 4),
-                "image_path": meta["image_path"],
-                "label":      meta["label"],
-                "bbox":       meta["bbox"],
-            }
-
-    # Collapse to one result per image (keep best-scoring face per image)
-    best_per_image: dict = {}
-    for face_key, match in best_per_face.items():
-        img_path = match["image_path"]
-        if img_path not in best_per_image or match["score"] > best_per_image[img_path]["score"]:
-            best_per_image[img_path] = match
-
-    results = list(best_per_image.values())
+        if meta["image_path"] in seen:
+            continue
+        seen.add(meta["image_path"])
+        results.append({
+            "score":      round(float(score), 4),
+            "image_path": meta["image_path"],
+            "label":      meta["label"],
+            "bbox":       meta["bbox"],
+        })
 
     results.sort(key=lambda x: x["score"], reverse=True)
     cache_set(emb_key, results, ttl=120)
@@ -998,6 +958,19 @@ async def upload_zip(
         zf.extractall(dataset_dir)
     zip_path.unlink()
     
+    # ── Enforce dataset count limit ──────────────────────────────────────────
+    limits = get_plan_limits(user)
+    existing = db_list_datasets(user["id"])
+    if len(existing) >= limits["max_datasets"]:
+        import shutil; shutil.rmtree(dataset_dir, ignore_errors=True)
+        raise HTTPException(400, f"Dataset limit reached. Your plan allows {limits['max_datasets']} dataset(s). Delete one or upgrade.")
+
+    # ── Enforce image count limit ─────────────────────────────────────────────
+    img_count = count_images_in_dir(dataset_dir)
+    if img_count > limits["max_images"]:
+        import shutil; shutil.rmtree(dataset_dir, ignore_errors=True)
+        raise HTTPException(400, f"Too many images. Your plan allows up to {limits['max_images']:,} images per dataset. This ZIP contains {img_count:,}.")
+
     # Register dataset first so status is visible in the UI immediately
     ds = {
         "id": dataset_id, "user_id": user["id"],
@@ -1111,7 +1084,17 @@ async def add_images_to_dataset(
     with zipfile.ZipFile(zip_path) as zf:
         zf.extractall(temp_dir)
     zip_path.unlink()
-    
+
+    # ── Enforce image limit on combined total ─────────────────────────────────
+    limits = get_plan_limits(user)
+    existing_count = count_images_in_dir(dataset_dir)
+    new_count      = count_images_in_dir(temp_dir)
+    if existing_count + new_count > limits["max_images"]:
+        import shutil; shutil.rmtree(temp_dir, ignore_errors=True)
+        raise HTTPException(400,
+            f"Image limit exceeded. Your plan allows {limits['max_images']:,} images per dataset. "
+            f"This dataset already has {existing_count:,} and you're adding {new_count:,}.")
+
     # Apply caps to new images before merging.
     is_free = user.get("plan", "free") == "free"
     total_imgs, capped = compress_images_in_dir(temp_dir, free_tier=is_free)
@@ -1228,7 +1211,6 @@ async def search_by_selfie(share_id: str, file: UploadFile = File(...), face_ind
         raise HTTPException(400, str(e))
 
     t0 = time.time()
-    img = preprocess_for_embedding(img)
     model = get_face_model()
     all_faces = model.get(img)
     if not all_faces:
@@ -1249,14 +1231,8 @@ async def search_by_selfie(share_id: str, file: UploadFile = File(...), face_ind
         faces_to_search = [max(all_faces_sorted, key=lambda f: (f.bbox[2]-f.bbox[0])*(f.bbox[3]-f.bbox[1]))]
 
     # Search each selected face and merge results (deduplicate by image_path, keep best score)
-    # Min selfie det_score — if the query face is poorly detected, skip it.
-    SELFIE_MIN_DET = float(os.environ.get("SELFIE_MIN_DET_SCORE", "0.60"))
     merged: dict = {}
     for face in faces_to_search:
-        det_score = float(getattr(face, "det_score", 1.0))
-        if det_score < SELFIE_MIN_DET:
-            log.info(f"Skipping selfie face with low det_score={det_score:.2f}")
-            continue
         emb = face.normed_embedding.astype("float32")
         results = search_in_dataset(share["dataset_id"], emb, top_k=100)
         for m in results:

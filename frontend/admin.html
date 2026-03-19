@@ -1805,12 +1805,12 @@
   // ── Plan config (mirrors backend tier limits) ──────────────────────────────
   // Existing users with no plan field are grandfathered into 'free'.
   const PLAN_CONFIG = {
-    free:          { label: 'Starter (Free)',          maxDatasets: 1,    maxImages: 100,   iconClass: 'free', isProPhoto: false },
-    personal_lite: { label: 'Personal Lite',           maxDatasets: 5,    maxImages: 500,   iconClass: 'paid', isProPhoto: false },
-    personal_pro:  { label: 'Personal Pro',            maxDatasets: 15,   maxImages: 2000,  iconClass: 'paid', isProPhoto: false },
-    personal_max:  { label: 'Personal Max',            maxDatasets: 30,   maxImages: 5000,  iconClass: 'paid', isProPhoto: false },
-    photo_starter: { label: 'Studio Starter',          maxDatasets: 50,   maxImages: 10000, iconClass: 'pro',  isProPhoto: true  },
-    photo_pro:     { label: 'Studio Pro',              maxDatasets: 9999, maxImages: 20000, iconClass: 'pro',  isProPhoto: true  },
+    free:          { label: 'Starter (Free)',          maxDatasets: 1,    maxImages: 100,    iconClass: 'free', isProPhoto: false },
+    personal_lite: { label: 'Personal Lite',           maxDatasets: 5,    maxImages: 2000,   iconClass: 'paid', isProPhoto: false },
+    personal_pro:  { label: 'Personal Pro',            maxDatasets: 15,   maxImages: 10000,  iconClass: 'paid', isProPhoto: false },
+    personal_max:  { label: 'Personal Max',            maxDatasets: 30,   maxImages: 30000,  iconClass: 'paid', isProPhoto: false },
+    photo_starter: { label: 'Studio Starter',          maxDatasets: 50,   maxImages: 100000, iconClass: 'pro',  isProPhoto: true  },
+    photo_pro:     { label: 'Studio Pro',              maxDatasets: 9999, maxImages: 500000, iconClass: 'pro',  isProPhoto: true  },
   };
 
   let currentPlan = 'free';
