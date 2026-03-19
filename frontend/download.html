@@ -990,4 +990,9 @@
   }
 
   // Close modals on backdrop click
-  document.querySelectorAll
+  document.querySelectorAll('.modal-bg').forEach(bg => {
+    bg.addEventListener('click', e => { if (e.target === bg) bg.classList.remove('open'); });
+  });
+</script>
+</body>
+</html>
