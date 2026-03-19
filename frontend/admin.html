@@ -784,13 +784,64 @@
       from { opacity: 0; }
       to   { opacity: 1; }
     }
+
+    /* ── Plan banner ── */
+    .plan-banner {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 20px;
+      margin-bottom: 28px;
+      box-shadow: var(--shadow-sm);
+      flex-wrap: wrap;
+    }
+    .plan-banner-icon {
+      width: 36px; height: 36px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .plan-banner-icon.free  { background: var(--surface2); color: var(--muted); }
+    .plan-banner-icon.paid  { background: var(--primary-light); color: var(--primary); }
+    .plan-banner-icon.pro   { background: #fffbeb; color: var(--warn); }
+    .plan-banner-info       { flex: 1; min-width: 0; }
+    .plan-banner-name       { font-size: 13px; font-weight: 700; color: var(--text); }
+    .plan-banner-limits     { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .plan-banner-limits strong { color: var(--text2); }
+    .plan-upgrade-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--primary); color: white;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 12px; font-weight: 700;
+      padding: 8px 16px; border-radius: var(--radius-sm);
+      border: none; cursor: pointer; text-decoration: none;
+      transition: all 0.2s; white-space: nowrap; flex-shrink: 0;
+    }
+    .plan-upgrade-btn:hover { background: var(--primary-dark); transform: translateY(-1px); }
+    .plan-upgrade-btn.gold  { background: var(--warn); }
+    .plan-upgrade-btn.gold:hover { background: #b45309; }
+    /* limit wall shown when user hits dataset cap on free */
+    .limit-wall {
+      display: none;
+      border: 2px dashed rgba(217,119,6,0.4);
+      border-radius: var(--radius);
+      padding: 28px 24px; text-align: center;
+      background: #fffbeb;
+    }
+    .limit-wall.show { display: block; animation: fadeIn 0.3s ease; }
+    .limit-wall-icon  { font-size: 28px; margin-bottom: 10px; }
+    .limit-wall-title { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+    .limit-wall-desc  { font-size: 13px; color: var(--muted); line-height: 1.6; margin-bottom: 16px; }
   </style>
 </head>
 <body>
   <!-- Header -->
   <header>
     <div class="header-left">
-      <span class="logo"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="10" x2="9.01" y2="10" stroke-width="3"/><line x1="15" y1="10" x2="15.01" y2="10" stroke-width="3"/></svg>FaceFind</span>
+      <span class="logo"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="10" r="3"/><path d="M9 16c0-1.7 1.3-3 3-3s3 1.3 3 3"/></svg>FaceFind</span>
       <span class="header-badge">Dashboard</span>
     </div>
     <div class="header-right">
@@ -810,6 +861,21 @@
     <div class="welcome">
       <h1>Your Photo Collections</h1>
       <p>Upload a collection, index faces, and share a link so guests can find themselves instantly.</p>
+    </div>
+
+    <!-- Plan Banner -->
+    <div class="plan-banner" id="planBanner">
+      <div class="plan-banner-icon free" id="planIcon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      </div>
+      <div class="plan-banner-info">
+        <div class="plan-banner-name" id="planName">Starter (Free)</div>
+        <div class="plan-banner-limits" id="planLimits">1 dataset · 100 images max · 4K auto-compression</div>
+      </div>
+      <a href="/pricing.html" class="plan-upgrade-btn" id="planUpgradeBtn">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>
+        Upgrade plan
+      </a>
     </div>
 
     <div class="grid">
@@ -848,6 +914,18 @@
                 or click to browse
               </div>
               <div class="drop-hint">ZIP should contain folders of images (e.g. person_name/photo.jpg)</div>
+            </div>
+
+
+            <!-- Limit wall (shown when free tier dataset cap reached) -->
+            <div class="limit-wall" id="limitWall">
+              <div class="limit-wall-icon">📦</div>
+              <div class="limit-wall-title">Dataset limit reached</div>
+              <div class="limit-wall-desc">Your current plan allows <strong id="limitWallMax">1 dataset</strong>. Delete your existing dataset first, or upgrade to upload multiple collections simultaneously.</div>
+              <a href="/pricing.html" class="plan-upgrade-btn" style="display:inline-flex;margin:0 auto;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>
+                See upgrade options
+              </a>
             </div>
 
             <!-- Progress panel -->
@@ -1501,9 +1579,90 @@
   style.textContent = '@keyframes spin { to { transform: rotate(360deg); } }';
   document.head.appendChild(style);
 
+
+  // ── Plan config (mirrors backend tier limits) ──────────────────────────────
+  // Existing users with no plan field are grandfathered into 'free'.
+  const PLAN_CONFIG = {
+    free:          { label: 'Starter (Free)',          maxDatasets: 1,    maxImages: 100,   iconClass: 'free', isProPhoto: false },
+    personal_lite: { label: 'Personal Lite',           maxDatasets: 5,    maxImages: 500,   iconClass: 'paid', isProPhoto: false },
+    personal_pro:  { label: 'Personal Pro',            maxDatasets: 15,   maxImages: 2000,  iconClass: 'paid', isProPhoto: false },
+    personal_max:  { label: 'Personal Max',            maxDatasets: 30,   maxImages: 5000,  iconClass: 'paid', isProPhoto: false },
+    photo_starter: { label: 'Photographer Starter',    maxDatasets: 50,   maxImages: 10000, iconClass: 'pro',  isProPhoto: true  },
+    photo_pro:     { label: 'Photographer Pro',        maxDatasets: 9999, maxImages: 20000, iconClass: 'pro',  isProPhoto: true  },
+  };
+
+  let currentPlan = 'free';
+  let datasetCount = 0;
+
+  async function loadPlanBanner() {
+    try {
+      const r = await fetch(`${API}/api/auth/me`, { credentials: 'include' });
+      if (!r.ok) return;
+      const user = await r.json();
+      // Backwards-compat: existing users have no plan → 'free'
+      currentPlan = user.plan || 'free';
+    } catch { currentPlan = 'free'; }
+
+    const cfg = PLAN_CONFIG[currentPlan] || PLAN_CONFIG.free;
+
+    // Count current datasets for usage display
+    try {
+      const r2 = await fetch(`${API}/api/datasets`, { credentials: 'include' });
+      if (r2.ok) {
+        const data = await r2.json();
+        datasetCount = Object.values(data).length;
+      }
+    } catch {}
+
+    const banner = document.getElementById('planBanner');
+    const icon   = document.getElementById('planIcon');
+    const name   = document.getElementById('planName');
+    const limits = document.getElementById('planLimits');
+    const upBtn  = document.getElementById('planUpgradeBtn');
+
+    icon.className  = 'plan-banner-icon ' + cfg.iconClass;
+    name.textContent = cfg.label;
+
+    const maxDS = cfg.maxDatasets >= 9999 ? 'Unlimited' : cfg.maxDatasets;
+    const maxImg = cfg.maxImages >= 9999 ? 'Unlimited' : cfg.maxImages.toLocaleString('en-IN');
+    limits.innerHTML = `<strong>${datasetCount} / ${maxDS}</strong> datasets used &nbsp;·&nbsp; Up to <strong>${maxImg} images</strong> per dataset` +
+      (currentPlan === 'free' ? ' &nbsp;·&nbsp; 4K auto-compression' : '') +
+      (cfg.isProPhoto ? ' &nbsp;·&nbsp; Commercial use ✓' : '');
+
+    // Style upgrade button
+    if (cfg.isProPhoto) {
+      upBtn.className = 'plan-upgrade-btn gold';
+      upBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg> Manage plan`;
+    } else if (currentPlan !== 'free') {
+      upBtn.textContent = '↑ Upgrade plan';
+    }
+
+    // Show/hide limit wall for upload form
+    applyLimitWall(cfg, datasetCount);
+  }
+
+  function applyLimitWall(cfg, count) {
+    const wall   = document.getElementById('limitWall');
+    const drop   = document.getElementById('dropZone');
+    const upBtn2 = document.getElementById('uploadBtn');
+    const maxDS  = cfg.maxDatasets;
+    if (count >= maxDS) {
+      wall.classList.add('show');
+      drop.style.display   = 'none';
+      upBtn2.style.display = 'none';
+      const maxLabel = maxDS >= 9999 ? 'unlimited datasets' : maxDS + (maxDS === 1 ? ' dataset' : ' datasets');
+      document.getElementById('limitWallMax').textContent = maxLabel;
+    } else {
+      wall.classList.remove('show');
+      drop.style.display   = '';
+      upBtn2.style.display = '';
+    }
+  }
+
   // ── Init ───────────────────────────────────────────────────────────────────
   checkAuth();
   loadDatasets();
+  loadPlanBanner();
   setInterval(loadDatasetsre, 5000);
 </script>
 </body>

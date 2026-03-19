@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FaceFind — Pricing</title>
+  <meta name="description" content="Free, Personal, and Photographer plans for every use case. Start free, upgrade when you need more." />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://facefind-production.up.railway.app/pricing.html" />
+  <meta property="og:title" content="FaceFind — Pricing" />
+  <meta property="og:description" content="Free, Personal, and Photographer plans for every use case." />
+  <meta property="og:url" content="https://facefind-production.up.railway.app/pricing.html" />
+  <meta property="og:type" content="website" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700;9..144,800;9..144,900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f9f7f4;
+      --surface: #ffffff;
+      --surface2: #f2efe9;
+      --border: #e8e3db;
+      --primary: #4f46e5;
+      --primary-dark: #3730a3;
+      --primary-light: #eef2ff;
+      --accent: #f43f5e;
+      --gold: #d97706;
+      --gold-light: #fffbeb;
+      --gold-dark: #b45309;
+      --sky: #0284c7;
+      --sky-light: #e0f2fe;
+      --text: #1c1917;
+      --text2: #44403c;
+      --muted: #78716c;
+      --success: #059669;
+      --success-light: #ecfdf5;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.05);
+      --shadow: 0 4px 12px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.05);
+      --shadow-lg: 0 12px 32px rgba(0,0,0,0.09), 0 4px 8px rgba(0,0,0,0.05);
+      --shadow-xl: 0 24px 64px rgba(0,0,0,0.12);
+      --radius-sm: 8px;
+      --radius: 14px;
+      --radius-lg: 22px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      line-height: 1.6;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Nav ── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(249,247,244,0.88);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      transition: box-shadow 0.3s;
+    }
+    nav.scrolled { box-shadow: var(--shadow); }
+    .nav-inner {
+      max-width: 1160px; margin: 0 auto; padding: 0 28px;
+      height: 68px; display: flex; align-items: center; justify-content: space-between;
+    }
+    .logo {
+      font-family: 'Fraunces', serif; font-size: 22px; font-weight: 800;
+      color: var(--primary); text-decoration: none;
+      display: flex; align-items: center; gap: 7px; letter-spacing: -0.5px;
+    }
+    .nav-links { display: flex; align-items: center; gap: 4px; }
+    .nav-link {
+      font-size: 14px; font-weight: 500; color: var(--muted); text-decoration: none;
+      padding: 8px 14px; border-radius: var(--radius-sm);
+      transition: color 0.2s, background 0.2s;
+    }
+    .nav-link:hover { color: var(--text); background: rgba(0,0,0,0.04); }
+    .nav-link.active { color: var(--primary); background: var(--primary-light); }
+    .nav-cta {
+      font-size: 14px; font-weight: 600; color: #fff;
+      background: var(--primary); text-decoration: none;
+      padding: 9px 20px; border-radius: var(--radius-sm); margin-left: 8px;
+      transition: background 0.2s, transform 0.15s;
+    }
+    .nav-cta:hover { background: var(--primary-dark); transform: translateY(-1px); }
+
+    /* ── Hero ── */
+    .hero {
+      max-width: 1160px; margin: 0 auto;
+      padding: 72px 28px 40px; text-align: center;
+    }
+    .hero-tag {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--primary); background: var(--primary-light);
+      padding: 5px 14px; border-radius: 999px; margin-bottom: 20px;
+    }
+    .hero-title {
+      font-family: 'Fraunces', serif;
+      font-size: clamp(34px, 5vw, 56px);
+      font-weight: 800; letter-spacing: -1.5px; line-height: 1.08;
+      color: var(--text); margin-bottom: 14px;
+    }
+    .hero-sub { font-size: 17px; color: var(--muted); max-width: 520px; margin: 0 auto 36px; }
+
+    /* ── Billing toggle ── */
+    .billing-wrap { display: flex; justify-content: center; margin-bottom: 56px; }
+    .billing-toggle {
+      display: inline-flex; align-items: center; gap: 12px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 999px; padding: 6px 6px 6px 20px;
+      box-shadow: var(--shadow-sm);
+    }
+    .billing-lbl {
+      font-size: 14px; font-weight: 500; color: var(--text2);
+      cursor: pointer; user-select: none; transition: color 0.2s;
+    }
+    .billing-lbl.active { color: var(--primary); font-weight: 600; }
+    .toggle-track {
+      width: 44px; height: 24px; background: var(--border); border-radius: 999px;
+      position: relative; cursor: pointer; transition: background 0.25s; flex-shrink: 0;
+    }
+    .toggle-track.on { background: var(--primary); }
+    .toggle-thumb {
+      width: 18px; height: 18px; background: #fff; border-radius: 50%;
+      position: absolute; top: 3px; left: 3px;
+      transition: transform 0.25s cubic-bezier(0.34,1.56,0.64,1);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    }
+    .toggle-track.on .toggle-thumb { transform: translateX(20px); }
+    .save-pill {
+      font-size: 11px; font-weight: 700; color: var(--success);
+      background: var(--success-light); padding: 3px 10px; border-radius: 999px;
+    }
+
+    /* ── Section labels ── */
+    .tier-section { max-width: 1160px; margin: 0 auto; padding: 0 28px 64px; }
+    .tier-heading {
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 24px;
+    }
+    .tier-heading-line { flex: 1; height: 1px; background: var(--border); }
+    .tier-heading-label {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em;
+      white-space: nowrap;
+    }
+    .tier-heading-label.personal { color: var(--primary); }
+    .tier-heading-label.photo    { color: var(--gold); }
+    .tier-heading-label.free-lbl { color: var(--muted); }
+
+    /* ── Cards grid ── */
+    .cards-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 18px;
+    }
+    @media (max-width: 640px) { .cards-row { grid-template-columns: 1fr; } }
+
+    /* ── Plan card ── */
+    .plan-card {
+      background: var(--surface); border: 1.5px solid var(--border);
+      border-radius: var(--radius-lg); padding: 28px 26px 26px;
+      position: relative; transition: transform 0.25s, box-shadow 0.25s;
+      display: flex; flex-direction: column;
+    }
+    .plan-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); }
+
+    .plan-card.featured {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 4px rgba(79,70,229,0.07), var(--shadow-lg);
+    }
+    .plan-card.featured:hover {
+      box-shadow: 0 0 0 4px rgba(79,70,229,0.12), var(--shadow-xl);
+    }
+    .plan-card.photo-card {
+      background: linear-gradient(160deg, #fffdf5 0%, #fff 55%);
+      border-color: rgba(217,119,6,0.4);
+    }
+    .plan-card.photo-card:hover {
+      box-shadow: 0 0 0 4px rgba(217,119,6,0.08), var(--shadow-xl);
+    }
+    .plan-card.photo-card.best {
+      border-color: var(--gold);
+      box-shadow: 0 0 0 4px rgba(217,119,6,0.08), var(--shadow-lg);
+    }
+    .plan-card.free-card { background: var(--surface2); }
+
+    .card-pip {
+      position: absolute; top: -11px; left: 50%; transform: translateX(-50%);
+      font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+      color: #fff; padding: 3px 14px; border-radius: 999px; white-space: nowrap;
+    }
+    .pip-popular  { background: var(--primary); }
+    .pip-best     { background: var(--gold); }
+    .pip-value    { background: var(--sky); }
+
+    .plan-tier-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+      padding: 3px 10px; border-radius: 999px; margin-bottom: 14px;
+    }
+    .badge-free   { background: var(--surface); border: 1px solid var(--border); color: var(--muted); }
+    .badge-p      { background: var(--primary-light); color: var(--primary); }
+    .badge-ph     { background: var(--gold-light); color: var(--gold); }
+
+    .plan-name {
+      font-family: 'Fraunces', serif; font-size: 22px; font-weight: 800;
+      color: var(--text); letter-spacing: -0.5px; margin-bottom: 4px;
+    }
+    .plan-tagline { font-size: 12.5px; color: var(--muted); margin-bottom: 20px; line-height: 1.5; }
+
+    .plan-price { display: flex; align-items: flex-end; gap: 3px; margin-bottom: 4px; }
+    .price-sym  { font-size: 18px; font-weight: 700; color: var(--text); padding-bottom: 5px; }
+    .price-amt  {
+      font-family: 'Fraunces', serif; font-size: 46px; font-weight: 900;
+      color: var(--text); letter-spacing: -2px; line-height: 1;
+    }
+    .price-per  { font-size: 13px; color: var(--muted); padding-bottom: 6px; }
+    .price-note { font-size: 11.5px; color: var(--success); font-weight: 600; min-height: 16px; margin-bottom: 20px; }
+
+    .plan-divider { height: 1px; background: var(--border); margin-bottom: 18px; }
+
+    .plan-cta {
+      display: block; width: 100%; text-align: center;
+      padding: 12px 16px; border-radius: var(--radius-sm);
+      font-size: 14px; font-weight: 700; text-decoration: none;
+      border: none; cursor: pointer; margin-bottom: 20px;
+      transition: all 0.2s;
+    }
+    .cta-free   { background: var(--surface); border: 1.5px solid var(--border); color: var(--text2); }
+    .cta-free:hover { background: var(--border); }
+    .cta-p      { background: var(--primary); color: #fff; }
+    .cta-p:hover { background: var(--primary-dark); transform: translateY(-1px); box-shadow: 0 6px 18px rgba(79,70,229,0.28); }
+    .cta-ph     { background: var(--gold); color: #fff; }
+    .cta-ph:hover { background: var(--gold-dark); transform: translateY(-1px); box-shadow: 0 6px 18px rgba(217,119,6,0.28); }
+
+    /* ── Feature list ── */
+    .feat-list  { list-style: none; display: flex; flex-direction: column; gap: 9px; flex: 1; }
+    .feat-item  { display: flex; align-items: flex-start; gap: 9px; font-size: 13px; color: var(--text2); line-height: 1.45; }
+    .feat-icon  {
+      flex-shrink: 0; width: 17px; height: 17px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center; margin-top: 1px;
+    }
+    .fi-yes  { background: var(--success-light); color: var(--success); }
+    .fi-gold { background: var(--gold-light);    color: var(--gold); }
+    .fi-no   { background: #f5f5f4;             color: #d4cfc7; }
+    .feat-grp {
+      font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em;
+      color: var(--muted); margin: 14px 0 8px;
+    }
+
+    /* ── Free tier note ── */
+    .free-note {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 11px 13px; margin-top: 16px;
+      font-size: 12px; color: var(--muted); line-height: 1.55;
+      display: flex; gap: 8px; align-items: flex-start;
+    }
+    .free-note svg { flex-shrink: 0; margin-top: 1px; }
+    .free-note strong { color: var(--text2); }
+
+    /* ── Comparison table ── */
+    .compare-wrap { max-width: 1160px; margin: 0 auto; padding: 0 28px 80px; }
+    .compare-head { text-align: center; margin-bottom: 40px; }
+    .compare-head h2 {
+      font-family: 'Fraunces', serif; font-size: clamp(24px, 3.5vw, 34px);
+      font-weight: 800; letter-spacing: -1px; margin-bottom: 8px;
+    }
+    .compare-head p { font-size: 15px; color: var(--muted); }
+    .tbl-scroll { overflow-x: auto; }
+    table {
+      width: 100%; border-collapse: collapse;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+    thead th {
+      padding: 18px 16px; text-align: left;
+      border-bottom: 1px solid var(--border); font-size: 12px;
+    }
+    thead th:first-child { width: 32%; color: var(--muted); font-weight: 500; }
+    .th-n { font-family: 'Fraunces', serif; font-size: 15px !important; font-weight: 800; display: block; margin-bottom: 2px; }
+    .th-free .th-n { color: var(--muted); }
+    .th-p    .th-n { color: var(--primary); }
+    .th-ph   .th-n { color: var(--gold); }
+    .th-p2   .th-n { color: var(--sky); }
+    tbody td {
+      padding: 12px 16px; font-size: 13px; color: var(--text2);
+      border-bottom: 1px solid var(--border);
+    }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody td:first-child { color: var(--text); font-weight: 500; }
+    tbody tr:nth-child(even) { background: var(--bg); }
+    tbody tr:hover { background: var(--primary-light); }
+    .row-grp td {
+      background: var(--surface2) !important;
+      font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.07em; color: var(--muted); padding: 9px 16px;
+    }
+    .ck-y  { color: var(--success); }
+    .ck-g  { color: var(--gold); }
+    .ck-n  { color: #d4cfc7; }
+    .ck-b  { color: var(--sky); }
+
+    /* ── FAQ ── */
+    .faq-wrap { max-width: 720px; margin: 0 auto; padding: 0 28px 100px; }
+    .faq-head { text-align: center; margin-bottom: 40px; }
+    .faq-head h2 {
+      font-family: 'Fraunces', serif; font-size: clamp(24px, 3.5vw, 34px);
+      font-weight: 800; letter-spacing: -1px; margin-bottom: 8px;
+    }
+    .faq-head p { font-size: 15px; color: var(--muted); }
+    .faq-item  { border-bottom: 1px solid var(--border); }
+    .faq-q {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 18px 0; cursor: pointer;
+      font-size: 15px; font-weight: 600; color: var(--text);
+      gap: 14px; user-select: none;
+    }
+    .faq-q:hover { color: var(--primary); }
+    .faq-chev { flex-shrink: 0; transition: transform 0.25s; color: var(--muted); }
+    .faq-item.open .faq-chev { transform: rotate(180deg); }
+    .faq-a { overflow: hidden; max-height: 0; transition: max-height 0.35s cubic-bezier(0.4,0,0.2,1); }
+    .faq-item.open .faq-a { max-height: 320px; }
+    .faq-a-inner { padding-bottom: 18px; font-size: 14px; color: var(--muted); line-height: 1.7; }
+
+    /* ── Footer ── */
+    footer { border-top: 1px solid var(--border); padding: 28px 0; }
+    .footer-inner {
+      max-width: 1160px; margin: 0 auto; padding: 0 28px;
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+    }
+    .footer-logo {
+      font-family: 'Fraunces', serif; font-size: 17px; font-weight: 800;
+      color: var(--primary); text-decoration: none;
+    }
+    .footer-links { display: flex; gap: 20px; }
+    .footer-links a { font-size: 13px; color: var(--muted); text-decoration: none; transition: color 0.2s; }
+    .footer-links a:hover { color: var(--text); }
+    .footer-copy { font-size: 12px; color: var(--muted); }
+
+    /* ── Animations ── */
+    .fade-up {
+      opacity: 0; transform: translateY(22px);
+      transition: opacity 0.55s cubic-bezier(0.22,0.61,0.36,1), transform 0.55s cubic-bezier(0.22,0.61,0.36,1);
+    }
+    .fade-up.visible { opacity: 1; transform: none; }
+    .d1 { transition-delay: 0.07s; }
+    .d2 { transition-delay: 0.14s; }
+    .d3 { transition-delay: 0.21s; }
+
+    @media (max-width: 640px) {
+      .nav-links .nav-link { display: none; }
+      .hero { padding: 52px 16px 32px; }
+      .tier-section { padding: 0 16px 48px; }
+      .compare-wrap, .faq-wrap { padding-left: 16px; padding-right: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav id="mainNav">
+  <div class="nav-inner">
+    <a href="/" class="logo">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="10" r="3"/><path d="M9 16c0-1.7 1.3-3 3-3s3 1.3 3 3"/></svg>
+      FaceFind
+    </a>
+    <div class="nav-links">
+      <a href="/#how-it-works" class="nav-link">How it works</a>
+      <a href="/#use-cases" class="nav-link">Use cases</a>
+      <a href="/pricing.html" class="nav-link active">Pricing</a>
+      <a href="/#faq" class="nav-link">FAQ</a>
+      <a href="/login.html" class="nav-cta">Get started</a>
+    </div>
+  </div>
+</nav>
+
+<!-- Hero -->
+<div class="hero">
+  <div class="hero-tag fade-up">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+    Simple, transparent pricing
+  </div>
+  <h1 class="hero-title fade-up">Plans for every shoot.</h1>
+  <p class="hero-sub fade-up">Start free. Scale as your events grow. No hidden fees, no surprise bills.</p>
+
+  <!-- Billing toggle -->
+  <div class="billing-wrap fade-up">
+    <div class="billing-toggle">
+      <span class="billing-lbl active" id="lblMonthly" onclick="setBilling('monthly')">Monthly</span>
+      <div class="toggle-track" id="toggleTrack" onclick="toggleBilling()">
+        <div class="toggle-thumb"></div>
+      </div>
+      <span class="billing-lbl" id="lblAnnual" onclick="setBilling('annual')">Annual</span>
+      <span class="save-pill">Save up to 30%</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ FREE TIER ═══ -->
+<section class="tier-section">
+  <div class="tier-heading fade-up">
+    <div class="tier-heading-line"></div>
+    <div class="tier-heading-label free-lbl">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      Free
+    </div>
+    <div class="tier-heading-line"></div>
+  </div>
+
+  <div class="cards-row">
+    <div class="plan-card free-card fade-up" style="max-width:380px;">
+      <span class="plan-tier-badge badge-free">Free forever</span>
+      <div class="plan-name">Starter</div>
+      <p class="plan-tagline">Try FaceFind at zero cost. One event at a time.</p>
+      <div class="plan-price">
+        <span class="price-sym">₹</span>
+        <span class="price-amt">0</span>
+      </div>
+      <p class="price-note">&nbsp;</p>
+      <div class="plan-divider"></div>
+      <a href="/login.html" class="plan-cta cta-free">Create free account</a>
+      <ul class="feat-list">
+        <div class="feat-grp">Datasets</div>
+        <li class="feat-item"><span class="feat-icon fi-yes"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span><strong>1 active dataset</strong> at a time</span></li>
+        <li class="feat-item"><span class="feat-icon fi-yes"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Up to <strong>100 images</strong> per dataset</span></li>
+        <li class="feat-item"><span class="feat-icon fi-yes"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Images above 4K auto-compressed; lower quality untouched</span></li>
+        <li class="feat-item"><span class="feat-icon fi-yes"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Delete & replace dataset anytime</span></li>
+        <div class="feat-grp">Sharing</div>
+        <li class="feat-item"><span class="feat-icon fi-yes"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>1 shareable search link</span></li>
+        <li class="feat-item"><span class="feat-icon fi-no"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span><span style="color:var(--muted)">Priority processing</span></li>
+      </ul>
+      <div class="free-note">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span>Delete your current dataset at any time to free the slot and start a fresh one. <strong>No limit on how often you can do this.</strong></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ PERSONAL TIERS ═══ -->
+<section class="tier-section">
+  <div class="tier-heading fade-up">
+    <div class="tier-heading-line"></div>
+    <div class="tier-heading-label personal">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      Personal plans
+    </div>
+    <div class="tier-heading-line"></div>
+  </div>
+  <p class="fade-up" style="text-align:center;font-size:14px;color:var(--muted);margin-bottom:28px;margin-top:-12px;">For individuals who host multiple events. Personal use only — no commercial resale.</p>
+
+  <div class="cards-row">
+
+    <!-- Personal Lite -->
+    <div class="plan-card fade-up d1">
+      <span class="plan-tier-badge badge-p">Personal</span>
+      <div class="plan-name">Lite</div>
+      <p class="plan-tagline">Occasional events — a few a year, no fuss.</p>
+      <div class="plan-price">
+        <span class="price-sym">₹</span>
+        <span class="price-amt" id="p1-amt">199</span>
+        <span class="price-per" id="p1-per">/month</span>
+      </div>
+      <p class="price-note" id="p1-note">&nbsp;</p>
+      <div class="plan-divider"></div>
+      <a href="/login.html" class="plan-cta cta-p" id="p1-cta">Get Personal Lite</a>
+      <ul class="feat-list">
+        <div class="feat-grp">Datasets & storage</div>
+        <li class="feat-item"><span class="feat-icon fi-yes"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span><strong>5 datasets</strong> simultaneously</span></li>
+        <li class="feat-item"><span class="feat-icon fi-yes"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Up to <strong>500 images</strong> per dataset</span></li>
+        <li class="feat-item"><span class="feat-icon fi-yes"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>4K compression + originals kept</span></li>
+        <div class="feat-grp">Sharing</div>
+        <li class="feat-item"><span class="feat-icon fi-yes"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Multiple share links</span></li>
+        <li class="feat-item"><span class="feat-icon fi-yes"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Up to 3 concurrent searches</span></li>
+        <li class="feat-item"><span class="feat-icon fi-no"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span><span style="color:var(--muted)">Priority queue</span></li>
+      </ul>
+    </div>
+
+    <!-- Personal Pro — most popular -->
+    <div class="plan-card featured fade-up d2">
+      <span class="card-pip pip-popular">⚡ Most popular</span>
+      <span class="plan-tier-badge badge-p">Personal</span>
+      <div class="plan-name">Pro</div>
+      <p class="plan-tagline">Regular events — families, reunions, birthday parties.</p>
+      <div class="plan-price">
+        <span class="price-sym">₹</span>
+        <span class="price-amt" id="p2-amt">399</span>
+        <span class="price-per" id="p2-per">/month</span>
+      </div>
+      <p class="price-note" id="p2-note">&nbsp;</p>
+      <div class="plan-divider"></div>
+      <a href="/login.html" class="plan-cta cta-p" id="p2-cta">Get Personal Pro</a>
+      <ul class="feat-list">
+        <div class="feat-grp">Datasets & storage</div>
+        <li class="feat-item"><span class="feat-icon fi-yes"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span><strong>15 datasets</strong> simultaneously</span></li>
+        <li class="feat-item"><span class="feat-icon fi-yes"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Up to <strong>2,000 images</strong> per dataset</span></li>
+        <li class="feat-item"><span class="feat-icon fi-yes"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Originals stored — no compression</span></li>
+        <div class="feat-grp">Sharing</div>
+        <li class="feat-item"><span class="feat-icon fi-yes"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Unlimited share links</span></li>
+        <li class="feat-item"><span class="feat-icon fi-yes"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Up to 10 concurrent searches</span></li>
+        <li class="feat-item"><span class="feat-icon fi-yes"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Priority processing queue</span></li>
+        <div class="feat-grp">Support</div>
+        <li class="feat-item"><span class="feat-icon fi-yes"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Email support</span></li>
+      </ul>
+    </div>
+
+    <!-- Personal Max -->
+    <div class="plan-card fade-up d3">
+      <span class="plan-tier-badge badge-p">Personal</span>
+      <div class="plan-name">Max</div>
+      <p class="plan-tagline">Power users with large or frequent collections.</p>
+      <div class="plan-price">
+        <span class="price-sym">₹</span>
+        <span class="price-amt" id="p3-amt">699</span>
+        <span class="price-per" id="p3-per">/month</span>
+      </div>
+      <p class="price-note" id="p3-note">&nbsp;</p>
+      <div class="plan-divider"></div>
+      <a href="/login.html" class="plan-cta cta-p" id="p3-cta">Get Personal Max</a>
+      <ul class="feat-list">
+        <div class="feat-grp">Datasets & storage</div>
+        <li class="feat-item"><span class="feat-icon fi-yes"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span><strong>30 datasets</strong> simultaneously</span></li>
+        <li class="feat-item"><span class="feat-icon fi-yes"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Up to <strong>5,000 images</strong> per dataset</span></li>
+        <li class="feat-item"><span class="feat-icon fi-yes"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Full original resolution stored</span></li>
+        <div class="feat-grp">Sharing</div>
+        <li class="feat-item"><span class="feat-icon fi-yes"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Unlimited share links</span></li>
+        <li class="feat-item"><span class="feat-icon fi-yes"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Unlimited concurrent searches</span></li>
+        <li class="feat-item"><span class="feat-icon fi-yes"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Priority processing queue</span></li>
+        <div class="feat-grp">Support</div>
+        <li class="feat-item"><span class="feat-icon fi-yes"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Priority email support</span></li>
+      </ul>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══ PHOTOGRAPHER TIERS ═══ -->
+<section class="tier-section">
+  <div class="tier-heading fade-up">
+    <div class="tier-heading-line"></div>
+    <div class="tier-heading-label photo">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      Photographer plans
+    </div>
+    <div class="tier-heading-line"></div>
+  </div>
+  <p class="fade-up" style="text-align:center;font-size:14px;color:var(--muted);margin-bottom:28px;margin-top:-12px;">For professionals and studios. <strong>Commercial use licence included</strong> — use FaceFind as part of your paid photography services.</p>
+
+  <div class="cards-row">
+
+    <!-- Photo Starter -->
+    <div class="plan-card photo-card fade-up d1">
+      <span class="plan-tier-badge badge-ph">Photographer</span>
+      <div class="plan-name">Starter</div>
+      <p class="plan-tagline">Just starting out or running a few events per month.</p>
+      <div class="plan-price">
+        <span class="price-sym">₹</span>
+        <span class="price-amt" id="ph1-amt">999</span>
+        <span class="price-per" id="ph1-per">/month</span>
+      </div>
+      <p class="price-note" id="ph1-note">&nbsp;</p>
+      <div class="plan-divider"></div>
+      <a href="/login.html" class="plan-cta cta-ph" id="ph1-cta">Get Photo Starter</a>
+      <ul class="feat-list">
+        <div class="feat-grp">Datasets & storage</div>
+        <li class="feat-item"><span class="feat-icon fi-gold"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span><strong>50 datasets</strong> simultaneously</span></li>
+        <li class="feat-item"><span class="feat-icon fi-gold"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Up to <strong>10,000 images</strong> per dataset</span></li>
+        <li class="feat-item"><span class="feat-icon fi-gold"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Full original resolution — no compression</span></li>
+        <div class="feat-grp">Sharing & processing</div>
+        <li class="feat-item"><span class="feat-icon fi-gold"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Unlimited share links</span></li>
+        <li class="feat-item"><span class="feat-icon fi-gold"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Unlimited concurrent searches</span></li>
+        <li class="feat-item"><span class="feat-icon fi-gold"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Priority GPU-accelerated processing</span></li>
+        <div class="feat-grp">Business</div>
+        <li class="feat-item"><span class="feat-icon fi-gold"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span><strong>Commercial use licence ✓</strong></span></li>
+        <li class="feat-item"><span class="feat-icon fi-gold"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>GST invoice on request</span></li>
+        <li class="feat-item"><span class="feat-icon fi-no"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span><span style="color:var(--muted)">Branded share links</span></li>
+        <li class="feat-item"><span class="feat-icon fi-no"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span><span style="color:var(--muted)">Analytics dashboard</span></li>
+      </ul>
+    </div>
+
+    <!-- Photo Pro — best value -->
+    <div class="plan-card photo-card best fade-up d2">
+      <span class="card-pip pip-best">📷 Best value</span>
+      <span class="plan-tier-badge badge-ph">Photographer</span>
+      <div class="plan-name">Pro</div>
+      <p class="plan-tagline">Full-time photographers running events regularly.</p>
+      <div class="plan-price">
+        <span class="price-sym">₹</span>
+        <span class="price-amt" id="ph2-amt">1,999</span>
+        <span class="price-per" id="ph2-per">/month</span>
+      </div>
+      <p class="price-note" id="ph2-note">&nbsp;</p>
+      <div class="plan-divider"></div>
+      <a href="/login.html" class="plan-cta cta-ph" id="ph2-cta">Get Photo Pro</a>
+      <ul class="feat-list">
+        <div class="feat-grp">Datasets & storage</div>
+        <li class="feat-item"><span class="feat-icon fi-gold"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span><strong>Unlimited datasets</strong></span></li>
+        <li class="feat-item"><span class="feat-icon fi-gold"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Up to <strong>20,000 images</strong> per dataset</span></li>
+        <li class="feat-item"><span class="feat-icon fi-gold"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Full original resolution — no compression</span></li>
+        <div class="feat-grp">Sharing & processing</div>
+        <li class="feat-item"><span class="feat-icon fi-gold"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Unlimited share links</span></li>
+        <li class="feat-item"><span class="feat-icon fi-gold"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Unlimited concurrent searches</span></li>
+        <li class="feat-item"><span class="feat-icon fi-gold"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Top-priority GPU processing</span></li>
+        <div class="feat-grp">Business</div>
+        <li class="feat-item"><span class="feat-icon fi-gold"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span><strong>Commercial use licence ✓</strong></span></li>
+        <li class="feat-item"><span class="feat-icon fi-gold"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Branded share links with your name</span></li>
+        <li class="feat-item"><span class="feat-icon fi-gold"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Analytics dashboard</span></li>
+        <li class="feat-item"><span class="feat-icon fi-gold"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>GST invoice + billing portal</span></li>
+        <li class="feat-item"><span class="feat-icon fi-gold"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Priority support — 24hr response</span></li>
+      </ul>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══ COMPARISON TABLE ═══ -->
+<div class="compare-wrap">
+  <div class="compare-head fade-up">
+    <h2>Full feature comparison</h2>
+    <p>Every plan, every feature — side by side.</p>
+  </div>
+  <div class="tbl-scroll fade-up">
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          <th class="th-free"><span class="th-n">Starter</span><span style="color:var(--muted);font-weight:400">Free</span></th>
+          <th class="th-p"><span class="th-n">Personal Lite</span><span id="t-p1-price" style="color:var(--muted);font-weight:400">₹199/mo</span></th>
+          <th class="th-p2"><span class="th-n">Personal Pro</span><span id="t-p2-price" style="color:var(--muted);font-weight:400">₹399/mo</span></th>
+          <th class="th-p"><span class="th-n">Personal Max</span><span id="t-p3-price" style="color:var(--muted);font-weight:400">₹699/mo</span></th>
+          <th class="th-ph"><span class="th-n">Photo Starter</span><span id="t-ph1-price" style="color:var(--muted);font-weight:400">₹999/mo</span></th>
+          <th class="th-ph"><span class="th-n">Photo Pro</span><span id="t-ph2-price" style="color:var(--muted);font-weight:400">₹1,999/mo</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="row-grp"><td colspan="7">Datasets & Storage</td></tr>
+        <tr><td>Max active datasets</td><td>1</td><td>5</td><td>15</td><td>30</td><td>50</td><td>Unlimited</td></tr>
+        <tr><td>Images per dataset</td><td>100</td><td>500</td><td>2,000</td><td>5,000</td><td>10,000</td><td>20,000</td></tr>
+        <tr><td>Image resolution</td><td>4K cap</td><td>4K + original</td><td>Original</td><td>Original</td><td>Original</td><td>Original</td></tr>
+        <tr><td>Delete & recreate dataset</td>
+          <td><svg class="ck-y" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></td>
+          <td><svg class="ck-y" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></td>
+          <td><svg class="ck-y" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></td>
+          <td><svg class="ck-y" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></td>
+          <td><svg class="ck-g" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></td>
+          <td><svg class="ck-g" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></td>
+        </tr>
+        <tr class="row-grp"><td colspan="7">Search & Sharing</td></tr>
+        <tr><td>Shareable search links</td><td>1</td><td>Multiple</td><td>Unlimited</td><td>Unlimited</td><td>Unlimited</td><td>Unlimited</td></tr>
+        <tr><td>Concurrent searches</td><td>—</td><td>3</td><td>10</td><td>Unlimited</td><td>Unlimited</td><td>Unlimited</td></tr>
+        <tr><td>Branded share links</td>
+          <td><svg class="ck-n" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></td>
+          <td><svg class="ck-n" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></td>
+          <td><svg class="ck-n" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></td>
+          <td><svg class="ck-n" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></td>
+          <td><svg class="ck-n" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></td>
+          <td><svg class="ck-g" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></td>
+        </tr>
+        <tr class="row-grp"><td colspan="7">Processing</td></tr>
+        <tr><td>Processing queue</td><td>Low</td><td>Normal</td><td>Priority</td><td>Priority</td><td>High / GPU</td><td>Top / GPU</td></tr>
+        <tr class="row-grp"><td colspan="7">Business & Support</td></tr>
+        <tr><td>Commercial use licence</td>
+          <td><svg class="ck-n" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></td>
+          <td><svg class="ck-n" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></td>
+          <td><svg class="ck-n" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></td>
+          <td><svg class="ck-n" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></td>
+          <td><svg class="ck-g" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></td>
+          <td><svg class="ck-g" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></td>
+        </tr>
+        <tr><td>Analytics dashboard</td>
+          <td><svg class="ck-n" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></td>
+          <td><svg class="ck-n" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></td>
+          <td><svg class="ck-n" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></td>
+          <td><svg class="ck-n" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></td>
+          <td><svg class="ck-n" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></td>
+          <td><svg class="ck-g" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></td>
+        </tr>
+        <tr><td>GST invoice</td>
+          <td><svg class="ck-n" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></td>
+          <td><svg class="ck-n" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></td>
+          <td><svg class="ck-n" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></td>
+          <td><svg class="ck-n" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></td>
+          <td><svg class="ck-g" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></td>
+          <td><svg class="ck-g" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></td>
+        </tr>
+        <tr><td>Support</td><td>Community</td><td>Email</td><td>Email (priority)</td><td>Email (priority)</td><td>Email</td><td>Priority 24hr</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══ FAQ ═══ -->
+<div class="faq-wrap">
+  <div class="faq-head fade-up">
+    <h2>Pricing FAQs</h2>
+    <p>Common questions about plans, billing, and limits.</p>
+  </div>
+
+  <div class="faq-item fade-up">
+    <div class="faq-q" onclick="toggleFaq(this)">Can I switch plans later?<svg class="faq-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div>
+    <div class="faq-a"><div class="faq-a-inner">Yes, you can upgrade or downgrade at any time. Upgrades apply immediately. Downgrades take effect at the start of your next billing cycle, so you always get what you paid for.</div></div>
+  </div>
+  <div class="faq-item fade-up">
+    <div class="faq-q" onclick="toggleFaq(this)">I already have an account — which plan am I on?<svg class="faq-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div>
+    <div class="faq-a"><div class="faq-a-inner">All existing accounts have been automatically placed on the <strong>Starter (Free)</strong> plan. Your current datasets are safe and untouched. You can keep using FaceFind for free within those limits, or upgrade at any time to access higher limits.</div></div>
+  </div>
+  <div class="faq-item fade-up">
+    <div class="faq-q" onclick="toggleFaq(this)">What is the 4K compression on the free tier exactly?<svg class="faq-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div>
+    <div class="faq-a"><div class="faq-a-inner">Only images with a resolution higher than 4K (3840 × 2160 px) are resized down to 4K on upload. Images already below 4K are stored as-is, with no quality change. Face recognition accuracy is fully maintained at 4K. On all paid plans, your original files are stored unchanged.</div></div>
+  </div>
+  <div class="faq-item fade-up">
+    <div class="faq-q" onclick="toggleFaq(this)">Can I delete my dataset and upload a new one on the free plan?<svg class="faq-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div>
+    <div class="faq-a"><div class="faq-a-inner">Yes — there is no restriction on how often you do this. Delete your current dataset from the dashboard at any time and your upload slot is immediately freed. Upload a new one whenever you like. This makes the free plan perfectly usable for one-at-a-time personal events.</div></div>
+  </div>
+  <div class="faq-item fade-up">
+    <div class="faq-q" onclick="toggleFaq(this)">What's the difference between Personal and Photographer plans?<svg class="faq-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div>
+    <div class="faq-a"><div class="faq-a-inner">Personal plans are for personal, non-commercial use — using FaceFind for your own events, family gatherings, and reunions. Photographer plans include a <strong>commercial use licence</strong>, meaning you can offer FaceFind-powered photo delivery as part of your paid photography services: weddings, corporate events, sports coverage, concerts, and more.</div></div>
+  </div>
+  <div class="faq-item fade-up">
+    <div class="faq-q" onclick="toggleFaq(this)">How does annual billing work?<svg class="faq-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div>
+    <div class="faq-a"><div class="faq-a-inner">Annual billing charges a single upfront payment covering 12 months at a discounted rate — roughly equivalent to getting 2–3 months free compared to monthly billing. Renewals are automatic unless you cancel before the renewal date. You can see exact annual prices by toggling the billing switch at the top of this page.</div></div>
+  </div>
+  <div class="faq-item fade-up">
+    <div class="faq-q" onclick="toggleFaq(this)">What payment methods are accepted?<svg class="faq-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div>
+    <div class="faq-a"><div class="faq-a-inner">We accept UPI, all major debit and credit cards (Visa, Mastercard, RuPay), net banking, and popular wallets. All payments are processed securely in INR (₹). GST invoices are available on Photographer plans.</div></div>
+  </div>
+  <div class="faq-item fade-up">
+    <div class="faq-q" onclick="toggleFaq(this)">What happens to my data if I downgrade?<svg class="faq-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div>
+    <div class="faq-a"><div class="faq-a-inner">Your data is retained for 30 days after downgrading, giving you time to export or reactivate. Datasets over your new plan's limit are flagged but not deleted until after that grace period. You'll always receive a warning before any deletion happens.</div></div>
+  </div>
+</div>
+
+<!-- Footer -->
+<footer>
+  <div class="footer-inner">
+    <a href="/" class="footer-logo">FaceFind</a>
+    <div class="footer-links">
+      <a href="/login.html">Sign in</a>
+      <a href="/pricing.html">Pricing</a>
+      <a href="/#faq">FAQ</a>
+      <a href="/#how-it-works">How it works</a>
+    </div>
+    <span class="footer-copy">© 2025 FaceFind — AI face search for events</span>
+  </div>
+</footer>
+
+<script>
+  // ── Price tables ──────────────────────────────────────────────────────────────
+  // [monthly, annual_total]  annual = ~2 months free
+  const PRICES = {
+    p1:  [199,   1,990],
+    p2:  [399,   3,990],
+    p3:  [699,   6,990],
+    ph1: [999,   9,990],
+    ph2: [1999, 19,990],
+  };
+
+  // Clean number formatting for INR
+  function inr(n) { return n.toLocaleString('en-IN'); }
+
+  // Actual numeric values (JS can't have commas in literals)
+  const P = {
+    p1:  { mo: 199,   yr: 1990  },
+    p2:  { mo: 399,   yr: 3990  },
+    p3:  { mo: 699,   yr: 6990  },
+    ph1: { mo: 999,   yr: 9990  },
+    ph2: { mo: 1999,  yr: 19990 },
+  };
+
+  let mode = 'monthly';
+
+  function applyBilling() {
+    const annual = mode === 'annual';
+
+    document.getElementById('toggleTrack').classList.toggle('on', annual);
+    document.getElementById('lblMonthly').classList.toggle('active', !annual);
+    document.getElementById('lblAnnual').classList.toggle('active', annual);
+
+    Object.entries(P).forEach(([key, v]) => {
+      const amt  = document.getElementById(key + '-amt');
+      const per  = document.getElementById(key + '-per');
+      const note = document.getElementById(key + '-note');
+      const cta  = document.getElementById(key + '-cta');
+      if (!amt) return;
+
+      if (annual) {
+        amt.textContent  = inr(v.yr);
+        per.textContent  = '/year';
+        const saved = (v.mo * 12) - v.yr;
+        const perMo = Math.round(v.yr / 12);
+        note.textContent = `₹${inr(perMo)}/month · Save ₹${inr(saved)}`;
+        if (cta) cta.textContent = cta.textContent.replace(' — Annual','') + ' — Annual';
+      } else {
+        amt.textContent  = inr(v.mo);
+        per.textContent  = '/month';
+        note.textContent = ' ';
+        if (cta) cta.textContent = cta.textContent.replace(' — Annual','');
+      }
+    });
+
+    // Update table header prices
+    const tbl = {
+      'p1': P.p1, 'p2': P.p2, 'p3': P.p3, 'ph1': P.ph1, 'ph2': P.ph2
+    };
+    Object.entries(tbl).forEach(([k, v]) => {
+      const el = document.getElementById('t-' + k + '-price');
+      if (el) el.textContent = annual ? `₹${inr(v.yr)}/yr` : `₹${inr(v.mo)}/mo`;
+    });
+  }
+
+  function setBilling(m) { mode = m; applyBilling(); }
+  function toggleBilling() { mode = mode === 'monthly' ? 'annual' : 'monthly'; applyBilling(); }
+
+  // ── FAQ ───────────────────────────────────────────────────────────────────────
+  function toggleFaq(el) {
+    const item = el.closest('.faq-item');
+    const open = item.classList.contains('open');
+    document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'));
+    if (!open) item.classList.add('open');
+  }
+
+  // ── Scroll animations ─────────────────────────────────────────────────────────
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+  document.querySelectorAll('.fade-up').forEach(el => obs.observe(el));
+
+  // ── Nav shadow ────────────────────────────────────────────────────────────────
+  window.addEventListener('scroll', () => {
+    document.getElementById('mainNav').classList.toggle('scrolled', window.scrollY > 20);
+  });
+</script>
+</body>
+</html>
