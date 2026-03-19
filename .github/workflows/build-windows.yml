@@ -1,0 +1,179 @@
+name: Build Windows EXE
+
+on:
+  # Run manually from the Actions tab
+  workflow_dispatch:
+  # Also run automatically whenever you push to prod
+  push:
+    branches:
+      - prod
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      # ── 1. Check out your code ──────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: prod
+
+      # ── 2. Set up Python ────────────────────────────────────────────────────
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # ── 3. Install dependencies ─────────────────────────────────────────────
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+          pip install -r requirements.txt
+
+      # ── 4. Write the launcher entry point ───────────────────────────────────
+      - name: Write launcher script
+        shell: python
+        run: |
+          code = r'''
+          import os, sys, json, time, hashlib, urllib.request, urllib.error
+          from pathlib import Path
+
+          VALIDATION_URL = "https://facefind-production.up.railway.app/api/license/validate"
+          PORT           = int(os.environ.get("PORT", 8000))
+
+          if getattr(sys, "frozen", False):
+              BASE_DIR = Path(sys.executable).parent
+              BUNDLE   = Path(sys._MEIPASS)
+          else:
+              BASE_DIR = Path(__file__).parent
+              BUNDLE   = BASE_DIR
+
+          KEY_FILE        = BASE_DIR / ".license_key"
+          MACHINE_ID_FILE = BASE_DIR / ".machine_id"
+          DATA_DIR        = BASE_DIR / "data"
+
+          def get_machine_id():
+              if MACHINE_ID_FILE.exists():
+                  return MACHINE_ID_FILE.read_text().strip()
+              import uuid
+              mid = hashlib.sha256(str(uuid.getnode()).encode()).hexdigest()[:32]
+              MACHINE_ID_FILE.write_text(mid)
+              return mid
+
+          def validate_key(key, machine_id):
+              payload = json.dumps({"key": key, "machine_id": machine_id}).encode()
+              req = urllib.request.Request(
+                  VALIDATION_URL, data=payload,
+                  headers={"Content-Type": "application/json"}, method="POST"
+              )
+              try:
+                  with urllib.request.urlopen(req, timeout=15) as resp:
+                      return json.loads(resp.read()), None
+              except urllib.error.HTTPError as e:
+                  try:
+                      body = json.loads(e.read())
+                      reason = body.get("reason") or body.get("detail") or str(e)
+                  except Exception:
+                      reason = str(e)
+                  return None, reason
+              except Exception as e:
+                  return None, str(e)
+
+          def main():
+              print("\n  FaceFind Self-Hosted")
+              print("  -------------------------------------")
+
+              DATA_DIR.mkdir(parents=True, exist_ok=True)
+              machine_id = get_machine_id()
+
+              key = ""
+              if KEY_FILE.exists():
+                  key = KEY_FILE.read_text().strip()
+
+              if not key:
+                  print("\n  No license key found.")
+                  print("  Get yours at: https://facefind-production.up.railway.app/download.html\n")
+                  key = input("  Enter license key (FF-XXXX-XXXX-XXXX-XXXX): ").strip().upper()
+
+              if not key:
+                  print("\n  [ERROR] No license key provided. Exiting.")
+                  input("  Press Enter to exit...")
+                  sys.exit(1)
+
+              print("\n  Validating license...")
+              data, error = validate_key(key, machine_id)
+
+              if data and data.get("valid"):
+                  print(f"  License valid - Plan: {data.get('plan', 'unknown')}")
+                  KEY_FILE.write_text(key)
+              elif error and KEY_FILE.exists():
+                  print(f"  Could not reach license server ({error})")
+                  print("  Running in offline mode using saved license.")
+              else:
+                  print(f"\n  [ERROR] License invalid: {error or data.get('reason', 'Unknown')}")
+                  print("  Get your key at: https://facefind-production.up.railway.app/download.html")
+                  KEY_FILE.unlink(missing_ok=True)
+                  input("\n  Press Enter to exit...")
+                  sys.exit(1)
+
+              os.environ["DATA_DIR"]     = str(DATA_DIR)
+              os.environ["FRONTEND_DIR"] = str(BUNDLE / "frontend")
+
+              import threading, webbrowser
+              def open_browser():
+                  time.sleep(3)
+                  webbrowser.open(f"http://localhost:{PORT}")
+              threading.Thread(target=open_browser, daemon=True).start()
+
+              print(f"\n  Starting server at http://localhost:{PORT}")
+              print("  Press Ctrl+C to stop.\n")
+
+              sys.path.insert(0, str(BUNDLE / "backend"))
+
+              import uvicorn
+              uvicorn.run("app:app", host="0.0.0.0", port=PORT, log_level="warning")
+
+          if __name__ == "__main__":
+              main()
+          '''
+          with open("facefind_launcher.py", "w") as f:
+              f.write(code)
+
+      # ── 5. Build the EXE ─────────────────────────────────────────────────────
+      - name: Build EXE with PyInstaller
+        run: |
+          pyinstaller `
+            --onefile `
+            --name "FaceFind" `
+            --add-data "frontend;frontend" `
+            --add-data "backend/app.py;backend" `
+            --hidden-import "uvicorn.logging" `
+            --hidden-import "uvicorn.loops" `
+            --hidden-import "uvicorn.loops.auto" `
+            --hidden-import "uvicorn.protocols" `
+            --hidden-import "uvicorn.protocols.http" `
+            --hidden-import "uvicorn.protocols.http.auto" `
+            --hidden-import "uvicorn.protocols.websockets.auto" `
+            --hidden-import "uvicorn.lifespan" `
+            --hidden-import "uvicorn.lifespan.on" `
+            --hidden-import "fastapi" `
+            --hidden-import "psycopg2" `
+            --hidden-import "insightface" `
+            --hidden-import "faiss" `
+            --hidden-import "cv2" `
+            --hidden-import "numpy" `
+            --hidden-import "redis" `
+            --hidden-import "multipart" `
+            --clean `
+            --noconfirm `
+            facefind_launcher.py
+
+      # ── 6. Upload the EXE as a downloadable artifact ─────────────────────────
+      - name: Upload EXE artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FaceFind-Windows
+          path: dist/FaceFind.exe
+          retention-days: 30
