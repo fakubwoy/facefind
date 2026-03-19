@@ -15,21 +15,14 @@ import urllib.request, urllib.parse, logging
 from pathlib import Path
 from typing import Optional
 
+import sqlite3
 import numpy as np
 import cv2
-import psycopg2
-import psycopg2.extras
-import redis as redis_lib
 import requests
 from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks, Form, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
-
-# Gmail API imports
-from google.oauth2.credentials import Credentials
-from google.auth.transport.requests import Request as GoogleRequest
-from googleapiclient.discovery import build
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -49,12 +42,84 @@ EXECUTABLE_PATH = Path(os.environ.get("EXECUTABLE_PATH", "/data/releases/facefin
 for d in [DATASETS_DIR, EMBEDDINGS_DIR, UPLOADS_DIR, THUMBS_DIR]:
     d.mkdir(parents=True, exist_ok=True)
 
-# ── Postgres ──────────────────────────────────────────────────────────────────
-DATABASE_URL = os.environ["DATABASE_URL"]  # set automatically by Railway Postgres plugin
+# ── SQLite (self-hosted) ─────────────────────────────────────────────────────
+_DB_PATH = DATA_DIR / "facefind.db" if "DATA_DIR" in os.environ else Path("facefind.db")
+
+class _RealDictRow(dict):
+    """Make sqlite3 rows behave like psycopg2 RealDictRow."""
+    pass
+
+class _SQLiteConn:
+    """Thin wrapper so existing `with get_db() as conn:` code works unchanged."""
+    def __init__(self, path):
+        self._conn = sqlite3.connect(str(path), check_same_thread=False)
+        self._conn.row_factory = lambda cur, row: _RealDictRow(
+            zip([d[0] for d in cur.description], row)
+        )
+        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.execute("PRAGMA foreign_keys=ON")
+
+    def cursor(self):
+        return _CursorWrapper(self._conn.cursor())
+
+    def commit(self):
+        self._conn.commit()
+
+    def close(self):
+        self._conn.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        self.close()
+
+class _CursorWrapper:
+    """Translate %s placeholders -> ? and expose fetchone/fetchall/rowcount."""
+    def __init__(self, cur):
+        self._cur = cur
+
+    @property
+    def rowcount(self):
+        return self._cur.rowcount
+
+    @property
+    def description(self):
+        return self._cur.description
+
+    def execute(self, sql, params=()):
+        sql = sql.replace("%s", "?")
+        # Translate ON CONFLICT (col) DO UPDATE SET ... EXCLUDED.x -> excluded.x (sqlite syntax)
+        self._cur.execute(sql, params)
+
+    def fetchone(self):
+        return self._cur.fetchone()
+
+    def fetchall(self):
+        return self._cur.fetchall()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        pass
+
+_db_lock = threading.Lock()
 
 def get_db():
-    conn = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
-    return conn
+    global _DB_PATH
+    _DB_PATH = DATA_DIR / "facefind.db"
+    return _SQLiteConn(_DB_PATH)
+
+def _sqlite_add_column_if_missing(conn, table, column, col_def):
+    """SQLite does not support ADD COLUMN IF NOT EXISTS, so we check first."""
+    with conn.cursor() as cur:
+        cur.execute(f"PRAGMA table_info({table})")
+        cols = [row["name"] for row in cur.fetchall()]
+    if column not in cols:
+        with conn.cursor() as cur:
+            cur.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_def}")
+        conn.commit()
 
 def init_db():
     with get_db() as conn:
@@ -65,9 +130,9 @@ def init_db():
                     email           TEXT UNIQUE NOT NULL,
                     name            TEXT NOT NULL,
                     password_hash   TEXT NOT NULL,
-                    email_verified  BOOLEAN DEFAULT FALSE,
-                    created_at      DOUBLE PRECISION
-                );
+                    email_verified  INTEGER DEFAULT 0,
+                    created_at      REAL
+                )
             """)
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS otp_codes (
@@ -75,127 +140,86 @@ def init_db():
                     email       TEXT NOT NULL,
                     code        TEXT NOT NULL,
                     purpose     TEXT NOT NULL,
-                    expires_at  DOUBLE PRECISION,
-                    used        BOOLEAN DEFAULT FALSE
-                );
+                    expires_at  REAL,
+                    used        INTEGER DEFAULT 0
+                )
             """)
-            # Migration: add email_verified to existing users table
             cur.execute("""
-                ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE;
-            """)
-            # Mark ALL existing users as verified so they aren't locked out
-            cur.execute("""
-                UPDATE users SET email_verified = TRUE WHERE email_verified = FALSE;
+                UPDATE users SET email_verified = 1 WHERE email_verified = 0
             """)
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS sessions (
                     token       TEXT PRIMARY KEY,
                     user_id     TEXT NOT NULL,
-                    created_at  DOUBLE PRECISION
-                );
+                    created_at  REAL
+                )
             """)
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS datasets (
                     id          TEXT PRIMARY KEY,
-                    user_id     TEXT NOT NULL,
+                    user_id     TEXT NOT NULL DEFAULT '',
                     name        TEXT NOT NULL,
                     source      TEXT DEFAULT 'zip',
                     folder_id   TEXT,
                     status      TEXT DEFAULT 'queued',
-                    total       INT DEFAULT 0,
-                    processed   INT DEFAULT 0,
-                    face_count  INT DEFAULT 0,
+                    total       INTEGER DEFAULT 0,
+                    processed   INTEGER DEFAULT 0,
+                    face_count  INTEGER DEFAULT 0,
                     error       TEXT,
-                    created_at  DOUBLE PRECISION
-                );
+                    created_at  REAL
+                )
             """)
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS shares (
                     share_id     TEXT PRIMARY KEY,
                     dataset_id   TEXT NOT NULL,
                     dataset_name TEXT,
-                    created_at   DOUBLE PRECISION
-                );
+                    created_at   REAL
+                )
             """)
-            # Migration: add user_id to datasets table if it doesn't exist yet
-            cur.execute("""
-                ALTER TABLE datasets ADD COLUMN IF NOT EXISTS user_id TEXT NOT NULL DEFAULT '';
-            """)
-            # Migration: add plan column to users
-            cur.execute("""
-                ALTER TABLE users ADD COLUMN IF NOT EXISTS plan TEXT DEFAULT 'free';
-            """)
-            # License keys table
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS license_keys (
                     key              TEXT PRIMARY KEY,
                     user_id          TEXT NOT NULL,
                     plan             TEXT NOT NULL,
-                    created_at       DOUBLE PRECISION,
-                    expires_at       DOUBLE PRECISION,
-                    revoked          BOOLEAN DEFAULT FALSE,
-                    activations      INT DEFAULT 0,
-                    max_activations  INT DEFAULT 3,
-                    last_seen_at     DOUBLE PRECISION,
+                    created_at       REAL,
+                    expires_at       REAL,
+                    revoked          INTEGER DEFAULT 0,
+                    activations      INTEGER DEFAULT 0,
+                    max_activations  INTEGER DEFAULT 3,
+                    last_seen_at     REAL,
                     last_seen_ip     TEXT
-                );
+                )
             """)
-            # Download tokens table (short-lived one-use links)
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS download_tokens (
                     token       TEXT PRIMARY KEY,
                     user_id     TEXT NOT NULL,
-                    created_at  DOUBLE PRECISION,
-                    expires_at  DOUBLE PRECISION,
-                    used        BOOLEAN DEFAULT FALSE
-                );
+                    created_at  REAL,
+                    expires_at  REAL,
+                    used        INTEGER DEFAULT 0
+                )
             """)
         conn.commit()
+    # Add columns that may be missing in older DBs
+    with get_db() as conn:
+        _sqlite_add_column_if_missing(conn, "users", "email_verified", "INTEGER DEFAULT 0")
+        _sqlite_add_column_if_missing(conn, "users", "plan", "TEXT DEFAULT 'free'")
+        _sqlite_add_column_if_missing(conn, "datasets", "user_id", "TEXT NOT NULL DEFAULT ''")
     log.info("DB tables ready")
 
-# ── Redis cache ───────────────────────────────────────────────────────────────
-REDIS_URL = os.environ.get("REDIS_URL", "")
-_redis: Optional[redis_lib.Redis] = None
-
-def get_redis() -> Optional[redis_lib.Redis]:
-    global _redis
-    if _redis is None and REDIS_URL:
-        try:
-            _redis = redis_lib.from_url(REDIS_URL, decode_responses=True)
-            _redis.ping()
-            log.info("Redis connected")
-        except Exception as e:
-            log.warning(f"Redis unavailable: {e}. Caching disabled.")
-            _redis = None
-    return _redis
+# ── Cache (no-op for self-hosted — Redis not needed locally) ─────────────────
+def get_redis():
+    return None
 
 def cache_get(key: str):
-    r = get_redis()
-    if not r:
-        return None
-    try:
-        val = r.get(key)
-        return json.loads(val) if val else None
-    except Exception:
-        return None
+    return None
 
 def cache_set(key: str, value, ttl: int = 30):
-    r = get_redis()
-    if not r:
-        return
-    try:
-        r.setex(key, ttl, json.dumps(value))
-    except Exception:
-        pass
+    pass
 
 def cache_delete(key: str):
-    r = get_redis()
-    if not r:
-        return
-    try:
-        r.delete(key)
-    except Exception:
-        pass
+    pass
 
 # ── DB helpers ────────────────────────────────────────────────────────────────
 
@@ -237,18 +261,18 @@ def db_upsert_dataset(ds: dict):
         with conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO datasets (id, user_id, name, source, folder_id, status, total, processed, face_count, error, created_at)
-                VALUES (%(id)s, %(user_id)s, %(name)s, %(source)s, %(folder_id)s, %(status)s, %(total)s, %(processed)s, %(face_count)s, %(error)s, %(created_at)s)
-                ON CONFLICT (id) DO UPDATE SET
-                    name=EXCLUDED.name, source=EXCLUDED.source, folder_id=EXCLUDED.folder_id,
-                    status=EXCLUDED.status, total=EXCLUDED.total, processed=EXCLUDED.processed,
-                    face_count=EXCLUDED.face_count, error=EXCLUDED.error
-            """, {
-                "id": ds["id"], "user_id": ds["user_id"], "name": ds["name"], "source": ds.get("source","zip"),
-                "folder_id": ds.get("folder_id"), "status": ds.get("status","queued"),
-                "total": ds.get("total",0), "processed": ds.get("processed",0),
-                "face_count": ds.get("face_count",0), "error": ds.get("error"),
-                "created_at": ds.get("created_at", time.time()),
-            })
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    name=excluded.name, source=excluded.source, folder_id=excluded.folder_id,
+                    status=excluded.status, total=excluded.total, processed=excluded.processed,
+                    face_count=excluded.face_count, error=excluded.error
+            """, (
+                ds["id"], ds["user_id"], ds["name"], ds.get("source","zip"),
+                ds.get("folder_id"), ds.get("status","queued"),
+                ds.get("total",0), ds.get("processed",0),
+                ds.get("face_count",0), ds.get("error"),
+                ds.get("created_at", time.time()),
+            ))
         conn.commit()
     cache_delete(f"dataset:{ds['id']}")
     cache_delete(f"datasets:{ds['user_id']}")
@@ -712,62 +736,15 @@ OTP_EXPIRY    = int(os.environ.get("OTP_EXPIRY_SECONDS", "600"))  # 10 minutes
 # ── Gmail API Email Sending ───────────────────────────────────────────────────
 
 def send_email(to: str, subject: str, html_body: str):
-    """
-    Send HTML email via Gmail API (works on Railway - uses HTTPS port 443)
-    """
-    client_id = os.environ.get("GMAIL_CLIENT_ID")
-    client_secret = os.environ.get("GMAIL_CLIENT_SECRET")
-    refresh_token = os.environ.get("GMAIL_REFRESH_TOKEN")
-    
-    if not all([client_id, client_secret, refresh_token]):
-        log.error("Gmail API credentials not configured")
-        raise RuntimeError(
-            "Email not configured. Set GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, and GMAIL_REFRESH_TOKEN in Railway environment variables."
-        )
-    
-    credentials = Credentials(
-        token=None,
-        refresh_token=refresh_token,
-        token_uri="https://oauth2.googleapis.com/token",
-        client_id=client_id,
-        client_secret=client_secret,
-        scopes=["https://www.googleapis.com/auth/gmail.send"]
-    )
-    
-    try:
-        if credentials.expired:
-            credentials.refresh(GoogleRequest())
-    except Exception as e:
-        log.error(f"Failed to refresh token: {e}")
-        raise RuntimeError(f"Gmail API authentication failed: {str(e)}")
-    
-    message = EmailMessage()
-    message.set_content("Please enable HTML to view this message")
-    message.add_alternative(html_body, subtype="html")
-    message["To"] = to
-    message["From"] = "FaceFind <admin.facefind@gmail.com>"
-    message["Subject"] = subject
-    
-    encoded_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
-    
-    try:
-        service = build("gmail", "v1", credentials=credentials)
-        send_message = service.users().messages().send(
-            userId="me", 
-            body={"raw": encoded_message}
-        ).execute()
-        log.info(f"Email sent to {to}: {subject}")
-        return send_message
-    except Exception as e:
-        log.error(f"Gmail API error: {e}")
-        raise RuntimeError(f"Failed to send email: {str(e)}")
+    """Self-hosted mode: email is not required. OTP is printed to console instead."""
+    log.info(f"[SELF-HOSTED] Email to {to} | Subject: {subject} | (email sending disabled)")
 
 def generate_otp(email: str, purpose: str) -> str:
     """Generate a 6-digit OTP, store in DB, return the code."""
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "UPDATE otp_codes SET used=TRUE WHERE email=%s AND purpose=%s AND used=FALSE",
+                "UPDATE otp_codes SET used=1 WHERE email=? AND purpose=? AND used=0",
                 (email.lower(), purpose)
             )
         conn.commit()
@@ -777,7 +754,7 @@ def generate_otp(email: str, purpose: str) -> str:
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "INSERT INTO otp_codes (id, email, code, purpose, expires_at, used) VALUES (%s,%s,%s,%s,%s,FALSE)",
+                "INSERT INTO otp_codes (id, email, code, purpose, expires_at, used) VALUES (?,?,?,?,?,0)",
                 (otp_id, email.lower(), code, purpose, expires_at)
             )
         conn.commit()
@@ -788,7 +765,7 @@ def verify_otp(email: str, code: str, purpose: str) -> bool:
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, expires_at FROM otp_codes WHERE email=%s AND code=%s AND purpose=%s AND used=FALSE",
+                "SELECT id, expires_at FROM otp_codes WHERE email=? AND code=? AND purpose=? AND used=0",
                 (email.lower(), code.strip(), purpose)
             )
             row = cur.fetchone()
@@ -797,7 +774,7 @@ def verify_otp(email: str, code: str, purpose: str) -> bool:
         if time.time() > row["expires_at"]:
             return False
         with conn.cursor() as cur:
-            cur.execute("UPDATE otp_codes SET used=TRUE WHERE id=%s", (row["id"],))
+            cur.execute("UPDATE otp_codes SET used=1 WHERE id=?", (row["id"],))
         conn.commit()
     return True
 
@@ -830,6 +807,8 @@ def send_otp_email(email: str, code: str, purpose: str):
     </div>
     """
     
+    log.info(f"[SELF-HOSTED] OTP for {email} ({purpose}): {code}")
+    print(f"*** Verification code for {email}: {code} ***")
     send_email(email, subject, html)
 
 def db_create_user(email: str, name: str, password: str, email_verified: bool = False) -> dict:
@@ -839,7 +818,7 @@ def db_create_user(email: str, name: str, password: str, email_verified: bool = 
         with conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO users (id, email, name, password_hash, email_verified, created_at)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                VALUES (?, ?, ?, ?, ?, ?)
             """, (user_id, email.lower(), name, pw_hash, email_verified, time.time()))
         conn.commit()
     return {"id": user_id, "email": email.lower(), "name": name}
@@ -857,7 +836,7 @@ def db_create_session(user_id: str) -> str:
         with conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO sessions (token, user_id, created_at)
-                VALUES (%s, %s, %s)
+                VALUES (?, ?, ?)
             """, (token, user_id, time.time()))
         conn.commit()
     return token
@@ -917,7 +896,7 @@ def generate_license_key(user_id: str, plan: str) -> str:
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "UPDATE license_keys SET revoked=TRUE WHERE user_id=%s AND revoked=FALSE",
+                "UPDATE license_keys SET revoked=1 WHERE user_id=? AND revoked=0",
                 (user_id,)
             )
         conn.commit()
@@ -928,7 +907,7 @@ def generate_license_key(user_id: str, plan: str) -> str:
             cur.execute("""
                 INSERT INTO license_keys
                   (key, user_id, plan, created_at, expires_at, revoked, activations, max_activations)
-                VALUES (%s, %s, %s, %s, %s, FALSE, 0, %s)
+                VALUES (?, ?, ?, ?, ?, 0, 0, ?)
             """, (
                 key,
                 user_id,
@@ -959,7 +938,7 @@ def issue_download_token(user_id: str) -> str:
         with conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO download_tokens (token, user_id, created_at, expires_at, used)
-                VALUES (%s, %s, %s, %s, FALSE)
+                VALUES (?, ?, ?, ?, 0)
             """, (token, user_id, now, now + 15 * 60))
         conn.commit()
     return token
@@ -970,14 +949,14 @@ def consume_download_token(token: str) -> Optional[str]:
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT * FROM download_tokens WHERE token=%s AND used=FALSE AND expires_at > %s",
+                "SELECT * FROM download_tokens WHERE token=? AND used=0 AND expires_at > ?",
                 (token, time.time())
             )
             row = cur.fetchone()
         if not row:
             return None
         with conn.cursor() as cur:
-            cur.execute("UPDATE download_tokens SET used=TRUE WHERE token=%s", (token,))
+            cur.execute("UPDATE download_tokens SET used=1 WHERE token=?", (token,))
         conn.commit()
     return row["user_id"]
 
@@ -1008,7 +987,6 @@ async def no_cache_html(request: Request, call_next):
 @app.on_event("startup")
 def on_startup():
     init_db()
-    get_redis()  # warm up connection
 
 # ── Auth endpoints ────────────────────────────────────────────────────────────
 
@@ -1445,7 +1423,7 @@ def download_info(request: Request):
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT * FROM license_keys WHERE user_id=%s AND revoked=FALSE ORDER BY created_at DESC LIMIT 1",
+                "SELECT * FROM license_keys WHERE user_id=? AND revoked=0 ORDER BY created_at DESC LIMIT 1",
                 (user["id"],)
             )
             key_row = cur.fetchone()
@@ -1503,7 +1481,7 @@ def request_download_link(request: Request):
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT key FROM license_keys WHERE user_id=%s AND revoked=FALSE AND expires_at > %s LIMIT 1",
+                "SELECT key FROM license_keys WHERE user_id=? AND revoked=0 AND expires_at > ? LIMIT 1",
                 (user["id"], time.time())
             )
             row = cur.fetchone()
@@ -1589,10 +1567,10 @@ async def validate_license(request: Request):
         with conn.cursor() as cur:
             cur.execute("""
                 UPDATE license_keys
-                SET activations  = LEAST(activations + 1, max_activations),
-                    last_seen_at = %s,
-                    last_seen_ip = %s
-                WHERE key = %s
+                SET activations  = MIN(activations + 1, max_activations),
+                    last_seen_at = ?,
+                    last_seen_ip = ?
+                WHERE key = ?
             """, (time.time(), client_ip, key_str))
         conn.commit()
 
@@ -1620,7 +1598,7 @@ def revoke_license(request: Request):
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "UPDATE license_keys SET revoked=TRUE WHERE user_id=%s AND revoked=FALSE",
+                "UPDATE license_keys SET revoked=1 WHERE user_id=? AND revoked=0",
                 (user["id"],)
             )
             count = cur.rowcount
@@ -1666,19 +1644,8 @@ def admin_set_plan(request: Request, target_email: str = Form(...), plan: str = 
 
 @app.get("/api/debug/email")
 def debug_email():
-    """Debug endpoint to check email configuration"""
-    client_id = os.environ.get("GMAIL_CLIENT_ID", "")
-    client_secret = os.environ.get("GMAIL_CLIENT_SECRET", "")
-    refresh_token = os.environ.get("GMAIL_REFRESH_TOKEN", "")
-    
-    return {
-        "client_id_present":     bool(client_id),
-        "client_id_preview":     client_id[:10] + "..." if client_id else None,
-        "client_secret_present": bool(client_secret),
-        "refresh_token_present": bool(refresh_token),
-        "refresh_token_preview": refresh_token[:10] + "..." if refresh_token else None,
-        "status": "Configured" if all([client_id, client_secret, refresh_token]) else "Missing credentials"
-    }
+    """Self-hosted: email is disabled, OTPs are logged to console."""
+    return {"status": "Email disabled in self-hosted mode. OTPs are printed to the console."}
 
 # ── Health ────────────────────────────────────────────────────────────────────
 
@@ -1690,11 +1657,7 @@ def health():
         "timestamp": time.time(),
         "redis":     "connected" if r else "disabled",
         "db":        "postgres",
-        "email":     "configured" if all([
-            os.environ.get("GMAIL_CLIENT_ID"),
-            os.environ.get("GMAIL_CLIENT_SECRET"),
-            os.environ.get("GMAIL_REFRESH_TOKEN"),
-        ]) else "not configured"
+        "email":     "disabled (self-hosted mode)"
     }
 
 # ── Frontend static files ─────────────────────────────────────────────────────
