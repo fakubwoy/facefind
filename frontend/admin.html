@@ -1370,6 +1370,7 @@
 
   // ── Polling ────────────────────────────────────────────────────────────────
   function startPolling(which, id) {
+    if (!id) { console.warn('startPolling called with null id — skipped'); return; }
     if (pollingInterval) clearInterval(pollingInterval);
 
     // Track last seen values so we only refresh the collections list
@@ -1491,6 +1492,7 @@
 
         return `
           <div class="dataset-item ${ds.id === selectedDatasetId ? 'selected' : ''}"
+               data-id="${ds.id}"
                onclick="selectDataset('${ds.id}', '${ds.status}')">
             <div class="dataset-name">${ds.name}${srcLabel}</div>
             <div class="dataset-meta">
@@ -1512,7 +1514,10 @@
   function selectDataset(id, status) {
     selectedDatasetId = id;
     document.getElementById('shareBtn').disabled = (status !== 'ready');
-    loadDatasets();
+    // Just update visual selection — no need to re-fetch the list
+    document.querySelectorAll('.dataset-item').forEach(el => el.classList.remove('selected'));
+    const target = document.querySelector(`.dataset-item[data-id="${id}"]`);
+    if (target) target.classList.add('selected');
   }
 
   // ── Share ──────────────────────────────────────────────────────────────────
@@ -1606,60 +1611,98 @@
     }
   });
 
-  addImagesBtn.addEventListener('click', async () => {
+  addImagesBtn.addEventListener('click', () => {
     const file = addImagesFile.files[0];
     if (!file || !currentAddImagesDatasetId) return;
 
-    const compress = document.getElementById('addImagesCompress').checked;
+    const compress  = document.getElementById('addImagesCompress').checked;
+    const targetId  = currentAddImagesDatasetId;
     const fd = new FormData();
     fd.append('file', file);
     fd.append('compress', compress ? 'true' : 'false');
 
-    try {
-      addImagesBtn.disabled = true;
-      addImagesBtn.innerHTML = '<span style="display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite"></span> Uploading…';
+    addImagesBtn.disabled = true;
+    addImagesBtn.innerHTML = '<span style="display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite"></span> Uploading…';
 
-      const r = await fetch(`${API}/api/datasets/${currentAddImagesDatasetId}/add-images`, {
-        method: 'POST',
-        body: fd,
-        credentials: 'include'
-      });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.detail || 'Failed to add images');
+    const xhr = new XMLHttpRequest();
+    xhr.withCredentials = true;
 
+    // Show byte-level upload progress on the button label
+    xhr.upload.addEventListener('progress', e => {
+      if (!e.lengthComputable) return;
+      const pct    = Math.round((e.loaded / e.total) * 100);
+      const loaded = (e.loaded / 1024 / 1024).toFixed(1);
+      const total  = (e.total  / 1024 / 1024).toFixed(1);
+      addImagesBtn.innerHTML = `<span style="display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite"></span> ${pct}% — ${loaded} / ${total} MB`;
+    });
+
+    xhr.upload.addEventListener('load', () => {
+      addImagesBtn.innerHTML = '<span style="display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite"></span> Re-indexing…';
+    });
+
+    xhr.addEventListener('load', () => {
+      let d;
+      try { d = JSON.parse(xhr.responseText); } catch { d = {}; }
+      if (xhr.status < 200 || xhr.status >= 300) {
+        toast(`Error: ${d.detail || 'Failed to add images'}`);
+        addImagesBtn.disabled = false;
+        addImagesBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Add Photos & Re-index';
+        return;
+      }
       toast('Photos added! Re-indexing collection…');
       closeAddImagesDialog();
-
-      selectedDatasetId = currentAddImagesDatasetId;
+      selectedDatasetId = targetId;
       loadDatasets();
-      startReembeddingPolling(currentAddImagesDatasetId);
-    } catch (e) {
-      toast(`Error: ${e.message}`);
+      startReembeddingPolling(targetId);
+    });
+
+    xhr.addEventListener('error', () => {
+      toast('Upload failed — network error');
       addImagesBtn.disabled = false;
       addImagesBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Add Photos & Re-index';
-    }
+    });
+
+    xhr.open('POST', `${API}/api/datasets/${targetId}/add-images`);
+    xhr.send(fd);
   });
 
   let reembeddingPollInterval = null;
   function startReembeddingPolling(datasetId) {
+    if (!datasetId) { console.warn('startReembeddingPolling called with null id — skipped'); return; }
+    // Stop any upload polling that may still be running from the same session
+    if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null; }
     if (reembeddingPollInterval) clearInterval(reembeddingPollInterval);
+
+    let lastStatus    = null;
+    let lastProcessed = -1;
 
     reembeddingPollInterval = setInterval(async () => {
       try {
         const r = await fetch(`${API}/api/datasets/${datasetId}/status`, { credentials: 'include' });
         const d = await r.json();
 
-        loadDatasets();
+        // Only call loadDatasets when something actually changed
+        const statusChanged   = d.status    !== lastStatus;
+        const progressChanged = d.processed !== lastProcessed;
+        if (statusChanged || progressChanged) {
+          loadDatasets();
+          lastStatus    = d.status;
+          lastProcessed = d.processed;
+        }
 
         if (d.status === 'ready') {
           clearInterval(reembeddingPollInterval);
+          reembeddingPollInterval = null;
+          loadDatasets();
           toast(`Re-indexing complete! ${d.face_count} faces indexed.`);
         } else if (d.status === 'error') {
           clearInterval(reembeddingPollInterval);
+          reembeddingPollInterval = null;
+          loadDatasets();
           toast(`Re-indexing failed: ${d.error || 'Unknown error'}`);
         }
       } catch (e) {}
-    }, 1000);
+    }, 2000);
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -1766,7 +1809,7 @@
   loadPlanBanner();
   // Background refresh — skips while active polling is running to avoid
   // doubling requests. Slowed to 10s; polling handles live updates at 2s.
-  setInterval(() => { if (!pollingInterval) loadDatasets(); }, 10000);
+  setInterval(() => { if (!pollingInterval && !reembeddingPollInterval) loadDatasets(); }, 10000);
 </script>
 </body>
 </html>
