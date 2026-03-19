@@ -73,9 +73,17 @@
     /* ── Layout ── */
     .layout {
       position: relative; z-index: 1;
-      max-width: 680px;
+      max-width: 1100px;
       margin: 0 auto;
-      padding: 0 24px 80px;
+      padding: 0 28px 80px;
+    }
+
+    /* Content inside the layout stays centred and readable */
+    .hero, .upload-card, .results-section,
+    #facePickerSection, #loadingState, #noFaceState {
+      max-width: 680px;
+      margin-left: auto;
+      margin-right: auto;
     }
 
     /* ── Header ── */
@@ -86,6 +94,7 @@
       padding: 22px 0;
       border-bottom: 1px solid var(--border);
       margin-bottom: 0;
+      max-width: none;
     }
 
     .logo-link {
@@ -869,7 +878,7 @@
   <!-- Header -->
   <header>
     <a href="https://facefind-production.up.railway.app" class="logo-link">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="10" x2="9.01" y2="10" stroke-width="3"/><line x1="15" y1="10" x2="15.01" y2="10" stroke-width="3"/></svg>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="10" r="3"/><path d="M9 16c0-1.7 1.3-3 3-3s3 1.3 3 3"/></svg>
       <span class="logo-text">FaceFind</span>
     </a>
     <div class="shared-badge">
