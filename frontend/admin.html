@@ -919,7 +919,7 @@
 
             <!-- Limit wall (shown when free tier dataset cap reached) -->
             <div class="limit-wall" id="limitWall">
-              <div class="limit-wall-icon">📦</div>
+              <div class="limit-wall-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="color:var(--warn)"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div>
               <div class="limit-wall-title">Dataset limit reached</div>
               <div class="limit-wall-desc">Your current plan allows <strong id="limitWallMax">1 dataset</strong>. Delete your existing dataset first, or upgrade to upload multiple collections simultaneously.</div>
               <a href="/pricing.html" class="plan-upgrade-btn" style="display:inline-flex;margin:0 auto;">
@@ -1587,8 +1587,8 @@
     personal_lite: { label: 'Personal Lite',           maxDatasets: 5,    maxImages: 500,   iconClass: 'paid', isProPhoto: false },
     personal_pro:  { label: 'Personal Pro',            maxDatasets: 15,   maxImages: 2000,  iconClass: 'paid', isProPhoto: false },
     personal_max:  { label: 'Personal Max',            maxDatasets: 30,   maxImages: 5000,  iconClass: 'paid', isProPhoto: false },
-    photo_starter: { label: 'Photographer Starter',    maxDatasets: 50,   maxImages: 10000, iconClass: 'pro',  isProPhoto: true  },
-    photo_pro:     { label: 'Photographer Pro',        maxDatasets: 9999, maxImages: 20000, iconClass: 'pro',  isProPhoto: true  },
+    photo_starter: { label: 'Studio Starter',          maxDatasets: 50,   maxImages: 10000, iconClass: 'pro',  isProPhoto: true  },
+    photo_pro:     { label: 'Studio Pro',              maxDatasets: 9999, maxImages: 20000, iconClass: 'pro',  isProPhoto: true  },
   };
 
   let currentPlan = 'free';
@@ -1627,14 +1627,14 @@
     const maxImg = cfg.maxImages >= 9999 ? 'Unlimited' : cfg.maxImages.toLocaleString('en-IN');
     limits.innerHTML = `<strong>${datasetCount} / ${maxDS}</strong> datasets used &nbsp;·&nbsp; Up to <strong>${maxImg} images</strong> per dataset` +
       (currentPlan === 'free' ? ' &nbsp;·&nbsp; 4K auto-compression' : '') +
-      (cfg.isProPhoto ? ' &nbsp;·&nbsp; Commercial use ✓' : '');
+      (cfg.isProPhoto ? ' &nbsp;·&nbsp; Commercial use <svg style="display:inline;vertical-align:-2px" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : '');
 
     // Style upgrade button
     if (cfg.isProPhoto) {
       upBtn.className = 'plan-upgrade-btn gold';
       upBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg> Manage plan`;
     } else if (currentPlan !== 'free') {
-      upBtn.textContent = '↑ Upgrade plan';
+      upBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg> Upgrade plan';
     }
 
     // Show/hide limit wall for upload form
@@ -1663,7 +1663,7 @@
   checkAuth();
   loadDatasets();
   loadPlanBanner();
-  setInterval(loadDatasetsre, 5000);
+  setInterval(loadDatasets, 5000);
 </script>
 </body>
 </html>
