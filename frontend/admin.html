@@ -1189,7 +1189,7 @@
   });
 
   // ── ZIP: Upload ────────────────────────────────────────────────────────────
-  uploadBtn.addEventListener('click', async () => {
+  uploadBtn.addEventListener('click', () => {
     const file = zipFile.files[0];
     if (!file) return;
 
@@ -1200,36 +1200,68 @@
     if (name) fd.append('name', name);
     fd.append('compress', compress ? 'true' : 'false');
 
+    // Hide upload UI, hide limit wall, show progress panel immediately
     uploadBtn.disabled = true;
-    uploadBtn.innerHTML = '<span style="display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite"></span> Uploading…';
     dropZone.style.display = 'none';
     document.getElementById('zipSelectedInfo').style.display = 'none';
+    document.getElementById('limitWall').classList.remove('show');
+    updateInlineProgress('zip', 'Uploading', 'Sending file to server…', 0, '');
 
-    try {
-      const r = await fetch(`${API}/api/datasets/upload-zip`, { method: 'POST', body: fd, credentials: 'include' });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.detail || 'Upload failed');
-      toast(`Collection "${d.name}" is being processed!`);
+    const xhr = new XMLHttpRequest();
+    xhr.withCredentials = true;
+
+    // ── Upload progress (0 → 100% while file transfers) ──────────────────
+    xhr.upload.addEventListener('progress', e => {
+      if (!e.lengthComputable) return;
+      const pct = Math.round((e.loaded / e.total) * 100);
+      const loaded = (e.loaded / 1024 / 1024).toFixed(1);
+      const total  = (e.total  / 1024 / 1024).toFixed(1);
+      updateInlineProgress('zip', 'Uploading', `${loaded} MB / ${total} MB`, pct, '');
+    });
+
+    // ── Server processing starts when upload finishes ─────────────────────
+    xhr.upload.addEventListener('load', () => {
+      updateInlineProgress('zip', 'Processing', 'Server is indexing faces…', 100, '');
+    });
+
+    xhr.addEventListener('load', () => {
+      let d;
+      try { d = JSON.parse(xhr.responseText); } catch { d = {}; }
+      if (xhr.status < 200 || xhr.status >= 300) {
+        toast(`Error: ${d.detail || 'Upload failed'}`);
+        resetZipUpload();
+        loadPlanBanner();
+        return;
+      }
       loadDatasets();
       loadPlanBanner();
-      startPolling('zip', d.id);
-    } catch(e) {
-      toast(`Error: ${e.message}`);
-      uploadBtn.disabled = false;
-      uploadBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload & Start Indexing';
-      dropZone.style.display = '';
-    }
+      startPolling('zip', d.dataset_id);
+    });
+
+    xhr.addEventListener('error', () => {
+      toast('Upload failed — network error');
+      resetZipUpload();
+    });
+
+    xhr.open('POST', `${API}/api/datasets/upload-zip`);
+    xhr.send(fd);
   });
 
   function resetZipUpload() {
     document.getElementById('zipSuccess').classList.remove('visible');
     document.getElementById('zipProgressPanel').classList.remove('visible');
+    // Reset ring colour in case it was turned red on error
+    document.getElementById('zipRing').style.stroke = '';
+    document.getElementById('zipPct').style.color   = '';
     dropZone.style.display = '';
     zipFile.value = '';
     document.getElementById('zipSelectedInfo').style.display = 'none';
     document.getElementById('datasetName').value = '';
     uploadBtn.disabled = true;
+    uploadBtn.style.display = '';
     uploadBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload & Start Indexing';
+    // Re-evaluate plan limits so wall/button state is always correct
+    loadPlanBanner();
   }
 
   // ── Drive ──────────────────────────────────────────────────────────────────
@@ -1244,9 +1276,11 @@
     driveBtn.innerHTML = '<span style="display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite"></span> Connecting…';
     document.getElementById('driveZone').style.display = 'none';
     document.getElementById('driveNameField').style.display = 'none';
+    document.getElementById('limitWall').classList.remove('show');
+    updateInlineProgress('drive', 'Connecting', 'Linking Google Drive folder…', 0, '');
 
     const fd = new FormData();
-    fd.append('url', url);
+    fd.append('folder_url', url);
     if (name) fd.append('name', name);
 
     try {
@@ -1254,7 +1288,9 @@
       const d = await r.json();
       if (!r.ok) throw new Error(d.detail || 'Failed');
       toast(`Drive folder linked! Downloading…`);
-      startPolling('drive', d.id);
+      loadDatasets();
+      loadPlanBanner();
+      startPolling('drive', d.dataset_id);
     } catch(e) {
       toast(`Error: ${e.message}`);
       driveBtn.disabled = false;
@@ -1647,11 +1683,14 @@
   }
 
   function applyLimitWall(cfg, count) {
-    const wall   = document.getElementById('limitWall');
-    const drop   = document.getElementById('dropZone');
-    const upBtn2 = document.getElementById('uploadBtn');
-    const maxDS  = cfg.maxDatasets;
-    if (count >= maxDS) {
+    const wall      = document.getElementById('limitWall');
+    const drop      = document.getElementById('dropZone');
+    const upBtn2    = document.getElementById('uploadBtn');
+    const maxDS     = cfg.maxDatasets;
+    // Never show the limit wall while an upload or embedding is actively running
+    const uploadActive = document.getElementById('zipProgressPanel').classList.contains('visible')
+                      || document.getElementById('driveProgressPanel').classList.contains('visible');
+    if (count >= maxDS && !uploadActive) {
       wall.classList.add('show');
       drop.style.display   = 'none';
       upBtn2.style.display = 'none';
@@ -1659,8 +1698,10 @@
       document.getElementById('limitWallMax').textContent = maxLabel;
     } else {
       wall.classList.remove('show');
-      drop.style.display   = '';
-      upBtn2.style.display = '';
+      if (!uploadActive) {
+        drop.style.display   = '';
+        upBtn2.style.display = '';
+      }
     }
   }
 
