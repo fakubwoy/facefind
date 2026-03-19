@@ -1,6 +1,6 @@
 """
 FaceFind – Backend API (Railway Edition)
-- Postgres for metadata (datasets, shares)
+- Postgres for metadata (datasets, shares, license keys, download tokens)
 - Redis for caching dataset status + search results
 - Local filesystem volume for images + FAISS indexes
 - Gmail API for email OTP verification (works on Railway)
@@ -42,6 +42,9 @@ EMBEDDINGS_DIR = DATA_DIR / "embeddings"
 UPLOADS_DIR    = DATA_DIR / "uploads"
 THUMBS_DIR     = DATA_DIR / "thumbs"   # persistent thumbnail cache
 FRONTEND_DIR   = Path(__file__).parent.parent / "frontend"
+
+# Path to the self-hosted executable ZIP served for download
+EXECUTABLE_PATH = Path(os.environ.get("EXECUTABLE_PATH", "/data/releases/facefind-selfhosted.zip"))
 
 for d in [DATASETS_DIR, EMBEDDINGS_DIR, UPLOADS_DIR, THUMBS_DIR]:
     d.mkdir(parents=True, exist_ok=True)
@@ -117,6 +120,35 @@ def init_db():
             # Migration: add user_id to datasets table if it doesn't exist yet
             cur.execute("""
                 ALTER TABLE datasets ADD COLUMN IF NOT EXISTS user_id TEXT NOT NULL DEFAULT '';
+            """)
+            # Migration: add plan column to users
+            cur.execute("""
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS plan TEXT DEFAULT 'free';
+            """)
+            # License keys table
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS license_keys (
+                    key              TEXT PRIMARY KEY,
+                    user_id          TEXT NOT NULL,
+                    plan             TEXT NOT NULL,
+                    created_at       DOUBLE PRECISION,
+                    expires_at       DOUBLE PRECISION,
+                    revoked          BOOLEAN DEFAULT FALSE,
+                    activations      INT DEFAULT 0,
+                    max_activations  INT DEFAULT 3,
+                    last_seen_at     DOUBLE PRECISION,
+                    last_seen_ip     TEXT
+                );
+            """)
+            # Download tokens table (short-lived one-use links)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS download_tokens (
+                    token       TEXT PRIMARY KEY,
+                    user_id     TEXT NOT NULL,
+                    created_at  DOUBLE PRECISION,
+                    expires_at  DOUBLE PRECISION,
+                    used        BOOLEAN DEFAULT FALSE
+                );
             """)
         conn.commit()
     log.info("DB tables ready")
@@ -336,7 +368,7 @@ def extract_embedding(img_bgr: np.ndarray):
 
 FREE_TIER_MAX_BYTES = 6 * 1024 * 1024  # 6 MB per image
 
-# ── Per-plan image & dataset limits ──────────────────────────────────────────
+# ── Per-plan cloud image & dataset limits ─────────────────────────────────────
 PLAN_LIMITS = {
     "free":          {"max_images": 100,    "max_datasets": 1},
     "personal_lite": {"max_images": 2000,   "max_datasets": 5},
@@ -344,6 +376,42 @@ PLAN_LIMITS = {
     "personal_max":  {"max_images": 30000,  "max_datasets": 30},
     "photo_starter": {"max_images": 100000, "max_datasets": 50},
     "photo_pro":     {"max_images": 500000, "max_datasets": 9999},
+}
+
+# ── Per-plan self-hosted limits (enforced by /api/license/validate) ───────────
+# None = plan does not include self-hosted access.
+SELF_HOSTED_PLAN_LIMITS = {
+    "free":          None,
+    "personal_lite": {
+        "max_images":          2_000,
+        "max_datasets":        5,
+        "max_activations":     1,
+        "offline_grace_hours": 24,
+    },
+    "personal_pro":  {
+        "max_images":          10_000,
+        "max_datasets":        15,
+        "max_activations":     2,
+        "offline_grace_hours": 72,
+    },
+    "personal_max":  {
+        "max_images":          30_000,
+        "max_datasets":        30,
+        "max_activations":     3,
+        "offline_grace_hours": 168,
+    },
+    "photo_starter": {
+        "max_images":          100_000,
+        "max_datasets":        50,
+        "max_activations":     3,
+        "offline_grace_hours": 168,
+    },
+    "photo_pro":     {
+        "max_images":          500_000,
+        "max_datasets":        9999,
+        "max_activations":     5,
+        "offline_grace_hours": 336,
+    },
 }
 
 def get_plan_limits(user: dict) -> dict:
@@ -647,7 +715,6 @@ def send_email(to: str, subject: str, html_body: str):
     """
     Send HTML email via Gmail API (works on Railway - uses HTTPS port 443)
     """
-    # Get credentials from environment variables
     client_id = os.environ.get("GMAIL_CLIENT_ID")
     client_secret = os.environ.get("GMAIL_CLIENT_SECRET")
     refresh_token = os.environ.get("GMAIL_REFRESH_TOKEN")
@@ -658,9 +725,8 @@ def send_email(to: str, subject: str, html_body: str):
             "Email not configured. Set GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, and GMAIL_REFRESH_TOKEN in Railway environment variables."
         )
     
-    # Create credentials object with refresh token
     credentials = Credentials(
-        token=None,  # Will be refreshed automatically
+        token=None,
         refresh_token=refresh_token,
         token_uri="https://oauth2.googleapis.com/token",
         client_id=client_id,
@@ -668,7 +734,6 @@ def send_email(to: str, subject: str, html_body: str):
         scopes=["https://www.googleapis.com/auth/gmail.send"]
     )
     
-    # Refresh token automatically if needed
     try:
         if credentials.expired:
             credentials.refresh(GoogleRequest())
@@ -676,7 +741,6 @@ def send_email(to: str, subject: str, html_body: str):
         log.error(f"Failed to refresh token: {e}")
         raise RuntimeError(f"Gmail API authentication failed: {str(e)}")
     
-    # Create the email message
     message = EmailMessage()
     message.set_content("Please enable HTML to view this message")
     message.add_alternative(html_body, subtype="html")
@@ -684,10 +748,8 @@ def send_email(to: str, subject: str, html_body: str):
     message["From"] = "FaceFind <admin.facefind@gmail.com>"
     message["Subject"] = subject
     
-    # Encode the message (Gmail API requires base64url format)
     encoded_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
     
-    # Send via Gmail API
     try:
         service = build("gmail", "v1", credentials=credentials)
         send_message = service.users().messages().send(
@@ -702,7 +764,6 @@ def send_email(to: str, subject: str, html_body: str):
 
 def generate_otp(email: str, purpose: str) -> str:
     """Generate a 6-digit OTP, store in DB, return the code."""
-    # Invalidate any previous unused OTPs for this email+purpose
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -836,6 +897,90 @@ def require_auth(request) -> dict:
         raise HTTPException(401, "Not authenticated.")
     return user
 
+# ── License key helpers ───────────────────────────────────────────────────────
+
+def generate_license_key(user_id: str, plan: str) -> str:
+    """
+    Issue a new license key for a user based on their plan.
+    Revokes any existing active key first (one key per user at a time).
+    Returns the new license key string.
+    """
+    limits = SELF_HOSTED_PLAN_LIMITS.get(plan)
+    if not limits:
+        raise ValueError(f"Plan '{plan}' does not include self-hosted access.")
+
+    # Format: FF-XXXX-XXXX-XXXX-XXXX
+    raw = secrets.token_hex(8).upper()
+    key = f"FF-{raw[0:4]}-{raw[4:8]}-{raw[8:12]}-{raw[12:16]}"
+
+    # Revoke any existing active keys for this user
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE license_keys SET revoked=TRUE WHERE user_id=%s AND revoked=FALSE",
+                (user_id,)
+            )
+        conn.commit()
+
+    now = time.time()
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO license_keys
+                  (key, user_id, plan, created_at, expires_at, revoked, activations, max_activations)
+                VALUES (%s, %s, %s, %s, %s, FALSE, 0, %s)
+            """, (
+                key,
+                user_id,
+                plan,
+                now,
+                now + 365 * 24 * 3600,   # 1-year validity
+                limits["max_activations"],
+            ))
+        conn.commit()
+
+    log.info(f"License key issued: {key[:12]}… for user {user_id} on plan {plan}")
+    return key
+
+
+def db_get_license_key(key: str) -> Optional[dict]:
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM license_keys WHERE key = %s", (key,))
+            row = cur.fetchone()
+    return dict(row) if row else None
+
+
+def issue_download_token(user_id: str) -> str:
+    """Create a short-lived (15 min) one-use token for downloading the binary."""
+    token = secrets.token_urlsafe(32)
+    now = time.time()
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO download_tokens (token, user_id, created_at, expires_at, used)
+                VALUES (%s, %s, %s, %s, FALSE)
+            """, (token, user_id, now, now + 15 * 60))
+        conn.commit()
+    return token
+
+
+def consume_download_token(token: str) -> Optional[str]:
+    """Validate and consume a download token. Returns user_id if valid."""
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT * FROM download_tokens WHERE token=%s AND used=FALSE AND expires_at > %s",
+                (token, time.time())
+            )
+            row = cur.fetchone()
+        if not row:
+            return None
+        with conn.cursor() as cur:
+            cur.execute("UPDATE download_tokens SET used=TRUE WHERE token=%s", (token,))
+        conn.commit()
+    return row["user_id"]
+
 # ── FastAPI app ───────────────────────────────────────────────────────────────
 app = FastAPI(title="FaceFind API", version="2.0.0")
 
@@ -926,6 +1071,8 @@ def me(request: Request):
     user = require_auth(request)
     return {"id": user["id"], "email": user["email"], "name": user["name"]}
 
+# ── Dataset endpoints ─────────────────────────────────────────────────────────
+
 @app.get("/api/datasets")
 def list_datasets(request: Request):
     user = require_auth(request)
@@ -982,8 +1129,6 @@ async def upload_zip(
     db_upsert_dataset(ds)
 
     # Apply caps before embedding.
-    # Free tier: 4K resolution cap + 6 MB per-file size cap.
-    # Paid tiers: 4K resolution cap only, originals preserved otherwise.
     is_free = user.get("plan", "free") == "free"
     total_imgs, capped = compress_images_in_dir(dataset_dir, free_tier=is_free)
     log.info(f"[{dataset_id}] {'Free' if is_free else 'Paid'} tier cap: {capped}/{total_imgs} images processed")
@@ -1035,7 +1180,6 @@ def delete_dataset(dataset_id: str, request: Request):
     if ds["user_id"] != user["id"]:
         raise HTTPException(403, "Not your dataset.")
 
-    # Delete files from volume
     import shutil
     dataset_dir = DATASETS_DIR / dataset_id
     emb_dir     = EMBEDDINGS_DIR / dataset_id
@@ -1044,7 +1188,6 @@ def delete_dataset(dataset_id: str, request: Request):
     if emb_dir.exists():
         shutil.rmtree(emb_dir)
 
-    # Delete from DB (shares referencing this dataset are orphaned but harmless)
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("DELETE FROM datasets WHERE id = %s", (dataset_id,))
@@ -1074,11 +1217,9 @@ async def add_images_to_dataset(
     
     dataset_dir = DATASETS_DIR / dataset_id
     
-    # Create temp directory for new images
     temp_dir = dataset_dir / f"_temp_{int(time.time())}"
     temp_dir.mkdir()
     
-    # Extract new images
     zip_path = temp_dir / "upload.zip"
     zip_path.write_bytes(await file.read())
     with zipfile.ZipFile(zip_path) as zf:
@@ -1095,25 +1236,20 @@ async def add_images_to_dataset(
             f"Image limit exceeded. Your plan allows {limits['max_images']:,} images per dataset. "
             f"This dataset already has {existing_count:,} and you're adding {new_count:,}.")
 
-    # Apply caps to new images before merging.
     is_free = user.get("plan", "free") == "free"
     total_imgs, capped = compress_images_in_dir(temp_dir, free_tier=is_free)
     log.info(f"[{dataset_id}] {'Free' if is_free else 'Paid'} tier cap on new images: {capped}/{total_imgs} processed")
     
-    # Move all files from temp to main dataset directory
     import shutil
     for item in temp_dir.rglob("*"):
         if item.is_file():
-            # Maintain directory structure
             rel_path = item.relative_to(temp_dir)
             target = dataset_dir / rel_path
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.move(str(item), str(target))
     
-    # Clean up temp directory
     shutil.rmtree(temp_dir)
     
-    # Set status to processing and re-run embedding job
     db_update_dataset_fields(dataset_id, status="queued")
     background_tasks.add_task(run_embedding_job, dataset_id)
     
@@ -1167,14 +1303,12 @@ async def detect_faces_in_selfie(share_id: str, file: UploadFile = File(...)):
     if not faces:
         return JSONResponse({"face_detected": False, "faces": []})
 
-    # Sort faces left-to-right for consistent ordering
     faces_sorted = sorted(faces, key=lambda f: f.bbox[0])
 
     face_crops = []
     h, w = img.shape[:2]
     for i, face in enumerate(faces_sorted):
         x1, y1, x2, y2 = [int(v) for v in face.bbox]
-        # Add 20% padding around face
         pad_x = int((x2 - x1) * 0.2)
         pad_y = int((y2 - y1) * 0.2)
         x1c = max(0, x1 - pad_x)
@@ -1182,7 +1316,6 @@ async def detect_faces_in_selfie(share_id: str, file: UploadFile = File(...)):
         x2c = min(w, x2 + pad_x)
         y2c = min(h, y2 + pad_y)
         crop = img[y1c:y2c, x1c:x2c]
-        # Resize crop to 128x128 thumbnail
         thumb = cv2.resize(crop, (128, 128))
         _, buf = cv2.imencode('.jpg', thumb, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
         b64 = base64.b64encode(buf.tobytes()).decode('utf-8')
@@ -1216,10 +1349,8 @@ async def search_by_selfie(share_id: str, file: UploadFile = File(...), face_ind
     if not all_faces:
         return JSONResponse({"face_detected": False, "matches": [], "latency_ms": round((time.time()-t0)*1000,1)})
 
-    # Sort faces left-to-right for consistent ordering
     all_faces_sorted = sorted(all_faces, key=lambda f: f.bbox[0])
 
-    # Determine which faces to search
     if face_indices:
         try:
             selected = [int(i) for i in face_indices.split(",") if i.strip().isdigit()]
@@ -1227,10 +1358,8 @@ async def search_by_selfie(share_id: str, file: UploadFile = File(...), face_ind
         except Exception:
             faces_to_search = all_faces_sorted
     else:
-        # Default: use the largest face (original behaviour)
         faces_to_search = [max(all_faces_sorted, key=lambda f: (f.bbox[2]-f.bbox[0])*(f.bbox[3]-f.bbox[1]))]
 
-    # Search each selected face and merge results (deduplicate by image_path, keep best score)
     merged: dict = {}
     for face in faces_to_search:
         emb = face.normed_embedding.astype("float32")
@@ -1240,7 +1369,6 @@ async def search_by_selfie(share_id: str, file: UploadFile = File(...), face_ind
             if key not in merged or m["score"] > merged[key]["score"]:
                 merged[key] = m
 
-    # Sort merged results by score descending
     sorted_results = sorted(merged.values(), key=lambda x: x["score"], reverse=True)
 
     return {
@@ -1269,7 +1397,6 @@ def serve_thumb(dataset_id: str, image_path: str):
     if not src_path.exists():
         raise HTTPException(404, "Image not found.")
 
-    # Thumb stored as .jpg regardless of original format
     thumb_path = THUMBS_DIR / dataset_id / (image_path + ".thumb.jpg")
     thumb_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -1286,10 +1413,243 @@ def serve_thumb(dataset_id: str, image_path: str):
     return FileResponse(
         str(thumb_path),
         media_type="image/jpeg",
-        headers={"Cache-Control": "public, max-age=604800, immutable"},  # 7 days
+        headers={"Cache-Control": "public, max-age=604800, immutable"},
     )
 
-# ── Debug endpoint to check email config ─────────────────────────────────────
+# ── Download & license endpoints ──────────────────────────────────────────────
+
+@app.get("/api/download/info")
+def download_info(request: Request):
+    """
+    Return download eligibility and existing license key info for the current user.
+    Used by download.html to show the correct state (locked / eligible / key details).
+    """
+    user = require_auth(request)
+    plan = user.get("plan", "free") or "free"
+    limits = SELF_HOSTED_PLAN_LIMITS.get(plan)
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT * FROM license_keys WHERE user_id=%s AND revoked=FALSE ORDER BY created_at DESC LIMIT 1",
+                (user["id"],)
+            )
+            key_row = cur.fetchone()
+
+    key_data = dict(key_row) if key_row else None
+
+    return {
+        "plan": plan,
+        "self_hosted_eligible": limits is not None,
+        "limits": limits,
+        "license_key": {
+            "key":             key_data["key"],
+            "expires_at":      key_data["expires_at"],
+            "activations":     key_data["activations"],
+            "max_activations": key_data["max_activations"],
+            "plan":            key_data["plan"],
+        } if key_data else None,
+        "user": {"name": user["name"], "email": user["email"]},
+    }
+
+
+@app.post("/api/download/generate-key")
+def generate_key_endpoint(request: Request):
+    """
+    Generate (or regenerate) a license key for the authenticated user.
+    Only available on paid plans that include self-hosted access.
+    Regenerating immediately revokes the old key.
+    """
+    user = require_auth(request)
+    plan = user.get("plan", "free") or "free"
+
+    if not SELF_HOSTED_PLAN_LIMITS.get(plan):
+        raise HTTPException(403, "Your current plan does not include self-hosted access. Please upgrade.")
+
+    try:
+        key = generate_license_key(user["id"], plan)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+    return {"key": key, "plan": plan}
+
+
+@app.post("/api/download/request-link")
+def request_download_link(request: Request):
+    """
+    Issue a short-lived signed download URL for the self-hosted executable.
+    Validates plan eligibility and requires a valid license key before issuing.
+    """
+    user = require_auth(request)
+    plan = user.get("plan", "free") or "free"
+
+    if not SELF_HOSTED_PLAN_LIMITS.get(plan):
+        raise HTTPException(403, "Self-hosted downloads require a paid plan.")
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT key FROM license_keys WHERE user_id=%s AND revoked=FALSE AND expires_at > %s LIMIT 1",
+                (user["id"], time.time())
+            )
+            row = cur.fetchone()
+
+    if not row:
+        raise HTTPException(400, "Generate a license key first before downloading.")
+
+    token = issue_download_token(user["id"])
+    log.info(f"Download link issued for user {user['id']} (plan={plan})")
+    return {
+        "download_url":       f"/api/download/file?token={token}",
+        "expires_in_seconds": 900,
+        "filename":           "facefind-selfhosted.zip",
+    }
+
+
+@app.get("/api/download/file")
+def download_file(token: str, request: Request):
+    """
+    Serve the self-hosted executable ZIP after validating the one-use download token.
+    """
+    user_id = consume_download_token(token)
+    if not user_id:
+        raise HTTPException(403, "Invalid or expired download link. Please request a new one.")
+
+    if not EXECUTABLE_PATH.exists():
+        raise HTTPException(503, "The download package is not yet available. Please contact support.")
+
+    log.info(f"Executable downloaded by user {user_id}")
+    return FileResponse(
+        str(EXECUTABLE_PATH),
+        media_type="application/zip",
+        filename="facefind-selfhosted.zip",
+        headers={"Content-Disposition": 'attachment; filename="facefind-selfhosted.zip"'},
+    )
+
+
+# ── License validation endpoint (called by the self-hosted app) ───────────────
+
+@app.post("/api/license/validate")
+async def validate_license(request: Request):
+    """
+    Called by the self-hosted executable on startup and periodically while running.
+    Returns the plan limits so the local app can enforce them.
+
+    Request body (JSON):
+        { "key": "FF-XXXX-XXXX-XXXX-XXXX", "machine_id": "<stable machine identifier>" }
+
+    Responses:
+        200  { valid: true,  plan, limits, expires_at, offline_grace_hours }
+        403  { valid: false, reason }
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body.")
+
+    key_str    = (body.get("key") or "").strip().upper()
+    machine_id = (body.get("machine_id") or "").strip()
+
+    if not key_str or not machine_id:
+        raise HTTPException(400, "key and machine_id are required.")
+
+    key_data = db_get_license_key(key_str)
+
+    if not key_data:
+        return JSONResponse({"valid": False, "reason": "License key not found."}, status_code=403)
+
+    if key_data["revoked"]:
+        return JSONResponse({"valid": False, "reason": "License key has been revoked."}, status_code=403)
+
+    if time.time() > key_data["expires_at"]:
+        return JSONResponse({"valid": False, "reason": "License key has expired. Please renew your subscription."}, status_code=403)
+
+    plan   = key_data["plan"]
+    limits = SELF_HOSTED_PLAN_LIMITS.get(plan)
+    if not limits:
+        return JSONResponse({"valid": False, "reason": "This plan does not include self-hosted access."}, status_code=403)
+
+    client_ip = request.client.host if request.client else "unknown"
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE license_keys
+                SET activations  = LEAST(activations + 1, max_activations),
+                    last_seen_at = %s,
+                    last_seen_ip = %s
+                WHERE key = %s
+            """, (time.time(), client_ip, key_str))
+        conn.commit()
+
+    log.info(f"License validated: {key_str[:12]}… plan={plan} ip={client_ip}")
+
+    return {
+        "valid":                True,
+        "plan":                 plan,
+        "expires_at":           key_data["expires_at"],
+        "offline_grace_hours":  limits["offline_grace_hours"],
+        "limits": {
+            "max_images":   limits["max_images"],
+            "max_datasets": limits["max_datasets"],
+        },
+    }
+
+
+@app.post("/api/license/revoke")
+def revoke_license(request: Request):
+    """
+    Revoke the caller's active license key (e.g. when moving to a new machine).
+    A new key can be generated via /api/download/generate-key after revoking.
+    """
+    user = require_auth(request)
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE license_keys SET revoked=TRUE WHERE user_id=%s AND revoked=FALSE",
+                (user["id"],)
+            )
+            count = cur.rowcount
+        conn.commit()
+
+    if count == 0:
+        raise HTTPException(404, "No active license key found.")
+
+    log.info(f"License revoked for user {user['id']}")
+    return {"ok": True, "message": "License key revoked. You can generate a new one at any time."}
+
+
+# ── Admin endpoints ───────────────────────────────────────────────────────────
+
+@app.post("/api/admin/set-plan")
+def admin_set_plan(request: Request, target_email: str = Form(...), plan: str = Form(...)):
+    """
+    Admin-only: set a user's plan.
+    Call this from your payment provider's webhook after a successful payment.
+    Requires ADMIN_SECRET environment variable to be set.
+    Pass it as the X-Admin-Secret request header.
+    """
+    admin_secret = os.environ.get("ADMIN_SECRET", "")
+    provided     = request.headers.get("X-Admin-Secret", "")
+    if not admin_secret or provided != admin_secret:
+        raise HTTPException(403, "Forbidden.")
+
+    valid_plans = list(PLAN_LIMITS.keys())
+    if plan not in valid_plans:
+        raise HTTPException(400, f"Invalid plan. Choose from: {valid_plans}")
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE users SET plan=%s WHERE email=%s", (plan, target_email.lower()))
+            if cur.rowcount == 0:
+                raise HTTPException(404, "User not found.")
+        conn.commit()
+
+    log.info(f"Plan updated: {target_email} → {plan}")
+    return {"ok": True, "email": target_email, "plan": plan}
+
+# ── Debug endpoint to check email config ──────────────────────────────────────
+
 @app.get("/api/debug/email")
 def debug_email():
     """Debug endpoint to check email configuration"""
@@ -1298,8 +1658,8 @@ def debug_email():
     refresh_token = os.environ.get("GMAIL_REFRESH_TOKEN", "")
     
     return {
-        "client_id_present": bool(client_id),
-        "client_id_preview": client_id[:10] + "..." if client_id else None,
+        "client_id_present":     bool(client_id),
+        "client_id_preview":     client_id[:10] + "..." if client_id else None,
         "client_secret_present": bool(client_secret),
         "refresh_token_present": bool(refresh_token),
         "refresh_token_preview": refresh_token[:10] + "..." if refresh_token else None,
@@ -1316,7 +1676,11 @@ def health():
         "timestamp": time.time(),
         "redis":     "connected" if r else "disabled",
         "db":        "postgres",
-        "email":     "configured" if all([os.environ.get("GMAIL_CLIENT_ID"), os.environ.get("GMAIL_CLIENT_SECRET"), os.environ.get("GMAIL_REFRESH_TOKEN")]) else "not configured"
+        "email":     "configured" if all([
+            os.environ.get("GMAIL_CLIENT_ID"),
+            os.environ.get("GMAIL_CLIENT_SECRET"),
+            os.environ.get("GMAIL_REFRESH_TOKEN"),
+        ]) else "not configured"
     }
 
 # ── Frontend static files ─────────────────────────────────────────────────────
