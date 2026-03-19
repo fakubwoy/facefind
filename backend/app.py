@@ -984,6 +984,12 @@ async def no_cache_html(request: Request, call_next):
         response.headers["Expires"]       = "0"
     return response
 
+# ── Auto-login token (set by launcher before uvicorn starts) ─────────────────
+# The launcher fetches user info from Railway using the license key, creates a
+# local user + session, and stores the session token here so the browser can
+# pick it up on first load without the user ever seeing the login page.
+_autologin_token: str = ""
+
 @app.on_event("startup")
 def on_startup():
     init_db()
@@ -1062,6 +1068,17 @@ def logout(request: Request, response: Response):
 def me(request: Request):
     user = require_auth(request)
     return {"id": user["id"], "email": user["email"], "name": user["name"], "plan": user.get("plan") or "free"}
+
+@app.get("/api/auth/autologin")
+def autologin(response: Response):
+    """
+    Called by the browser on first load. If the launcher pre-created a session,
+    set the session cookie and redirect to admin so the user never sees login.
+    """
+    if not _autologin_token:
+        raise HTTPException(404, "No autologin token available.")
+    response.set_cookie("ff_token", _autologin_token, httponly=True, samesite="lax", max_age=60*60*24*30)
+    return {"ok": True, "token": _autologin_token}
 
 # ── Dataset endpoints ─────────────────────────────────────────────────────────
 

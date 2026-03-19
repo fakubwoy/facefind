@@ -35,9 +35,10 @@ jobs:
           from pathlib import Path
           from http.server import HTTPServer, BaseHTTPRequestHandler
 
-          VALIDATION_URL = "https://facefind-production.up.railway.app/api/license/validate"
-          PORT           = int(os.environ.get("PORT", 8000))
-          ACTIVATE_PORT  = PORT + 1
+          VALIDATION_URL  = "https://facefind-production.up.railway.app/api/license/validate"
+          USER_INFO_URL   = "https://facefind-production.up.railway.app/api/license/userinfo"
+          PORT            = int(os.environ.get("PORT", 8000))
+          ACTIVATE_PORT   = PORT + 1
 
           if getattr(sys, "frozen", False):
               BASE_DIR = Path(sys.executable).parent
@@ -49,6 +50,9 @@ jobs:
           KEY_FILE        = BASE_DIR / ".license_key"
           MACHINE_ID_FILE = BASE_DIR / ".machine_id"
           DATA_DIR        = BASE_DIR / "data"
+
+          # Shared state set before uvicorn starts
+          _license_data = {}
 
           def get_machine_id():
               if MACHINE_ID_FILE.exists():
@@ -77,9 +81,23 @@ jobs:
               except Exception as e:
                   return None, str(e)
 
+          def fetch_user_info(key):
+              """Fetch the user account linked to this license key from Railway."""
+              try:
+                  payload = json.dumps({"key": key}).encode()
+                  req = urllib.request.Request(
+                      USER_INFO_URL, data=payload,
+                      headers={"Content-Type": "application/json"}, method="POST"
+                  )
+                  with urllib.request.urlopen(req, timeout=10) as resp:
+                      return json.loads(resp.read())
+              except Exception:
+                  return None
+
+          # ── Activation server ─────────────────────────────────────────────────
+
           _activation_done   = threading.Event()
           _activation_result = {}
-
           ACTIVATE_HTML_PATH = BUNDLE / "activate.html"
 
           class ActivationHandler(BaseHTTPRequestHandler):
@@ -145,6 +163,67 @@ jobs:
                   server.handle_request()
               server.server_close()
 
+          # ── Auto-login: seed local DB with user from Railway ──────────────────
+
+          def setup_autologin(key, plan):
+              """
+              Fetch the account linked to this license key from Railway, create it
+              locally if needed, and write the session token into app._autologin_token
+              so the browser auto-logs in without ever seeing the login page.
+              """
+              import sys
+              sys.path.insert(0, str(BUNDLE / "backend"))
+              import app as facefind_app
+              import hashlib, secrets, time as t, uuid
+
+              user_info = fetch_user_info(key)
+
+              if user_info and user_info.get("email"):
+                  email = user_info["email"].lower()
+                  name  = user_info.get("name") or email.split("@")[0]
+              else:
+                  # Offline fallback: use a stable local account derived from machine ID
+                  mid   = get_machine_id()
+                  email = f"local-{mid[:8]}@selfhosted.local"
+                  name  = "Local User"
+
+              # Create or update the user in local SQLite
+              existing = facefind_app.db_get_user_by_email(email)
+              if not existing:
+                  pw = hashlib.sha256(get_machine_id().encode()).hexdigest()
+                  facefind_app.db_create_user(email, name, pw, email_verified=True)
+                  existing = facefind_app.db_get_user_by_email(email)
+
+              # Update plan to match license
+              with facefind_app.get_db() as conn:
+                  with conn.cursor() as cur:
+                      cur.execute("UPDATE users SET plan=?, email_verified=1 WHERE email=?", (plan, email))
+                  conn.commit()
+
+              # Create session
+              token = facefind_app.db_create_session(existing["id"])
+              facefind_app._autologin_token = token
+              print(f"Auto-login ready for {email} (plan: {plan})")
+              return token
+
+          # ── Open browser to admin once server is up ───────────────────────────
+
+          def open_browser_when_ready(token):
+              """Poll until the server is up then open directly to admin."""
+              for _ in range(30):
+                  time.sleep(1)
+                  try:
+                      req = urllib.request.Request(f"http://localhost:{PORT}/api/health")
+                      with urllib.request.urlopen(req, timeout=2):
+                          pass
+                      # Server is up — set cookie via autologin then go to admin
+                      webbrowser.open(f"http://localhost:{PORT}/autologin.html")
+                      return
+                  except Exception:
+                      continue
+
+          # ── Main ─────────────────────────────────────────────────────────────
+
           def launch_main_app():
               os.environ["DATA_DIR"]     = str(DATA_DIR)
               os.environ["FRONTEND_DIR"] = str(BUNDLE / "frontend")
@@ -161,16 +240,19 @@ jobs:
               DATA_DIR.mkdir(parents=True, exist_ok=True)
 
               saved_key = KEY_FILE.read_text().strip() if KEY_FILE.exists() else ""
+              validated_plan = None
 
               if saved_key:
                   print("Checking license...")
                   mid = get_machine_id()
                   data, error = validate_key(saved_key, mid)
                   if data and data.get("valid"):
-                      print(f"License valid - Plan: {data.get('plan', 'unknown')}")
+                      validated_plan = data.get("plan", "unknown")
+                      print(f"License valid - Plan: {validated_plan}")
                   elif error:
                       print(f"Could not reach license server ({error})")
                       print("Running in offline mode using saved license.")
+                      validated_plan = "offline"
                   else:
                       print("Saved license key is no longer valid. Launching activation...")
                       KEY_FILE.unlink(missing_ok=True)
@@ -184,9 +266,23 @@ jobs:
                   threading.Timer(1.0, lambda: webbrowser.open(f"http://localhost:{ACTIVATE_PORT}")).start()
                   _activation_done.wait()
                   t.join(timeout=2)
-                  print(f"Activation complete - Plan: {_activation_result.get('plan', 'unknown')}")
+                  saved_key    = _activation_result.get("key", "")
+                  validated_plan = _activation_result.get("plan", "unknown")
+                  print(f"Activation complete - Plan: {validated_plan}")
 
-              threading.Timer(3.0, lambda: webbrowser.open(f"http://localhost:{PORT}")).start()
+              # Set up auto-login before uvicorn starts so _autologin_token is ready
+              if saved_key and validated_plan and validated_plan != "offline":
+                  try:
+                      token = setup_autologin(saved_key, validated_plan)
+                      threading.Thread(
+                          target=open_browser_when_ready, args=(token,), daemon=True
+                      ).start()
+                  except Exception as e:
+                      print(f"Auto-login setup failed ({e}), opening login page instead.")
+                      threading.Timer(4.0, lambda: webbrowser.open(f"http://localhost:{PORT}")).start()
+              else:
+                  threading.Timer(4.0, lambda: webbrowser.open(f"http://localhost:{PORT}")).start()
+
               launch_main_app()
 
           if __name__ == "__main__":
@@ -203,6 +299,7 @@ jobs:
             --add-data "frontend;frontend" `
             --add-data "backend/app.py;backend" `
             --add-data "activate.html;." `
+            --add-data "autologin.html;frontend" `
             --hidden-import "uvicorn.logging" `
             --hidden-import "uvicorn.loops" `
             --hidden-import "uvicorn.loops.auto" `
