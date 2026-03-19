@@ -201,7 +201,7 @@
       <a href="/#use-cases"    class="nav-link">Use cases</a>
       <a href="/pricing.html"  class="nav-link active">Pricing</a>
       <a href="/#faq"          class="nav-link">FAQ</a>
-      <a href="/login.html"    class="nav-cta">Get started free</a>
+      <a href="/login.html"    class="nav-cta" id="navCta">Get started free</a>
     </div>
   </div>
 </nav>
@@ -242,7 +242,7 @@
         <span class="free-fact"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Delete &amp; recreate any time</span>
       </div>
     </div>
-    <a href="/login.html" class="free-strip-cta">
+    <a href="/login.html" class="free-strip-cta" id="freeStripCta">
       Start for free
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
     </a>
@@ -524,7 +524,7 @@
       FaceFind
     </a>
     <div class="footer-links">
-      <a href="/login.html">Sign in</a><a href="/pricing.html">Pricing</a>
+      <a href="/login.html" id="footerSignIn">Sign in</a><a href="/pricing.html">Pricing</a>
       <a href="/#faq">FAQ</a><a href="/#how-it-works">How it works</a>
     </div>
     <span class="footer-copy">&#169; 2025 FaceFind &#8212; AI face search for events</span>
@@ -582,6 +582,72 @@
   window.addEventListener('scroll',()=>{
     document.getElementById('mainNav').classList.toggle('scrolled',window.scrollY>20);
   },{passive:true});
+</script>
+
+<script>
+  // ── Auth-aware UI ─────────────────────────────────────────────────────────────
+  // Checks if the user is logged in and adapts the page accordingly:
+  //   - Nav CTA → "Go to dashboard" (with avatar initial)
+  //   - Free strip CTA → "Go to dashboard"
+  //   - All plan card CTAs → "Upgrade to X" (keeps existing label text, changes href)
+  //   - Footer sign-in link → "Dashboard"
+  (function () {
+    const API = '';
+
+    // Plan card IDs and their label text (used when logged in)
+    const PLAN_CTAS = [
+      { id: 'p1-cta',  label: 'Upgrade to Lite' },
+      { id: 'p2-cta',  label: 'Upgrade to Pro' },
+      { id: 'p3-cta',  label: 'Upgrade to Max' },
+      { id: 'ph1-cta', label: 'Upgrade to Studio Starter' },
+      { id: 'ph2-cta', label: 'Upgrade to Studio Pro' },
+    ];
+
+    const ARROW_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>';
+
+    fetch(`${API}/api/auth/me`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .catch(() => null)
+      .then(user => {
+        if (!user) return; // not logged in — leave everything as-is
+
+        const name  = user.name || user.email || '';
+        const initial = name.trim()[0]?.toUpperCase() || '?';
+
+        // ── Nav CTA: replace with avatar chip + "Dashboard" ──────────────────
+        const navCta = document.getElementById('navCta');
+        if (navCta) {
+          navCta.href = '/admin.html';
+          navCta.innerHTML =
+            '<span style="width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,0.25);' +
+            'display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;' +
+            'margin-right:6px;">' + initial + '</span>Dashboard';
+        }
+
+        // ── Free strip CTA: "Go to dashboard" ────────────────────────────────
+        const freeStripCta = document.getElementById('freeStripCta');
+        if (freeStripCta) {
+          freeStripCta.href = '/admin.html';
+          freeStripCta.innerHTML = 'Go to dashboard ' + ARROW_SVG;
+        }
+
+        // ── Plan card CTAs: "Upgrade to X" → admin.html ──────────────────────
+        PLAN_CTAS.forEach(({ id, label }) => {
+          const el = document.getElementById(id);
+          if (el) {
+            el.href = '/admin.html';
+            el.innerHTML = label + ' ' + ARROW_SVG;
+          }
+        });
+
+        // ── Footer sign-in link → Dashboard ──────────────────────────────────
+        const footerSignIn = document.getElementById('footerSignIn');
+        if (footerSignIn) {
+          footerSignIn.href = '/admin.html';
+          footerSignIn.textContent = 'Dashboard';
+        }
+      });
+  })();
 </script>
 </body>
 </html>
