@@ -991,6 +991,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def no_cache_html(request: Request, call_next):
+    """
+    Prevent browsers and CDNs from caching .html files.
+    API responses and static assets (JS/CSS/images) are unaffected.
+    """
+    response = await call_next(request)
+    path = request.url.path
+    if path.endswith(".html") or path == "/" or path == "":
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"]        = "no-cache"
+        response.headers["Expires"]       = "0"
+    return response
+
 @app.on_event("startup")
 def on_startup():
     init_db()
@@ -1045,7 +1059,7 @@ def register(
     user  = db_create_user(email, name, password, email_verified=True)
     token = db_create_session(user["id"])
     response.set_cookie("ff_token", token, httponly=True, samesite="lax", max_age=60*60*24*30)
-    return {"user": {"id": user["id"], "email": user["email"], "name": user["name"], "plan": "free"}}
+    return {"user": {"id": user["id"], "email": user["email"], "name": user["name"], "plan": user.get("plan") or "free"}}
 
 @app.post("/api/auth/login")
 def login(response: Response, email: str = Form(...), password: str = Form(...)):
@@ -1643,21 +1657,9 @@ def admin_set_plan(request: Request, target_email: str = Form(...), plan: str = 
             cur.execute("UPDATE users SET plan=%s WHERE email=%s", (plan, target_email.lower()))
             if cur.rowcount == 0:
                 raise HTTPException(404, "User not found.")
-            # Fetch all active session tokens for this user so we can bust their cache
-            cur.execute("""
-                SELECT s.token FROM sessions s
-                JOIN users u ON s.user_id = u.id
-                WHERE u.email = %s
-            """, (target_email.lower(),))
-            tokens = [r["token"] for r in cur.fetchall()]
         conn.commit()
 
-    # Invalidate every cached session for this user so the new plan is
-    # picked up immediately on their next request (no need to log out/in).
-    for tok in tokens:
-        cache_delete(f"session:{tok}")
-
-    log.info(f"Plan updated: {target_email} → {plan} (invalidated {len(tokens)} session cache(s))")
+    log.info(f"Plan updated: {target_email} → {plan}")
     return {"ok": True, "email": target_email, "plan": plan}
 
 # ── Debug endpoint to check email config ──────────────────────────────────────
