@@ -152,12 +152,33 @@ jobs:
             --hidden-import "uvicorn.lifespan" `
             --hidden-import "uvicorn.lifespan.on" `
             --hidden-import "fastapi" `
+            --hidden-import "fastapi.middleware" `
+            --hidden-import "fastapi.middleware.cors" `
+            --hidden-import "fastapi.middleware.trustedhost" `
+            --hidden-import "fastapi.middleware.gzip" `
+            --hidden-import "fastapi.staticfiles" `
+            --hidden-import "fastapi.responses" `
+            --hidden-import "fastapi.background" `
+            --hidden-import "starlette.middleware" `
+            --hidden-import "starlette.middleware.cors" `
+            --hidden-import "starlette.middleware.base" `
+            --hidden-import "starlette.middleware.trustedhost" `
+            --hidden-import "starlette.staticfiles" `
+            --hidden-import "starlette.responses" `
+            --hidden-import "starlette.background" `
+            --hidden-import "starlette.routing" `
             --hidden-import "psycopg2" `
+            --hidden-import "psycopg2.extras" `
+            --hidden-import "psycopg2.extensions" `
             --hidden-import "insightface" `
+            --hidden-import "insightface.app" `
+            --hidden-import "insightface.model_zoo" `
             --hidden-import "faiss" `
             --hidden-import "cv2" `
             --hidden-import "numpy" `
             --hidden-import "redis" `
+            --hidden-import "redis.client" `
+            --hidden-import "redis.connection" `
             --hidden-import "multipart" `
             --hidden-import "email" `
             --hidden-import "email.mime" `
@@ -169,11 +190,28 @@ jobs:
             --hidden-import "email.parser" `
             --hidden-import "email.header" `
             --hidden-import "smtplib" `
+            --hidden-import "requests" `
+            --hidden-import "requests.adapters" `
+            --hidden-import "requests.auth" `
+            --hidden-import "urllib.request" `
+            --hidden-import "urllib.parse" `
+            --hidden-import "urllib.error" `
+            --hidden-import "gdown" `
+            --hidden-import "google.oauth2" `
             --hidden-import "google.oauth2.credentials" `
+            --hidden-import "google.auth" `
+            --hidden-import "google.auth.transport" `
             --hidden-import "google.auth.transport.requests" `
+            --hidden-import "googleapiclient" `
             --hidden-import "googleapiclient.discovery" `
+            --hidden-import "googleapiclient.errors" `
+            --hidden-import "httplib2" `
             --collect-all "insightface" `
             --collect-all "onnxruntime" `
+            --collect-all "fastapi" `
+            --collect-all "starlette" `
+            --collect-all "google" `
+            --collect-all "googleapiclient" `
             --clean `
             --noconfirm `
             facefind_launcher.py
