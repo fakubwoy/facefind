@@ -729,7 +729,7 @@
             Need help?
           </div>
           <p style="font-size:12.5px;color:var(--muted);line-height:1.6;margin-bottom:12px;">Having trouble with your key or download? We're here to help.</p>
-          <a href="mailto:support@facefind.app" class="btn btn-outline" style="font-size:12px;padding:7px 14px;">
+          <a href="/cdn-cgi/l/email-protection#88fbfdf8f8e7fafcc8eee9ebedeee1e6eca6e9f8f8" class="btn btn-outline" style="font-size:12px;padding:7px 14px;">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
             Contact support
           </a>
@@ -757,7 +757,7 @@
 <!-- Toast container -->
 <div id="toast"></div>
 
-<script>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
   // ── State ─────────────────────────────────────────────────────────────────
   let _info = null;
 
@@ -866,13 +866,19 @@
 
     // Rebuild gen button last so #genBtnLabel is always fresh in the DOM
     genBtn.disabled = false;
-    genBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg><span id="genBtnLabel">${genBtnLabel}</span>`;
+    const existingLabel = document.getElementById('genBtnLabel');
+    if (existingLabel) {
+      existingLabel.textContent = genBtnLabel;
+    } else {
+      genBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg><span id="genBtnLabel">${genBtnLabel}</span>`;
+    }
   }
 
   // ── Actions ───────────────────────────────────────────────────────────────
 
   async function generateKey() {
     const btn = document.getElementById('genBtn');
+    const hadKey = !!(  _info && _info.license_key && _info.license_key.key);
     btn.disabled = true;
     btn.innerHTML = '<div class="spinner" style="width:15px;height:15px;border-width:2px;"></div> Generating…';
     clearAlert('keyAlert');
@@ -882,18 +888,21 @@
       if (!r.ok) throw new Error(d.detail || 'Failed to generate key.');
       const now = Date.now() / 1000;
       _info.license_key = {
-        key: d.key, plan: d.plan,
-        expires_at: now + 365 * 24 * 3600,
-        activations: 0,
-        max_activations: _info.limits?.max_activations || 1,
+        key: d.key,
+        plan: d.plan || _info.plan,
+        expires_at: d.expires_at || (now + 365 * 24 * 3600),
+        activations: d.activations || 0,
+        max_activations: d.max_activations || _info.limits?.max_activations || 1,
       };
       renderKeySection(_info.license_key);
-      toast('License key generated!', 'ok');
+      toast(hadKey ? 'License key regenerated!' : 'License key generated!', 'ok');
     } catch (e) {
-      showAlert('keyAlert', e.message, 'error');
-      toast(e.message, 'err');
+      showAlert('keyAlert', e.message || 'Failed to generate key.', 'error');
+      toast(e.message || 'Failed to generate key.', 'err');
+      // Restore button to correct label based on whether a key existed before
+      const label = hadKey ? 'Regenerate Key' : 'Generate License Key';
       btn.disabled = false;
-      btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg><span id="genBtnLabel">Generate License Key</span>';
+      btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg><span id="genBtnLabel">${label}</span>`;
     }
   }
 
@@ -913,9 +922,9 @@
 
   async function requestDownload() {
     const btn   = document.getElementById('downloadBtn');
-    const label = document.getElementById('dlBtnLabel');
     btn.disabled  = true;
-    label.textContent = 'Preparing…';
+    const label = document.getElementById('dlBtnLabel');
+    if (label) label.textContent = 'Preparing…';
     clearAlert('dlAlert');
     try {
       const r = await fetch('/api/download/request-link', { method: 'POST', credentials: 'include' });
@@ -930,7 +939,7 @@
       showAlert('dlAlert', e.message, 'error');
       toast(e.message, 'err');
     } finally {
-      setTimeout(() => { btn.disabled = false; label.textContent = 'Download ZIP'; }, 3000);
+      setTimeout(() => { btn.disabled = false; const l = document.getElementById('dlBtnLabel'); if (l) l.textContent = 'Download ZIP'; }, 3000);
     }
   }
 
