@@ -829,11 +829,12 @@
     const keyEl   = document.getElementById('keyDisplay');
     const copyBtn = document.getElementById('copyBtn');
     const genBtn  = document.getElementById('genBtn');
-    const genLbl  = document.getElementById('genBtnLabel');
     const revBtn  = document.getElementById('revokeBtn');
     const metaEl  = document.getElementById('keyMeta');
     const dlBtn   = document.getElementById('downloadBtn');
     const dlSub   = document.getElementById('dlSubText');
+
+    let genBtnLabel;
 
     if (lk && lk.key) {
       keyEl.textContent = lk.key;
@@ -848,23 +849,24 @@
         <span class="meta-chip">${lk.activations || 0} / ${lk.max_activations} activations</span>
         <span class="meta-chip">${formatPlan(lk.plan)}</span>
       `;
-      genLbl.textContent = 'Regenerate Key';
       revBtn.classList.remove('hidden');
       dlBtn.disabled = false;
       dlSub.textContent = 'Your license key is active — click to download the package.';
+      genBtnLabel = 'Regenerate Key';
     } else {
       keyEl.textContent = 'No key generated yet';
       keyEl.className   = 'key-empty';
       copyBtn.classList.add('hidden');
       metaEl.innerHTML  = '';
-      genLbl.textContent = 'Generate License Key';
       revBtn.classList.add('hidden');
       dlBtn.disabled = true;
       dlSub.textContent = 'Generate your license key first, then download the package.';
+      genBtnLabel = 'Generate License Key';
     }
-    // Reset gen button appearance
+
+    // Rebuild gen button last so #genBtnLabel is always fresh in the DOM
     genBtn.disabled = false;
-    genBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg><span id="genBtnLabel">${genLbl.textContent}</span>`;
+    genBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg><span id="genBtnLabel">${genBtnLabel}</span>`;
   }
 
   // ── Actions ───────────────────────────────────────────────────────────────
