@@ -589,6 +589,12 @@
       align-items: center;
     }
 
+    .dataset-size {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 11px; font-weight: 600;
+      color: var(--muted);
+    }
+
     .dataset-actions { display: flex; gap: 8px; margin-top: 10px; }
 
     .btn-delete {
@@ -1496,6 +1502,14 @@
           ? `<button class="btn-add" onclick="showAddImagesDialog('${ds.id}', '${ds.name.replace(/'/g, "\\'")}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add Photos</button>`
           : '';
 
+        // Format disk size
+        function fmtSize(bytes) {
+          if (!bytes || bytes === 0) return '';
+          if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
+          if (bytes < 1024 * 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+          return (bytes / 1024 / 1024 / 1024).toFixed(2) + ' GB';
+        }
+
         let statusInfo = '';
         if (ds.status === 'processing' && ds.total > 0) {
           const pct = Math.round((ds.processed / ds.total) * 100);
@@ -1504,8 +1518,14 @@
           const pct = Math.round((ds.processed / ds.total) * 100);
           statusInfo = `<span>${ds.processed} / ${ds.total} (${pct}%)</span>`;
         } else {
-          statusInfo = `<span>${ds.face_count > 0 ? ds.face_count + ' faces' : (ds.total ? ds.total + ' images' : '')}</span>`;
+          const faceOrImg = ds.face_count > 0 ? ds.face_count + ' faces' : (ds.total ? ds.total + ' images' : '');
+          statusInfo = faceOrImg ? `<span>${faceOrImg}</span>` : '';
         }
+
+        const sizeStr = fmtSize(ds.size_bytes);
+        const sizeTag = sizeStr
+          ? `<span class="dataset-size"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><line x1="12" y1="3" x2="12" y2="15"/><polyline points="17 8 12 3 7 8"/></svg>${sizeStr}</span>`
+          : '';
 
         return `
           <div class="dataset-item ${ds.id === selectedDatasetId ? 'selected' : ''}"
@@ -1515,6 +1535,7 @@
             <div class="dataset-meta">
               <span class="badge badge-${ds.status}">${ds.status}</span>
               ${statusInfo}
+              ${sizeTag}
             </div>
             <div class="dataset-actions" onclick="event.stopPropagation()">
               ${addImagesBtn}

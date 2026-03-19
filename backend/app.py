@@ -181,6 +181,13 @@ def db_get_dataset(dataset_id: str) -> Optional[dict]:
         return result
     return None
 
+def get_dataset_disk_size(dataset_id: str) -> int:
+    """Return total bytes of all files in the dataset directory."""
+    dataset_dir = DATASETS_DIR / dataset_id
+    if not dataset_dir.exists():
+        return 0
+    return sum(p.stat().st_size for p in dataset_dir.rglob("*") if p.is_file())
+
 def db_list_datasets(user_id: str) -> dict:
     cached = cache_get(f"datasets:{user_id}")
     if cached:
@@ -904,7 +911,11 @@ def me(request: Request):
 @app.get("/api/datasets")
 def list_datasets(request: Request):
     user = require_auth(request)
-    return db_list_datasets(user["id"])
+    datasets = db_list_datasets(user["id"])
+    # Append live disk size to each dataset (calculated from filesystem)
+    for ds_id, ds in datasets.items():
+        ds["size_bytes"] = get_dataset_disk_size(ds_id)
+    return datasets
 
 @app.post("/api/datasets/upload-zip")
 async def upload_zip(
