@@ -196,7 +196,7 @@
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="10" r="3"/><path d="M9 16c0-1.7 1.3-3 3-3s3 1.3 3 3"/></svg>
       FaceFind
     </a>
-    <div class="nav-links">
+    <div class="nav-links" id="navLinks">
       <a href="/#how-it-works" class="nav-link">How it works</a>
       <a href="/#use-cases"    class="nav-link">Use cases</a>
       <a href="/pricing.html"  class="nav-link active">Pricing</a>
@@ -614,14 +614,20 @@
         const name  = user.name || user.email || '';
         const initial = name.trim()[0]?.toUpperCase() || '?';
 
-        // ── Nav CTA: replace with avatar chip + "Dashboard" ──────────────────
+        // ── Nav: hide all links, show only logo + Dashboard CTA ─────────────
+        const navLinks = document.getElementById('navLinks');
+        if (navLinks) navLinks.style.display = 'none';
+
         const navCta = document.getElementById('navCta');
         if (navCta) {
           navCta.href = '/admin.html';
+          navCta.style.display = 'inline-flex';
+          navCta.style.alignItems = 'center';
+          navCta.style.gap = '8px';
           navCta.innerHTML =
             '<span style="width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,0.25);' +
-            'display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;' +
-            'margin-right:6px;">' + initial + '</span>Dashboard';
+            'display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;">' +
+            initial + '</span>Dashboard';
         }
 
         // ── Free strip CTA: "Go to dashboard" ────────────────────────────────
