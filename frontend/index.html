@@ -3,1026 +3,939 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FaceFind — Admin</title>
+  <title>FaceFind — Find Yourself in Any Photo Collection Using Your Face</title>
+  <meta name="description" content="Upload a selfie and instantly find every photo you appear in. AI-powered face search for weddings, events, sports days, school photos and more. Private and self-hosted." />
+  <meta name="keywords" content="face search photos, find yourself in wedding photos, event photo face finder, face recognition photo search, upload selfie find photos, wedding photo search, sports event photo finder" />
+  <link rel="canonical" href="https://facefind-production.up.railway.app/" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://facefind-production.up.railway.app/" />
+  <meta property="og:title" content="FaceFind — Find Yourself in Any Photo Collection" />
+  <meta property="og:description" content="Upload a selfie. Find every photo you appear in. Face recognition search for weddings, events, sports days and more." />
+  <meta property="og:image" content="https://facefind-production.up.railway.app/og-image.jpg" />
+  <meta property="og:site_name" content="FaceFind" />
+  <meta property="og:locale" content="en_IN" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="FaceFind — Find Yourself in Any Photo Collection" />
+  <meta name="twitter:description" content="Upload a selfie. Find every photo you appear in. AI face search for weddings, events, sports days." />
+  <meta name="twitter:image" content="https://facefind-production.up.railway.app/og-image.jpg" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"FaceFind","url":"https://facefind-production.up.railway.app","applicationCategory":"UtilitiesApplication","operatingSystem":"Web","description":"Face recognition photo search. Upload a selfie to instantly find all photos you appear in across an entire event collection.","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"How do I find myself in wedding photos?","acceptedAnswer":{"@type":"Answer","text":"With FaceFind, the photographer uploads all wedding photos to create a collection. Guests then visit the share link, upload a single selfie, and FaceFind uses AI face recognition to instantly find every photo that guest appears in."}},{"@type":"Question","name":"Do guests need to create an account?","acceptedAnswer":{"@type":"Answer","text":"No. Guests receive a share link and can upload their selfie and search immediately — no sign-up, no login, no app download required."}}]}</script>
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700;9..144,800;9..144,900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg: #0a0a0f;
-      --surface: #111118;
-      --border: #1e1e2e;
-      --accent: #e8ff4a;
-      --accent2: #ff6b35;
-      --text: #e2e2f0;
-      --muted: #555570;
-      --success: #4ade80;
-      --warn: #facc15;
-      --error: #f87171;
-      --radius: 2px;
+      --bg: #f9f7f4;
+      --surface: #ffffff;
+      --surface2: #f2efe9;
+      --border: #e8e3db;
+      --primary: #4f46e5;
+      --primary-dark: #3730a3;
+      --primary-light: #eef2ff;
+      --accent: #f43f5e;
+      --accent-light: #fff1f3;
+      --text: #1c1917;
+      --text2: #44403c;
+      --muted: #78716c;
+      --success: #059669;
+      --error: #dc2626;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.04);
+      --shadow: 0 4px 12px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.05);
+      --shadow-lg: 0 12px 32px rgba(0,0,0,0.09), 0 4px 8px rgba(0,0,0,0.05);
+      --shadow-xl: 0 24px 64px rgba(0,0,0,0.12);
+      --radius-sm: 8px;
+      --radius: 14px;
+      --radius-lg: 22px;
+      --radius-xl: 32px;
     }
+
+    html { scroll-behavior: smooth; }
 
     body {
       background: var(--bg);
       color: var(--text);
-      font-family: 'DM Mono', monospace;
-      min-height: 100vh;
-      padding: 0;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      line-height: 1.6;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
     }
 
-    /* Grid background */
-    body::before {
-      content: '';
-      position: fixed;
-      inset: 0;
-      background-image:
-        linear-gradient(rgba(232,255,74,0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(232,255,74,0.03) 1px, transparent 1px);
-      background-size: 40px 40px;
-      pointer-events: none;
-      z-index: 0;
+    /* ── Nav ── */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(249,247,244,0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      transition: box-shadow 0.3s;
     }
-
-    .layout {
-      position: relative;
-      z-index: 1;
+    nav.scrolled { box-shadow: var(--shadow); }
+    .nav-inner {
       max-width: 1100px;
       margin: 0 auto;
-      padding: 0 32px;
-    }
-
-    /* Header */
-    header {
+      padding: 0 28px;
+      height: 68px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 28px 0;
-      border-bottom: 1px solid var(--border);
     }
-
     .logo {
-      display: flex;
-      align-items: baseline;
-      gap: 10px;
-    }
-
-    .logo-mark {
-      font-family: 'Syne', sans-serif;
-      font-weight: 800;
+      font-family: 'Fraunces', serif;
       font-size: 22px;
-      letter-spacing: -0.5px;
-      color: var(--accent);
-    }
-
-    .logo-sub {
-      font-size: 11px;
-      color: var(--muted);
-      letter-spacing: 2px;
-      text-transform: uppercase;
-    }
-
-    .header-tag {
-      font-size: 11px;
-      color: var(--muted);
-      letter-spacing: 1px;
-      padding: 4px 10px;
-      border: 1px solid var(--border);
-    }
-
-    /* Hero */
-    .hero {
-      padding: 72px 0 48px;
-    }
-
-    .hero-eyebrow {
-      font-size: 11px;
-      letter-spacing: 3px;
-      color: var(--accent);
-      text-transform: uppercase;
-      margin-bottom: 16px;
-    }
-
-    .hero-title {
-      font-family: 'Syne', sans-serif;
-      font-size: clamp(36px, 5vw, 64px);
       font-weight: 800;
-      line-height: 1.05;
-      letter-spacing: -1px;
-      margin-bottom: 20px;
-    }
-
-    .hero-title span {
-      color: var(--accent);
-    }
-
-    .hero-desc {
-      font-size: 14px;
-      color: var(--muted);
-      max-width: 480px;
-      line-height: 1.7;
-    }
-
-    /* Main grid */
-    .grid {
-      display: grid;
-      grid-template-columns: 1fr 380px;
-      gap: 24px;
-      padding-bottom: 60px;
-    }
-
-    @media (max-width: 768px) {
-      .grid { grid-template-columns: 1fr; }
-    }
-
-    /* Cards */
-    .card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      padding: 28px;
-    }
-
-    .card-title {
-      font-family: 'Syne', sans-serif;
-      font-size: 13px;
-      font-weight: 700;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      color: var(--muted);
-      margin-bottom: 24px;
+      color: var(--primary);
+      text-decoration: none;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
+      letter-spacing: -0.5px;
     }
-
-    .card-title::before {
-      content: '';
-      display: inline-block;
-      width: 6px;
-      height: 6px;
-      background: var(--accent);
-    }
-
-    /* Upload zone */
-    .drop-zone {
-      border: 2px dashed var(--border);
-      padding: 48px 24px;
-      text-align: center;
-      cursor: pointer;
-      transition: all 0.2s;
-      position: relative;
-    }
-
-    .drop-zone:hover, .drop-zone.dragover {
-      border-color: var(--accent);
-      background: rgba(232,255,74,0.03);
-    }
-
-    .drop-zone input[type="file"] {
-      position: absolute;
-      inset: 0;
-      opacity: 0;
-      cursor: pointer;
-      width: 100%;
-      height: 100%;
-    }
-
-    .drop-icon {
-      font-size: 40px;
-      margin-bottom: 12px;
-      opacity: 0.4;
-    }
-
-    .drop-label {
-      font-size: 13px;
-      color: var(--muted);
-      line-height: 1.6;
-    }
-
-    .drop-label strong {
-      color: var(--accent);
+    .nav-links { display: flex; align-items: center; gap: 4px; }
+    .nav-link {
+      font-size: 14px;
       font-weight: 500;
-    }
-
-    .drop-hint {
-      font-size: 11px;
       color: var(--muted);
-      margin-top: 8px;
-      opacity: 0.6;
+      text-decoration: none;
+      padding: 8px 14px;
+      border-radius: var(--radius-sm);
+      transition: color 0.2s, background 0.2s;
     }
-
-    /* Inputs */
-    .field {
-      margin-top: 16px;
+    .nav-link:hover { color: var(--text); background: rgba(0,0,0,0.04); }
+    .nav-cta {
+      background: var(--primary);
+      color: white;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 10px 20px;
+      border-radius: 10px;
+      text-decoration: none;
+      transition: all 0.25s;
+      margin-left: 8px;
     }
+    .nav-cta:hover { background: var(--primary-dark); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(79,70,229,0.35); }
 
-    .field label {
-      display: block;
-      font-size: 11px;
-      letter-spacing: 1px;
-      color: var(--muted);
-      margin-bottom: 6px;
-      text-transform: uppercase;
+    /* ── Hero ── */
+    .hero {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 88px 28px 72px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 48px;
+      align-items: center;
     }
-
-    .field input[type="text"] {
-      width: 100%;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      color: var(--text);
-      font-family: 'DM Mono', monospace;
-      font-size: 13px;
-      padding: 10px 14px;
-      outline: none;
-      transition: border-color 0.2s;
+    @media (max-width: 820px) {
+      .hero { grid-template-columns: 1fr; padding: 60px 20px 48px; gap: 48px; }
+      .hero-visual { order: -1; }
     }
-
-    .field input[type="text"]:focus {
-      border-color: var(--accent);
-    }
-
-    /* Buttons */
-    .btn {
+    .hero-badge {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      padding: 12px 24px;
-      font-family: 'DM Mono', monospace;
-      font-size: 12px;
-      letter-spacing: 1px;
-      text-transform: uppercase;
-      cursor: pointer;
-      border: none;
-      transition: all 0.15s;
-    }
-
-    .btn-primary {
-      background: var(--accent);
-      color: #0a0a0f;
-      font-weight: 500;
-      width: 100%;
-      justify-content: center;
-      margin-top: 20px;
-    }
-
-    .btn-primary:hover:not(:disabled) {
-      background: #d4eb3a;
-    }
-
-    .btn-primary:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
-
-    .btn-secondary {
-      background: transparent;
-      color: var(--text);
-      border: 1px solid var(--border);
-      width: 100%;
-      justify-content: center;
-      margin-top: 8px;
-    }
-
-    .btn-secondary:hover {
-      border-color: var(--accent);
-      color: var(--accent);
-    }
-
-    /* Progress */
-    .progress-wrap {
-      margin-top: 20px;
-      display: none;
-    }
-
-    .progress-wrap.visible { display: block; }
-
-    .progress-bar-bg {
-      background: var(--border);
-      height: 3px;
-      width: 100%;
-    }
-
-    .progress-bar {
-      background: var(--accent);
-      height: 3px;
-      width: 0%;
-      transition: width 0.4s ease;
-    }
-
-    .progress-text {
-      font-size: 11px;
-      color: var(--muted);
-      margin-top: 8px;
-    }
-
-    /* Status badge */
-    .badge {
-      display: inline-block;
-      padding: 3px 8px;
-      font-size: 10px;
-      letter-spacing: 1px;
-      text-transform: uppercase;
-    }
-
-    .badge-queued   { background: rgba(250,204,21,0.1); color: var(--warn); }
-    .badge-processing { background: rgba(232,255,74,0.1); color: var(--accent); }
-    .badge-ready    { background: rgba(74,222,128,0.1); color: var(--success); }
-    .badge-error    { background: rgba(248,113,113,0.1); color: var(--error); }
-
-    /* Dataset list */
-    .dataset-list {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .dataset-item {
-      padding: 16px;
-      border: 1px solid var(--border);
-      background: var(--bg);
-      cursor: pointer;
-      transition: border-color 0.15s;
-    }
-
-    .dataset-item:hover {
-      border-color: var(--muted);
-    }
-
-    .dataset-item.selected {
-      border-color: var(--accent);
-    }
-
-    .dataset-name {
-      font-family: 'Syne', sans-serif;
-      font-weight: 600;
+      background: var(--primary-light);
+      color: var(--primary);
       font-size: 13px;
-      margin-bottom: 6px;
+      font-weight: 600;
+      padding: 7px 16px;
+      border-radius: 100px;
+      margin-bottom: 24px;
+      border: 1px solid rgba(79,70,229,0.15);
+      animation: fadeInDown 0.6s ease both;
     }
-
-    .dataset-meta {
-      font-size: 11px;
+    .hero-title {
+      font-family: 'Fraunces', serif;
+      font-size: clamp(38px, 5.5vw, 66px);
+      font-weight: 800;
+      line-height: 1.06;
+      letter-spacing: -2px;
+      margin-bottom: 22px;
+      color: var(--text);
+      animation: fadeInUp 0.7s 0.1s ease both;
+    }
+    .hero-title .highlight { color: var(--primary); }
+    .hero-desc {
+      font-size: 17px;
       color: var(--muted);
+      line-height: 1.75;
+      margin-bottom: 38px;
+      max-width: 460px;
+      animation: fadeInUp 0.7s 0.2s ease both;
+    }
+    .hero-actions {
       display: flex;
       gap: 12px;
       flex-wrap: wrap;
+      animation: fadeInUp 0.7s 0.3s ease both;
+    }
+    .btn-primary {
+      display: inline-flex;
       align-items: center;
-    }
-
-    /* Share section */
-    .share-box {
-      margin-top: 20px;
-      padding: 16px;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      display: none;
-    }
-
-    .share-box.visible { display: block; }
-
-    .share-url-wrap {
-      display: flex;
-      align-items: center;
-      gap: 0;
-      margin-top: 12px;
-    }
-
-    .share-url {
-      flex: 1;
-      background: var(--border);
-      padding: 10px 12px;
-      font-size: 12px;
-      color: var(--text);
-      word-break: break-all;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .copy-btn {
-      background: var(--accent);
-      color: #0a0a0f;
-      border: none;
-      padding: 10px 14px;
-      cursor: pointer;
-      font-family: 'DM Mono', monospace;
-      font-size: 11px;
-      font-weight: 500;
-      letter-spacing: 1px;
-      transition: background 0.15s;
-      white-space: nowrap;
-    }
-
-    .copy-btn:hover { background: #d4eb3a; }
-
-    /* Log */
-    .log-box {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      padding: 12px;
-      font-size: 11px;
-      color: var(--muted);
-      max-height: 120px;
-      overflow-y: auto;
-      margin-top: 16px;
-      display: none;
-    }
-
-    .log-box.visible { display: block; }
-    .log-line { margin-bottom: 4px; }
-    .log-line.ok  { color: var(--success); }
-    .log-line.err { color: var(--error); }
-
-    /* Toast */
-    .toast {
-      position: fixed;
-      bottom: 32px;
-      right: 32px;
-      background: var(--surface);
-      border: 1px solid var(--accent);
-      color: var(--accent);
-      padding: 12px 20px;
-      font-size: 12px;
-      letter-spacing: 0.5px;
-      transform: translateY(80px);
-      opacity: 0;
-      transition: all 0.3s;
-      z-index: 100;
-    }
-
-    .toast.show {
-      transform: translateY(0);
-      opacity: 1;
-    }
-
-    /* Empty state */
-    .empty {
-      padding: 32px;
-      text-align: center;
-      color: var(--muted);
-      font-size: 12px;
-      border: 1px dashed var(--border);
-    }
-
-    /* Divider */
-    .divider {
-      height: 1px;
-      background: var(--border);
-      margin: 20px 0;
-    }
-
-    /* Tabs */
-    .tabs {
-      display: flex;
-      border-bottom: 1px solid var(--border);
-      margin-bottom: 24px;
-      gap: 0;
-    }
-
-    .tab-btn {
-      background: none;
-      border: none;
-      border-bottom: 2px solid transparent;
-      color: var(--muted);
-      font-family: 'DM Mono', monospace;
-      font-size: 11px;
-      letter-spacing: 1.5px;
-      text-transform: uppercase;
-      padding: 10px 18px;
-      cursor: pointer;
-      transition: all 0.15s;
-      margin-bottom: -1px;
-    }
-
-    .tab-btn:hover { color: var(--text); }
-    .tab-btn.active {
-      color: var(--accent);
-      border-bottom-color: var(--accent);
-    }
-
-    .tab-panel { display: none; }
-    .tab-panel.active { display: block; }
-
-    /* Success state */
-    .upload-success {
-      display: none;
-      border: 2px solid var(--success);
-      padding: 28px 24px;
-      text-align: center;
-      background: rgba(74,222,128,0.04);
-      position: relative;
-    }
-
-    .upload-success.visible { display: block; }
-
-    .success-icon { font-size: 36px; margin-bottom: 10px; }
-
-    .success-title {
-      font-family: 'Syne', sans-serif;
-      font-weight: 700;
+      gap: 8px;
+      background: var(--primary);
+      color: white;
+      font-family: 'Plus Jakarta Sans', sans-serif;
       font-size: 15px;
-      color: var(--success);
-      margin-bottom: 6px;
+      font-weight: 600;
+      padding: 14px 26px;
+      border-radius: 12px;
+      text-decoration: none;
+      border: none;
+      cursor: pointer;
+      transition: all 0.25s;
+    }
+    .btn-primary:hover { background: var(--primary-dark); transform: translateY(-2px); box-shadow: 0 8px 28px rgba(79,70,229,0.35); }
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: white;
+      color: var(--text2);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      padding: 14px 26px;
+      border-radius: 12px;
+      text-decoration: none;
+      border: 1.5px solid var(--border);
+      cursor: pointer;
+      transition: all 0.25s;
+    }
+    .btn-secondary:hover { border-color: var(--primary); color: var(--primary); transform: translateY(-2px); box-shadow: var(--shadow); }
+    .hero-social-proof {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 28px;
+      font-size: 13px;
+      color: var(--muted);
+      animation: fadeInUp 0.7s 0.4s ease both;
+    }
+    .proof-avatars { display: flex; }
+    .proof-avatar {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      border: 2px solid var(--bg);
+      background: linear-gradient(135deg, #a5b4fc, #818cf8);
+      margin-left: -8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; color: white; font-weight: 600;
+    }
+    .proof-avatar:first-child { margin-left: 0; background: linear-gradient(135deg, #fda4af, #fb7185); }
+    .proof-avatar:nth-child(2) { background: linear-gradient(135deg, #6ee7b7, #34d399); }
+    .proof-avatar:nth-child(3) { background: linear-gradient(135deg, #fcd34d, #fbbf24); }
+
+    /* ══════════════════════════════════════════
+       HERO VISUAL — laptop animation
+       ══════════════════════════════════════════ */
+    .hero-visual {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      animation: fadeIn 0.8s 0.3s ease both;
     }
 
-    .success-meta {
+    /* Wrapper that holds the scene + the step label above */
+    .laptop-anim-wrap {
+      position: relative;
+      width: 100%;
+      max-width: 620px;
+    }
+
+    /* Step label — floats above the laptop, fades in/out */
+    .step-label {
+      position: absolute;
+      top: -8px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: white;
+      border: 1.5px solid rgba(79,70,229,0.2);
+      border-radius: 100px;
+      padding: 7px 18px 7px 10px;
+      box-shadow: 0 4px 20px rgba(79,70,229,0.12);
+      white-space: nowrap;
+      opacity: 0;
+      transition: opacity 0.45s ease;
+      pointer-events: none;
+      z-index: 10;
+    }
+    .step-label.visible { opacity: 1; }
+    .step-num-badge {
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: white;
       font-size: 12px;
-      color: var(--muted);
-      line-height: 1.6;
+      font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .step-label-text {
+      font-size: 13px;
+      font-weight: 600;
+      color: #1c1917;
     }
 
-    .success-meta strong { color: var(--text); }
+    /* Scene — laptop illustration */
+    .scene {
+      position: relative;
+      width: 100%;
+      padding-bottom: 62%;
+      height: 0;
+    }
+    .scene > svg.bg-svg {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+    }
 
-    .btn-reset {
-      background: none;
-      border: 1px solid var(--border);
-      color: var(--muted);
-      font-family: 'DM Mono', monospace;
-      font-size: 10px;
+    /*
+      SVG viewBox: 820×510. Screen rect: x=220,y=108,w=380,h=214
+      left%  = 220/820 = 26.83%
+      top%   = 108/510 = 21.18%
+      width% = 380/820 = 46.34%
+      height%= 214/510 = 41.96%
+    */
+    .screen-overlay {
+      position: absolute;
+      left: 23.29%; top: 15.88%;
+      width: 53.41%; height: 48.04%;
+      border-radius: 3px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      background: #fff;
+    }
+    .app-bar {
+      flex-shrink: 0;
+      height: 22px;
+      background: #f0eeff;
+      border-bottom: 2.5px solid #4f46e5;
+      display: flex;
+      align-items: center;
+      padding: 0 8px;
+      gap: 5px;
+    }
+    .anim-dot { width: 7px; height: 7px; border-radius: 50%; border: 2px solid #4f46e5; }
+    .app-title-bar {
+      flex: 1;
+      text-align: center;
+      font-size: 8px;
+      font-weight: 700;
+      color: #4f46e5;
       letter-spacing: 1px;
       text-transform: uppercase;
-      padding: 6px 14px;
-      cursor: pointer;
-      margin-top: 14px;
-      transition: all 0.15s;
+      padding-right: 22px;
+    }
+    .stages-wrap { flex: 1; position: relative; overflow: hidden; }
+    .stage {
+      position: absolute; inset: 0;
+      opacity: 0;
+      transition: opacity 0.55s ease;
+    }
+    .stage.active { opacity: 1; }
+    .stage svg { width: 100%; height: 100%; display: block; }
+
+    /* ── Stats strip ── */
+    .stats-strip { background: var(--primary); padding: 36px 28px; }
+    .stats-inner {
+      max-width: 1100px; margin: 0 auto;
+      display: grid; grid-template-columns: repeat(4,1fr);
+      gap: 32px; text-align: center; color: white;
+    }
+    @media (max-width: 640px) { .stats-inner { grid-template-columns: repeat(2,1fr); } }
+    .stat-num {
+      font-family: 'Fraunces', serif;
+      font-size: 38px; font-weight: 800; line-height: 1;
+      display: block; margin-bottom: 6px;
+    }
+    .stat-lbl { font-size: 13px; opacity: 0.75; font-weight: 500; }
+
+    /* ── Section base ── */
+    .section { max-width: 1100px; margin: 0 auto; padding: 96px 28px; }
+    .section-tag {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--primary-light); color: var(--primary);
+      font-size: 12px; font-weight: 700; letter-spacing: 0.5px;
+      text-transform: uppercase; padding: 5px 14px; border-radius: 100px;
+      margin-bottom: 20px; border: 1px solid rgba(79,70,229,0.15);
+    }
+    .section-title {
+      font-family: 'Fraunces', serif;
+      font-size: clamp(30px,4vw,50px); font-weight: 800;
+      line-height: 1.08; letter-spacing: -1.5px;
+      margin-bottom: 16px; color: var(--text);
+    }
+    .section-sub {
+      font-size: 16px; color: var(--muted); line-height: 1.75;
+      max-width: 520px; margin-bottom: 56px;
     }
 
-    .btn-reset:hover { border-color: var(--muted); color: var(--text); }
-
-    /* Drive input area */
-    .drive-zone {
-      border: 2px dashed var(--border);
-      padding: 32px 24px;
-      text-align: center;
-      transition: border-color 0.2s;
+    /* ── How it works ── */
+    .steps-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 28px; }
+    @media (max-width: 768px) { .steps-grid { grid-template-columns: 1fr; } }
+    .step-card {
+      background: white; border-radius: var(--radius-lg);
+      padding: 36px 28px; box-shadow: var(--shadow);
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      position: relative; overflow: hidden;
+      border: 1px solid rgba(0,0,0,0.04);
     }
-
-    .drive-zone:focus-within {
-      border-color: var(--accent);
-      background: rgba(232,255,74,0.02);
+    .step-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0;
+      height: 3px; background: linear-gradient(90deg, var(--primary), #7c3aed);
     }
-
-    .drive-icon { font-size: 36px; margin-bottom: 12px; opacity: 0.5; }
-
-    .drive-label {
-      font-size: 12px;
-      color: var(--muted);
-      margin-bottom: 14px;
-      line-height: 1.6;
+    .step-card:hover { transform: translateY(-6px); box-shadow: var(--shadow-xl); }
+    .step-num { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--primary); margin-bottom: 18px; opacity: 0.5; }
+    .step-icon-wrap {
+      width: 52px; height: 52px; background: var(--primary-light);
+      border-radius: 14px; display: flex; align-items: center; justify-content: center;
+      margin-bottom: 22px; color: var(--primary); transition: transform 0.3s;
     }
+    .step-card:hover .step-icon-wrap { transform: scale(1.1) rotate(-4deg); }
+    .step-title { font-family: 'Fraunces', serif; font-size: 21px; font-weight: 700; margin-bottom: 12px; color: var(--text); }
+    .step-desc { font-size: 14px; color: var(--muted); line-height: 1.75; }
 
-    .drive-label strong { color: var(--accent); }
-
-    .drive-input {
-      width: 100%;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      color: var(--text);
-      font-family: 'DM Mono', monospace;
-      font-size: 12px;
-      padding: 10px 14px;
-      outline: none;
-      transition: border-color 0.2s;
-      text-align: left;
+    /* ── Use cases ── */
+    .usecases-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 20px; margin-bottom: 48px; }
+    @media (max-width: 900px) { .usecases-grid { grid-template-columns: repeat(2,1fr); } }
+    @media (max-width: 560px) { .usecases-grid { grid-template-columns: 1fr; } }
+    .usecase-card {
+      background: white; border-radius: var(--radius); padding: 28px;
+      box-shadow: var(--shadow-sm); border: 1.5px solid var(--border); transition: all 0.3s ease;
     }
+    .usecase-card:hover { transform: translateY(-4px); box-shadow: var(--shadow); border-color: rgba(79,70,229,0.3); }
+    .usecase-icon { width: 46px; height: 46px; background: var(--primary-light); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: var(--primary); margin-bottom: 16px; transition: transform 0.3s; }
+    .usecase-card:hover .usecase-icon { transform: scale(1.1); }
+    .usecase-title { font-family: 'Fraunces', serif; font-size: 18px; font-weight: 700; margin-bottom: 8px; color: var(--text); }
+    .usecase-desc { font-size: 13px; color: var(--muted); line-height: 1.7; }
 
-    .drive-input:focus { border-color: var(--accent); }
-
-    .drive-hint {
-      font-size: 10px;
-      color: var(--muted);
-      margin-top: 8px;
-      opacity: 0.6;
-      line-height: 1.5;
+    /* ── Privacy strip ── */
+    .privacy-strip {
+      background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e1b4b 100%);
+      border-radius: var(--radius-xl); padding: 56px 48px;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 40px; flex-wrap: wrap; position: relative; overflow: hidden;
     }
-
-    /* badge for downloading state */
-    .badge-downloading { background: rgba(147,112,219,0.15); color: #b39ddb; }
-
-    .inline-link {
-      color: var(--accent);
-      text-decoration: none;
-      font-size: 12px;
+    .privacy-strip::before {
+      content: ''; position: absolute; top: -80px; right: -80px;
+      width: 300px; height: 300px; border-radius: 50%; background: rgba(255,255,255,0.04);
     }
+    .privacy-icon-wrap { width: 60px; height: 60px; background: rgba(255,255,255,0.1); border-radius: 16px; display: flex; align-items: center; justify-content: center; color: white; margin-bottom: 18px; }
+    .privacy-title { font-family: 'Fraunces', serif; font-size: 28px; font-weight: 700; color: white; margin-bottom: 12px; letter-spacing: -0.5px; }
+    .privacy-desc { font-size: 14px; color: rgba(255,255,255,0.65); line-height: 1.75; max-width: 520px; }
+    .btn-white { display: inline-flex; align-items: center; gap: 8px; background: white; color: var(--primary); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; font-weight: 700; padding: 14px 28px; border-radius: 12px; text-decoration: none; transition: all 0.25s; white-space: nowrap; flex-shrink: 0; }
+    .btn-white:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(0,0,0,0.2); }
 
-    .inline-link:hover { text-decoration: underline; }
+    /* ── FAQ ── */
+    .faq-list { display: flex; flex-direction: column; gap: 10px; }
+    .faq-item { background: white; border-radius: var(--radius); border: 1.5px solid var(--border); overflow: hidden; transition: border-color 0.2s, box-shadow 0.2s; }
+    .faq-item:hover { border-color: rgba(79,70,229,0.3); box-shadow: var(--shadow-sm); }
+    .faq-item.open { border-color: rgba(79,70,229,0.4); box-shadow: var(--shadow); }
+    .faq-q { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; font-weight: 600; font-size: 15px; cursor: pointer; gap: 16px; transition: background 0.15s; }
+    .faq-q:hover { background: #fafafa; }
+    .faq-chevron { flex-shrink: 0; color: var(--primary); transition: transform 0.35s cubic-bezier(0.4,0,0.2,1); }
+    .faq-item.open .faq-chevron { transform: rotate(180deg); }
+    .faq-a { max-height: 0; overflow: hidden; transition: max-height 0.4s cubic-bezier(0.4,0,0.2,1); font-size: 14px; color: var(--muted); line-height: 1.75; }
+    .faq-item.open .faq-a { max-height: 400px; }
+    .faq-a-inner { padding: 0 24px 22px; }
+
+    /* ── Footer ── */
+    footer { background: white; border-top: 1px solid var(--border); padding: 40px 28px; }
+    .footer-inner { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 20px; }
+    .footer-logo { font-family: 'Fraunces', serif; font-weight: 800; font-size: 18px; color: var(--primary); text-decoration: none; }
+    .footer-links { display: flex; gap: 24px; }
+    .footer-links a { color: var(--muted); text-decoration: none; font-size: 14px; transition: color 0.15s; }
+    .footer-links a:hover { color: var(--text); }
+    .footer-copy { font-size: 13px; color: var(--muted); }
+
+    /* ── Animations ── */
+    @keyframes fadeInDown { from { opacity:0; transform:translateY(-12px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes fadeInUp   { from { opacity:0; transform:translateY(20px); }  to { opacity:1; transform:translateY(0); } }
+    @keyframes fadeIn     { from { opacity:0; }                               to { opacity:1; } }
+    .fade-up { opacity:0; transform:translateY(28px); transition: opacity 0.65s ease, transform 0.65s ease; }
+    .fade-up.visible { opacity:1; transform:translateY(0); }
+    .fade-up.delay-1 { transition-delay:0.1s; }
+    .fade-up.delay-2 { transition-delay:0.2s; }
+    .fade-up.delay-3 { transition-delay:0.3s; }
+    .fade-up.delay-4 { transition-delay:0.4s; }
+    .fade-up.delay-5 { transition-delay:0.5s; }
+    .fade-up.delay-6 { transition-delay:0.6s; }
   </style>
 </head>
 <body>
-<div class="layout">
-  <header>
-    <div class="logo">
-      <span class="logo-mark">FaceFind</span>
-      <span class="logo-sub">Admin Console</span>
+  <!-- Nav -->
+  <nav id="mainNav">
+    <div class="nav-inner">
+      <a href="/" class="logo">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="10" r="3"/><path d="M9 16c0-1.7 1.3-3 3-3s3 1.3 3 3"/></svg>
+        FaceFind
+      </a>
+      <div class="nav-links">
+        <a href="#how-it-works" class="nav-link">How it works</a>
+        <a href="#use-cases" class="nav-link">Use cases</a>
+        <a href="/pricing.html" class="nav-link">Pricing</a>
+        <a href="#faq" class="nav-link">FAQ</a>
+        <a href="/login.html" class="nav-cta">Get Started</a>
+      </div>
     </div>
-    <span class="header-tag">v1.0 · Local</span>
-  </header>
+  </nav>
 
+  <!-- Hero -->
   <section class="hero">
-    <p class="hero-eyebrow">Face Recognition Pipeline</p>
-    <h1 class="hero-title">Upload. Embed.<br><span>Share.</span></h1>
-    <p class="hero-desc">Upload a photo dataset, generate face embeddings, then share a link — anyone with the link can upload a selfie and find themselves in your collection.</p>
+    <div class="hero-content">
+      <h1 class="hero-title">
+        Find <span class="highlight">yourself</span><br>in every photo
+      </h1>
+      <p class="hero-desc">
+        Upload a selfie and instantly discover every photo you appear in — across an entire event collection. Perfect for weddings, sports days, school events, and more.
+      </p>
+      <div class="hero-actions">
+        <a href="/login.html" class="btn-primary">
+          Get started free
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </a>
+        <a href="#how-it-works" class="btn-secondary">See how it works</a>
+      </div>
+      <div class="hero-social-proof">
+        <div class="proof-avatars">
+          <div class="proof-avatar">A</div>
+          <div class="proof-avatar">S</div>
+          <div class="proof-avatar">R</div>
+          <div class="proof-avatar">M</div>
+        </div>
+        <span>Loved by photographers &amp; event organizers</span>
+      </div>
+    </div>
+
+    <!-- ══ Laptop animation replacing pulsating circle ══ -->
+    <div class="hero-visual">
+      <div class="laptop-anim-wrap">
+
+        <!-- Step label floats above laptop -->
+        <div class="step-label" id="stepLabel">
+          <div class="step-num-badge" id="stepNum">1</div>
+          <span class="step-label-text" id="stepText">Snap a selfie</span>
+        </div>
+
+        <div class="scene">
+          <!-- Static laptop + person SVG -->
+          <svg class="bg-svg" viewBox="0 0 820 510" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="820" height="510" fill="#f9f7f4"/>
+            <!-- Desk (shorter — raised up) -->
+            <line x1="0" y1="368" x2="820" y2="368" stroke="#4f46e5" stroke-width="3.5" stroke-linecap="round"/>
+            <!-- Head -->
+            <ellipse cx="410" cy="218" rx="46" ry="50" fill="#f9f7f4" stroke="#4f46e5" stroke-width="3.5"/>
+            <circle cx="396" cy="214" r="5.5" fill="#4f46e5"/>
+            <circle cx="424" cy="214" r="5.5" fill="#4f46e5"/>
+            <path d="M399 232 Q410 243 421 232" fill="none" stroke="#4f46e5" stroke-width="3.5" stroke-linecap="round"/>
+            <!-- Neck -->
+            <rect x="402" y="265" width="16" height="22" fill="#f9f7f4"/>
+            <line x1="402" y1="265" x2="402" y2="287" stroke="#4f46e5" stroke-width="3.5"/>
+            <line x1="418" y1="265" x2="418" y2="287" stroke="#4f46e5" stroke-width="3.5"/>
+            <!-- Body -->
+            <path d="M310 368 Q330 285 410 283 Q490 285 510 368" fill="#f9f7f4" stroke="#4f46e5" stroke-width="3.5" stroke-linejoin="round"/>
+            <!-- Laptop lid (bigger — wider and taller) -->
+            <rect x="178" y="68" width="464" height="272" rx="14" fill="white" stroke="#4f46e5" stroke-width="4"/>
+            <!-- Screen bezel -->
+            <rect x="191" y="81" width="438" height="245" rx="6" fill="#f0eeff" stroke="#4f46e5" stroke-width="2.5"/>
+            <!-- Webcam -->
+            <circle cx="410" cy="75" r="5.5" fill="#4f46e5"/>
+            <!-- Hinge -->
+            <rect x="295" y="338" width="230" height="8" rx="4" fill="#f9f7f4" stroke="#4f46e5" stroke-width="2.5"/>
+            <!-- Keyboard -->
+            <path d="M224 346 L596 346 L618 368 L202 368 Z" fill="white" stroke="#4f46e5" stroke-width="3.5" stroke-linejoin="round"/>
+            <rect x="330" y="352" width="160" height="14" rx="6" fill="none" stroke="#4f46e5" stroke-width="2.5"/>
+          </svg>
+
+          <!-- Screen content -->
+          <div class="screen-overlay">
+            <div class="app-bar">
+              <div class="anim-dot"></div><div class="anim-dot"></div><div class="anim-dot"></div>
+              <span class="app-title-bar">FaceFind</span>
+            </div>
+            <div class="stages-wrap">
+
+              <!-- STAGE 1: Camera -->
+              <div class="stage active" id="s1">
+                <svg viewBox="0 0 380 192" xmlns="http://www.w3.org/2000/svg">
+                  <rect width="380" height="192" fill="#0d0d1a"/>
+                  <ellipse cx="190" cy="92" rx="54" ry="62" fill="none" stroke="#4f46e5" stroke-width="2" stroke-dasharray="6 4" opacity="0.5"/>
+                  <!-- Avatar: realistic person -->
+                  <ellipse cx="190" cy="66" rx="26" ry="28" fill="none" stroke="#4f46e5" stroke-width="2.5"/>
+                  <path d="M164 60 Q165 36 190 34 Q215 36 216 60" fill="none" stroke="#4f46e5" stroke-width="2.5" stroke-linecap="round"/>
+                  <path d="M164 60 Q162 52 165 46" fill="none" stroke="#4f46e5" stroke-width="2.5" stroke-linecap="round"/>
+                  <path d="M216 60 Q218 52 215 46" fill="none" stroke="#4f46e5" stroke-width="2.5" stroke-linecap="round"/>
+                  <path d="M172 42 Q183 38 196 40 Q206 41 212 46" fill="none" stroke="#4f46e5" stroke-width="2" stroke-linecap="round"/>
+                  <path d="M179 63 Q182 60 185 63" fill="none" stroke="#4f46e5" stroke-width="2" stroke-linecap="round"/>
+                  <path d="M195 63 Q198 60 201 63" fill="none" stroke="#4f46e5" stroke-width="2" stroke-linecap="round"/>
+                  <path d="M189 70 Q187 74 190 75 Q193 74 191 70" fill="none" stroke="#4f46e5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M183 80 Q190 87 197 80" fill="none" stroke="#4f46e5" stroke-width="2.2" stroke-linecap="round"/>
+                  <line x1="184" y1="93" x2="180" y2="106" stroke="#4f46e5" stroke-width="2.5" stroke-linecap="round"/>
+                  <line x1="196" y1="93" x2="200" y2="106" stroke="#4f46e5" stroke-width="2.5" stroke-linecap="round"/>
+                  <path d="M148 150 Q150 112 180 106 L190 118 L200 106 Q230 112 232 150" fill="none" stroke="#4f46e5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  <!-- Brackets -->
+                  <g stroke="#4f46e5" stroke-width="3.5" stroke-linecap="round" fill="none">
+                    <path d="M102 40 L102 30 L112 30"/>
+                    <path d="M278 40 L278 30 L268 30"/>
+                    <path d="M102 152 L102 162 L112 162"/>
+                    <path d="M278 152 L278 162 L268 162"/>
+                  </g>
+                  <rect x="128" y="168" width="124" height="19" rx="9.5" fill="none" stroke="#4f46e5" stroke-width="2"/>
+                  <text x="190" y="181" text-anchor="middle" font-family="monospace" font-size="8" font-weight="700" fill="#4f46e5" letter-spacing="1">FACE DETECTED</text>
+                  <rect width="380" height="192" fill="white">
+                    <animate attributeName="opacity" values="0;0;0;0;0;0;0.85;0.05;0" keyTimes="0;0.65;0.7;0.74;0.78;0.82;0.88;0.94;1" dur="5s" repeatCount="indefinite"/>
+                  </rect>
+                </svg>
+              </div>
+
+              <!-- STAGE 2: Upload -->
+              <div class="stage" id="s2">
+                <svg viewBox="0 0 380 192" xmlns="http://www.w3.org/2000/svg">
+                  <rect width="380" height="192" fill="white"/>
+                  <line x1="0" y1="28" x2="380" y2="28" stroke="#4f46e5" stroke-width="2"/>
+                  <text x="190" y="19" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4f46e5" font-weight="700">Uploading your photo</text>
+                  <rect x="28" y="36" width="96" height="118" rx="10" fill="none" stroke="#4f46e5" stroke-width="3"/>
+                  <g transform="translate(76,82) scale(0.54)" stroke-linecap="round" stroke-linejoin="round">
+                    <ellipse cx="0" cy="-22" rx="26" ry="28" fill="none" stroke="#4f46e5" stroke-width="4.6"/>
+                    <path d="M-26 -28 Q-25 -52 0 -54 Q25 -52 26 -28" fill="none" stroke="#4f46e5" stroke-width="4.6"/>
+                    <path d="M-26 -28 Q-28 -36 -25 -42" fill="none" stroke="#4f46e5" stroke-width="4.6"/>
+                    <path d="M26 -28 Q28 -36 25 -42" fill="none" stroke="#4f46e5" stroke-width="4.6"/>
+                    <path d="M-18 -46 Q-7 -50 6 -48 Q16 -47 22 -42" fill="none" stroke="#4f46e5" stroke-width="3.6"/>
+                    <path d="M-11 -25 Q-8 -28 -5 -25" fill="none" stroke="#4f46e5" stroke-width="3.6"/>
+                    <path d="M5 -25 Q8 -28 11 -25" fill="none" stroke="#4f46e5" stroke-width="3.6"/>
+                    <path d="M-1 -18 Q-3 -14 0 -13 Q3 -14 1 -18" fill="none" stroke="#4f46e5" stroke-width="3.2"/>
+                    <path d="M-7 -8 Q0 -1 7 -8" fill="none" stroke="#4f46e5" stroke-width="4"/>
+                    <line x1="-6" y1="5" x2="-10" y2="18" stroke="#4f46e5" stroke-width="4.6"/>
+                    <line x1="6" y1="5" x2="10" y2="18" stroke="#4f46e5" stroke-width="4.6"/>
+                    <path d="M-42 82 Q-40 44 -10 18 L0 30 L10 18 Q40 44 42 82" fill="none" stroke="#4f46e5" stroke-width="4.6"/>
+                  </g>
+                  <line x1="148" y1="96" x2="242" y2="96" stroke="#4f46e5" stroke-width="2.5" stroke-dasharray="6 4"/>
+                  <path d="M236 89 L246 96 L236 103" fill="none" stroke="#4f46e5" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  <circle r="5" fill="#4f46e5">
+                    <animate attributeName="cx" values="148;246" dur="1.1s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.6 1"/>
+                    <animate attributeName="cy" values="96;96" dur="1.1s" repeatCount="indefinite"/>
+                    <animate attributeName="opacity" values="0;1;1;0" dur="1.1s" repeatCount="indefinite" keyTimes="0;0.08;0.7;0.9"/>
+                  </circle>
+                  <circle r="5" fill="#4f46e5">
+                    <animate attributeName="cx" values="148;246" dur="1.1s" repeatCount="indefinite" begin="0.38s" calcMode="spline" keySplines="0.4 0 0.6 1"/>
+                    <animate attributeName="cy" values="96;96" dur="1.1s" repeatCount="indefinite" begin="0.38s"/>
+                    <animate attributeName="opacity" values="0;1;1;0" dur="1.1s" repeatCount="indefinite" begin="0.38s" keyTimes="0;0.08;0.7;0.9"/>
+                  </circle>
+                  <path d="M262 82 Q254 82 254 74 Q254 65 262 64 Q262 54 273 54 Q276 47 284 47 Q300 47 299 60 Q307 61 310 67 Q314 82 306 82 Z" fill="none" stroke="#4f46e5" stroke-width="3" stroke-linejoin="round"/>
+                  <line x1="282" y1="78" x2="282" y2="60" stroke="#4f46e5" stroke-width="2.5" stroke-linecap="round"/>
+                  <path d="M276 66 L282 59 L288 66" fill="none" stroke="#4f46e5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  <rect x="28" y="166" width="324" height="12" rx="6" fill="none" stroke="#4f46e5" stroke-width="2.5"/>
+                  <rect x="28" y="166" width="0" height="12" rx="6" fill="#4f46e5">
+                    <animate attributeName="width" values="0;324;324;0" keyTimes="0;0.7;0.95;1" dur="5s" repeatCount="indefinite" calcMode="spline" keySplines="0.6 0 0.4 1;0 0 1 1;0 0 1 1"/>
+                  </rect>
+                </svg>
+              </div>
+
+              <!-- STAGE 3: AI Scan -->
+              <div class="stage" id="s3">
+                <svg viewBox="0 0 380 192" xmlns="http://www.w3.org/2000/svg">
+                  <rect width="380" height="192" fill="white"/>
+                  <line x1="0" y1="28" x2="380" y2="28" stroke="#4f46e5" stroke-width="2"/>
+                  <text x="190" y="19" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4f46e5" font-weight="700">Scanning collection</text>
+                  <rect x="16" y="38" width="46" height="46" rx="8" fill="none" stroke="#4f46e5" stroke-width="2.5"/>
+                  <rect x="70" y="38" width="46" height="46" rx="8" fill="none" stroke="#4f46e5" stroke-width="2.5"/>
+                  <rect x="124" y="38" width="46" height="46" rx="8" fill="none" stroke="#4f46e5" stroke-width="2.5"/>
+                  <rect x="16" y="92" width="46" height="46" rx="8" fill="none" stroke="#4f46e5" stroke-width="2.5"/>
+                  <rect x="70" y="92" width="46" height="46" rx="8" fill="none" stroke="#4f46e5" stroke-width="2.5"/>
+                  <rect x="124" y="92" width="46" height="46" rx="8" fill="none" stroke="#4f46e5" stroke-width="2.5"/>
+                  <rect x="16" y="146" width="46" height="46" rx="8" fill="none" stroke="#4f46e5" stroke-width="2.5"/>
+                  <rect x="70" y="146" width="46" height="46" rx="8" fill="none" stroke="#4f46e5" stroke-width="2.5"/>
+                  <rect x="124" y="146" width="46" height="46" rx="8" fill="none" stroke="#4f46e5" stroke-width="2.5"/>
+                  <rect x="16" y="38" width="154" height="3.5" rx="2" fill="#4f46e5">
+                    <animate attributeName="y" values="36;190;36" dur="2s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.6 1;0.4 0 0.6 1"/>
+                    <animate attributeName="opacity" values="0;1;1;1;0" dur="2s" repeatCount="indefinite" keyTimes="0;0.05;0.45;0.9;1"/>
+                  </rect>
+                  <rect x="192" y="38" width="172" height="146" rx="12" fill="none" stroke="#4f46e5" stroke-width="2.5"/>
+                  <circle cx="278" cy="96" r="30" fill="none" stroke="#e0deff" stroke-width="5"/>
+                  <circle cx="278" cy="96" r="30" fill="none" stroke="#4f46e5" stroke-width="5" stroke-dasharray="38 150" stroke-linecap="round">
+                    <animateTransform attributeName="transform" type="rotate" from="0 278 96" to="360 278 96" dur="1s" repeatCount="indefinite"/>
+                  </circle>
+                  <text x="278" y="144" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4f46e5" font-weight="700">Comparing...</text>
+                </svg>
+              </div>
+
+              <!-- STAGE 4: Matches -->
+              <div class="stage" id="s4">
+                <svg viewBox="0 0 380 192" xmlns="http://www.w3.org/2000/svg">
+                  <rect width="380" height="192" fill="white"/>
+                  <line x1="0" y1="28" x2="380" y2="28" stroke="#4f46e5" stroke-width="2"/>
+                  <text x="190" y="19" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#4f46e5" font-weight="700">Matches identified</text>
+                  <rect x="16" y="38" width="46" height="46" rx="8" fill="none" stroke="#4f46e5" stroke-width="2" opacity="0.15"/>
+                  <rect x="70" y="38" width="46" height="46" rx="8" fill="none" stroke="#4f46e5" stroke-width="2" opacity="0.15"/>
+                  <rect x="124" y="38" width="46" height="46" rx="8" fill="none" stroke="#4f46e5" stroke-width="2" opacity="0.15"/>
+                  <rect x="16" y="92" width="46" height="46" rx="8" fill="none" stroke="#4f46e5" stroke-width="2" opacity="0.15"/>
+                  <rect x="70" y="92" width="46" height="46" rx="8" fill="none" stroke="#4f46e5" stroke-width="2" opacity="0.15"/>
+                  <rect x="124" y="92" width="46" height="46" rx="8" fill="none" stroke="#4f46e5" stroke-width="2" opacity="0.15"/>
+                  <rect x="16" y="146" width="46" height="46" rx="8" fill="none" stroke="#4f46e5" stroke-width="2" opacity="0.15"/>
+                  <rect x="70" y="146" width="46" height="46" rx="8" fill="none" stroke="#4f46e5" stroke-width="2" opacity="0.15"/>
+                  <rect x="124" y="146" width="46" height="46" rx="8" fill="none" stroke="#4f46e5" stroke-width="2" opacity="0.15"/>
+                  <rect x="14" y="36" width="50" height="50" rx="10" fill="none" stroke="#4f46e5" stroke-width="3.5"/>
+                  <circle cx="60" cy="39" r="10" fill="#4f46e5"/>
+                  <path d="M55.5 39 L59 42.5 L65 35" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  <rect x="68" y="90" width="50" height="50" rx="10" fill="none" stroke="#4f46e5" stroke-width="3.5"/>
+                  <circle cx="114" cy="93" r="10" fill="#4f46e5"/>
+                  <path d="M109.5 93 L113 96.5 L119 89" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  <rect x="14" y="144" width="50" height="50" rx="10" fill="none" stroke="#4f46e5" stroke-width="3.5"/>
+                  <circle cx="60" cy="147" r="10" fill="#4f46e5"/>
+                  <path d="M55.5 147 L59 150.5 L65 143" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  <rect x="192" y="38" width="172" height="146" rx="12" fill="none" stroke="#4f46e5" stroke-width="2.5"/>
+                  <text x="278" y="104" text-anchor="middle" font-family="'Fraunces',Georgia,serif" font-size="56" fill="#4f46e5" font-weight="900">3</text>
+                  <text x="278" y="122" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#4f46e5" font-weight="700">matches found</text>
+                  <rect x="216" y="142" width="124" height="9" rx="4.5" fill="none" stroke="#4f46e5" stroke-width="2"/>
+                  <rect x="216" y="142" width="120" height="9" rx="4.5" fill="#4f46e5"/>
+                  <text x="278" y="167" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#4f46e5" opacity="0.6">98.4% confidence</text>
+                </svg>
+              </div>
+
+              <!-- STAGE 5: Results -->
+              <div class="stage" id="s5">
+                <svg viewBox="0 0 380 192" xmlns="http://www.w3.org/2000/svg">
+                  <rect width="380" height="192" fill="white"/>
+                  <rect width="380" height="36" fill="#4f46e5"/>
+                  <text x="190" y="23" text-anchor="middle" font-family="sans-serif" font-size="12" fill="white" font-weight="700">Done in 0.8 seconds</text>
+                  <!-- Card 1 -->
+                  <rect x="16" y="42" width="80" height="100" rx="10" fill="none" stroke="#4f46e5" stroke-width="3"/>
+                  <g transform="translate(56,82) scale(0.42)" stroke-linecap="round" stroke-linejoin="round">
+                    <ellipse cx="0" cy="-22" rx="26" ry="28" fill="none" stroke="#4f46e5" stroke-width="5.9"/>
+                    <path d="M-26 -28 Q-25 -52 0 -54 Q25 -52 26 -28" fill="none" stroke="#4f46e5" stroke-width="5.9"/>
+                    <path d="M-26 -28 Q-28 -36 -25 -42" fill="none" stroke="#4f46e5" stroke-width="5.9"/>
+                    <path d="M26 -28 Q28 -36 25 -42" fill="none" stroke="#4f46e5" stroke-width="5.9"/>
+                    <path d="M-18 -46 Q-7 -50 6 -48 Q16 -47 22 -42" fill="none" stroke="#4f46e5" stroke-width="4.6"/>
+                    <path d="M-11 -25 Q-8 -28 -5 -25" fill="none" stroke="#4f46e5" stroke-width="4.6"/>
+                    <path d="M5 -25 Q8 -28 11 -25" fill="none" stroke="#4f46e5" stroke-width="4.6"/>
+                    <path d="M-1 -18 Q-3 -14 0 -13 Q3 -14 1 -18" fill="none" stroke="#4f46e5" stroke-width="4"/>
+                    <path d="M-7 -8 Q0 -1 7 -8" fill="none" stroke="#4f46e5" stroke-width="5"/>
+                    <line x1="-6" y1="5" x2="-10" y2="18" stroke="#4f46e5" stroke-width="5.9"/>
+                    <line x1="6" y1="5" x2="10" y2="18" stroke="#4f46e5" stroke-width="5.9"/>
+                    <path d="M-42 82 Q-40 44 -10 18 L0 30 L10 18 Q40 44 42 82" fill="none" stroke="#4f46e5" stroke-width="5.9"/>
+                  </g>
+                  <circle cx="89" cy="46" r="11" fill="#4f46e5"/>
+                  <path d="M84 46 L87.5 49.5 L94 42" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  <!-- Card 2 -->
+                  <rect x="108" y="42" width="80" height="100" rx="10" fill="none" stroke="#4f46e5" stroke-width="3"/>
+                  <g transform="translate(148,82) scale(0.42)" stroke-linecap="round" stroke-linejoin="round">
+                    <ellipse cx="0" cy="-22" rx="26" ry="28" fill="none" stroke="#4f46e5" stroke-width="5.9"/>
+                    <path d="M-26 -28 Q-25 -52 0 -54 Q25 -52 26 -28" fill="none" stroke="#4f46e5" stroke-width="5.9"/>
+                    <path d="M-26 -28 Q-28 -36 -25 -42" fill="none" stroke="#4f46e5" stroke-width="5.9"/>
+                    <path d="M26 -28 Q28 -36 25 -42" fill="none" stroke="#4f46e5" stroke-width="5.9"/>
+                    <path d="M-18 -46 Q-7 -50 6 -48 Q16 -47 22 -42" fill="none" stroke="#4f46e5" stroke-width="4.6"/>
+                    <path d="M-11 -25 Q-8 -28 -5 -25" fill="none" stroke="#4f46e5" stroke-width="4.6"/>
+                    <path d="M5 -25 Q8 -28 11 -25" fill="none" stroke="#4f46e5" stroke-width="4.6"/>
+                    <path d="M-1 -18 Q-3 -14 0 -13 Q3 -14 1 -18" fill="none" stroke="#4f46e5" stroke-width="4"/>
+                    <path d="M-7 -8 Q0 -1 7 -8" fill="none" stroke="#4f46e5" stroke-width="5"/>
+                    <line x1="-6" y1="5" x2="-10" y2="18" stroke="#4f46e5" stroke-width="5.9"/>
+                    <line x1="6" y1="5" x2="10" y2="18" stroke="#4f46e5" stroke-width="5.9"/>
+                    <path d="M-42 82 Q-40 44 -10 18 L0 30 L10 18 Q40 44 42 82" fill="none" stroke="#4f46e5" stroke-width="5.9"/>
+                  </g>
+                  <circle cx="181" cy="46" r="11" fill="#4f46e5"/>
+                  <path d="M176 46 L179.5 49.5 L186 42" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  <!-- Card 3 -->
+                  <rect x="200" y="42" width="80" height="100" rx="10" fill="none" stroke="#4f46e5" stroke-width="3"/>
+                  <g transform="translate(240,82) scale(0.42)" stroke-linecap="round" stroke-linejoin="round">
+                    <ellipse cx="0" cy="-22" rx="26" ry="28" fill="none" stroke="#4f46e5" stroke-width="5.9"/>
+                    <path d="M-26 -28 Q-25 -52 0 -54 Q25 -52 26 -28" fill="none" stroke="#4f46e5" stroke-width="5.9"/>
+                    <path d="M-26 -28 Q-28 -36 -25 -42" fill="none" stroke="#4f46e5" stroke-width="5.9"/>
+                    <path d="M26 -28 Q28 -36 25 -42" fill="none" stroke="#4f46e5" stroke-width="5.9"/>
+                    <path d="M-18 -46 Q-7 -50 6 -48 Q16 -47 22 -42" fill="none" stroke="#4f46e5" stroke-width="4.6"/>
+                    <path d="M-11 -25 Q-8 -28 -5 -25" fill="none" stroke="#4f46e5" stroke-width="4.6"/>
+                    <path d="M5 -25 Q8 -28 11 -25" fill="none" stroke="#4f46e5" stroke-width="4.6"/>
+                    <path d="M-1 -18 Q-3 -14 0 -13 Q3 -14 1 -18" fill="none" stroke="#4f46e5" stroke-width="4"/>
+                    <path d="M-7 -8 Q0 -1 7 -8" fill="none" stroke="#4f46e5" stroke-width="5"/>
+                    <line x1="-6" y1="5" x2="-10" y2="18" stroke="#4f46e5" stroke-width="5.9"/>
+                    <line x1="6" y1="5" x2="10" y2="18" stroke="#4f46e5" stroke-width="5.9"/>
+                    <path d="M-42 82 Q-40 44 -10 18 L0 30 L10 18 Q40 44 42 82" fill="none" stroke="#4f46e5" stroke-width="5.9"/>
+                  </g>
+                  <circle cx="273" cy="46" r="11" fill="#4f46e5"/>
+                  <path d="M268 46 L271.5 49.5 L278 42" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  <rect x="16" y="152" width="264" height="32" rx="16" fill="#4f46e5"/>
+                  <text x="148" y="173" text-anchor="middle" font-family="sans-serif" font-size="11" fill="white" font-weight="700">View all 3 photos</text>
+                  <rect x="294" y="42" width="70" height="142" rx="10" fill="none" stroke="#4f46e5" stroke-width="2.5"/>
+                  <text x="329" y="74" text-anchor="middle" font-family="sans-serif" font-size="8" fill="#4f46e5" opacity="0.55">Scanned</text>
+                  <text x="329" y="91" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#4f46e5" font-weight="700">1,247</text>
+                  <line x1="306" y1="102" x2="352" y2="102" stroke="#4f46e5" stroke-width="1.5" opacity="0.25"/>
+                  <text x="329" y="118" text-anchor="middle" font-family="sans-serif" font-size="8" fill="#4f46e5" opacity="0.55">Matches</text>
+                  <text x="329" y="135" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#4f46e5" font-weight="700">3</text>
+                  <line x1="306" y1="147" x2="352" y2="147" stroke="#4f46e5" stroke-width="1.5" opacity="0.25"/>
+                  <text x="329" y="168" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#4f46e5" font-weight="700">0.8s</text>
+                </svg>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </section>
 
-  <div class="grid">
-    <!-- Left: Upload -->
-    <div>
-      <div class="card">
-        <div class="card-title">Upload Dataset</div>
-
-        <!-- Tab switcher -->
-        <div class="tabs">
-          <button class="tab-btn active" onclick="switchTab('zip', this)">📦 ZIP File</button>
-          <button class="tab-btn" onclick="switchTab('drive', this)">🔗 Google Drive</button>
-        </div>
-
-        <!-- ── ZIP tab ── -->
-        <div class="tab-panel active" id="tab-zip">
-          <!-- Drop zone (shown when no file selected) -->
-          <div class="drop-zone" id="dropZone">
-            <input type="file" id="zipFile" accept=".zip" />
-            <div class="drop-icon">📦</div>
-            <div class="drop-label">
-              <strong>Drop a ZIP file here</strong><br>
-              or click to browse
-            </div>
-            <div class="drop-hint">ZIP should contain folders of images (e.g. person_name/photo.jpg)</div>
-          </div>
-
-          <!-- Success state (shown after successful upload) -->
-          <div class="upload-success" id="zipSuccess">
-            <div class="success-icon">✅</div>
-            <div class="success-title">ZIP Uploaded Successfully</div>
-            <div class="success-meta" id="zipSuccessMeta">Embedding job queued.</div>
-            <button class="btn-reset" onclick="resetZipUpload()">↩ Upload another ZIP</button>
-          </div>
-
-          <div class="field">
-            <label>Dataset Name (optional)</label>
-            <input type="text" id="datasetName" placeholder="e.g. Wedding 2024" />
-          </div>
-
-          <button class="btn btn-primary" id="uploadBtn" disabled>
-            ⬆ Upload &amp; Start Embedding
-          </button>
-        </div>
-
-        <!-- ── Drive tab ── -->
-        <div class="tab-panel" id="tab-drive">
-          <!-- Drive input zone -->
-          <div class="drive-zone" id="driveZone">
-            <div class="drive-icon">📂</div>
-            <div class="drive-label">
-              Paste a <strong>public Google Drive folder</strong> URL below.<br>
-              The folder must be set to "Anyone with the link can view".
-            </div>
-            <input class="drive-input" type="text" id="driveFolderUrl"
-                   placeholder="https://drive.google.com/drive/folders/…" />
-            <div class="drive-hint">
-              Requires <code style="color:var(--accent)">pip install gdown</code> or a
-              <code style="color:var(--accent)">GOOGLE_API_KEY</code> env variable.
-            </div>
-          </div>
-
-          <!-- Success state for Drive -->
-          <div class="upload-success" id="driveSuccess">
-            <div class="success-icon">✅</div>
-            <div class="success-title">Drive Folder Linked!</div>
-            <div class="success-meta" id="driveSuccessMeta">Downloading &amp; embedding in background.</div>
-            <button class="btn-reset" onclick="resetDriveUpload()">↩ Link another folder</button>
-          </div>
-
-          <div class="field" id="driveNameField">
-            <label>Dataset Name (optional)</label>
-            <input type="text" id="driveDatasetName" placeholder="e.g. Conference 2024" />
-          </div>
-
-          <button class="btn btn-primary" id="driveBtn">
-            🔗 Link Drive Folder &amp; Start Embedding
-          </button>
-        </div>
-
-        <div class="divider"></div>
-
-        <div class="card-title">Or Use LFW Demo Dataset</div>
-        <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">If you've already run <code style="color:var(--accent)">scripts/download_lfw.sh</code>, click below to index it.</p>
-        <button class="btn btn-secondary" id="lfwBtn">⚡ Index LFW Dataset</button>
-
-        <div class="progress-wrap" id="progressWrap">
-          <div class="progress-bar-bg"><div class="progress-bar" id="progressBar"></div></div>
-          <div class="progress-text" id="progressText">Initializing...</div>
-        </div>
-
-        <div class="log-box" id="logBox"></div>
-      </div>
-    </div>
-
-    <!-- Right: Datasets + Share -->
-    <div style="display:flex;flex-direction:column;gap:24px;">
-      <div class="card">
-        <div class="card-title">Your Datasets</div>
-        <div class="dataset-list" id="datasetList">
-          <div class="empty">No datasets yet. Upload one to get started.</div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">Generate Share Link</div>
-        <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">Select a ready dataset above, then generate a shareable link. Anyone with the link can find their face in your dataset.</p>
-        <button class="btn btn-primary" id="shareBtn" disabled>
-          🔗 Generate Share Link
-        </button>
-        <div class="share-box" id="shareBox">
-          <div style="font-size:11px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin-bottom:4px;">Share URL</div>
-          <div class="share-url-wrap">
-            <div class="share-url" id="shareUrl"></div>
-            <button class="copy-btn" id="copyBtn">COPY</button>
-          </div>
-          <p style="font-size:11px;color:var(--muted);margin-top:8px;">Send this link to people so they can upload a selfie and find their photos.</p>
-        </div>
-      </div>
+  <!-- Stats -->
+  <div class="stats-strip">
+    <div class="stats-inner">
+      <div class="fade-up"><span class="stat-num">50k+</span><span class="stat-lbl">Photos searched per collection</span></div>
+      <div class="fade-up delay-1"><span class="stat-num">&lt; 1s</span><span class="stat-lbl">Average search time</span></div>
+      <div class="fade-up delay-2"><span class="stat-num">99%</span><span class="stat-lbl">Face detection accuracy</span></div>
+      <div class="fade-up delay-3"><span class="stat-num">0</span><span class="stat-lbl">Data sent to third parties</span></div>
     </div>
   </div>
-</div>
 
-<div class="toast" id="toast"></div>
+  <!-- How it works -->
+  <section class="section" id="how-it-works">
+    <div class="section-tag fade-up">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+      How it works
+    </div>
+    <h2 class="section-title fade-up">Three steps to<br>every photo of you</h2>
+    <p class="section-sub fade-up">No browsing through thousands of images. No manual tagging. Just upload once and share — your guests find themselves instantly.</p>
+    <div class="steps-grid">
+      <div class="step-card fade-up delay-1">
+        <div class="step-num">Step 01</div>
+        <div class="step-icon-wrap"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+        <div class="step-title">Upload your collection</div>
+        <p class="step-desc">Create an account and upload your event photos as a ZIP file. FaceFind processes and indexes every face in your collection in the background — no manual work needed.</p>
+      </div>
+      <div class="step-card fade-up delay-2">
+        <div class="step-num">Step 02</div>
+        <div class="step-icon-wrap"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div>
+        <div class="step-title">Generate a share link</div>
+        <p class="step-desc">One click creates a unique link for your collection. Share it via WhatsApp, email, or however you communicate with guests — no app download or account required to use it.</p>
+      </div>
+      <div class="step-card fade-up delay-3">
+        <div class="step-num">Step 03</div>
+        <div class="step-icon-wrap"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>
+        <div class="step-title">Guests upload a selfie</div>
+        <p class="step-desc">Anyone with the link can upload a photo of themselves. FaceFind searches the entire collection in milliseconds and shows every image they appear in — ready to view and download.</p>
+      </div>
+    </div>
+  </section>
 
-<script>
-  const API = 'http://localhost:8000';
-  let selectedDatasetId = null;
-  let pollingInterval = null;
+  <!-- Use cases -->
+  <section class="section" id="use-cases" style="padding-top:0;">
+    <div class="section-tag fade-up">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+      Use cases
+    </div>
+    <h2 class="section-title fade-up">Every event.<br>Every guest.</h2>
+    <p class="section-sub fade-up">Wherever a photographer shoots hundreds of photos and people want to find the ones they're in.</p>
+    <div class="usecases-grid">
+      <div class="usecase-card fade-up delay-1"><div class="usecase-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div><div class="usecase-title">Weddings</div><p class="usecase-desc">Share the entire wedding gallery. Every guest finds their own photos instantly without bothering the couple or photographer for specific shots.</p></div>
+      <div class="usecase-card fade-up delay-2"><div class="usecase-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div class="usecase-title">Sports events</div><p class="usecase-desc">Marathons, cricket matches, school sports days, cycling races — athletes find their action shots in seconds from thousands of frames.</p></div>
+      <div class="usecase-card fade-up delay-3"><div class="usecase-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></div><div class="usecase-title">School events</div><p class="usecase-desc">Annual days, graduation ceremonies, sports meets. Parents find photos of their child without scrolling through an entire school album.</p></div>
+      <div class="usecase-card fade-up delay-1"><div class="usecase-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div><div class="usecase-title">Concerts &amp; festivals</div><p class="usecase-desc">Festival coverage, concert shoots, cultural events. Attendees search for themselves across photographer collections spanning thousands of images.</p></div>
+      <div class="usecase-card fade-up delay-2"><div class="usecase-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg></div><div class="usecase-title">Corporate events</div><p class="usecase-desc">Conferences, team offsites, award ceremonies. Employees find their own photos for use in profiles, reports, and social sharing.</p></div>
+      <div class="usecase-card fade-up delay-3"><div class="usecase-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="usecase-title">Family gatherings</div><p class="usecase-desc">Family reunions, birthday parties, anniversary celebrations. Every relative finds their photos across a shared family collection.</p></div>
+    </div>
+    <div class="privacy-strip fade-up">
+      <div>
+        <div class="privacy-icon-wrap"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></div>
+        <div class="privacy-title">Your photos never leave your server</div>
+        <p class="privacy-desc">FaceFind is fully self-hosted. Unlike cloud photo services, no images or face data are sent to third-party servers. Everything runs on your own infrastructure — giving you complete control over your guests' photos and biometric data.</p>
+      </div>
+      <a href="/login.html" class="btn-white">Try it free <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
+    </div>
+  </section>
 
-  // ── Tab switching ──────────────────────────────────────────────────────────
-  function switchTab(name, btn) {
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-    btn.classList.add('active');
-    document.getElementById('tab-' + name).classList.add('active');
-  }
+  <!-- FAQ -->
+  <section class="section" id="faq" style="padding-top:0;">
+    <div class="section-tag fade-up"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> FAQ</div>
+    <h2 class="section-title fade-up">Common questions</h2>
+    <p class="section-sub fade-up">Everything you need to know before getting started.</p>
+    <div class="faq-list">
+      <div class="faq-item fade-up delay-1"><div class="faq-q" onclick="toggleFaq(this)">How do I find myself in wedding photos?<svg class="faq-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div><div class="faq-a"><div class="faq-a-inner">The photographer uploads all wedding photos to FaceFind and generates a share link. Guests visit the link, upload a single selfie, and FaceFind uses AI face recognition to instantly find every photo that guest appears in — no browsing through thousands of images, no manual tagging required.</div></div></div>
+      <div class="faq-item fade-up delay-2"><div class="faq-q" onclick="toggleFaq(this)">How does the face search actually work?<svg class="faq-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div><div class="faq-a"><div class="faq-a-inner">FaceFind uses InsightFace (ArcFace model), a state-of-the-art face recognition system, to generate a unique numerical fingerprint for every face detected in your photo collection. When a guest uploads a selfie, their fingerprint is compared against all stored fingerprints using FAISS vector search — returning matches in under one second regardless of collection size.</div></div></div>
+      <div class="faq-item fade-up delay-3"><div class="faq-q" onclick="toggleFaq(this)">Is face data stored? Is it private?<svg class="faq-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div><div class="faq-a"><div class="faq-a-inner">FaceFind is self-hosted — all photos and face embeddings stay on the server you control. Nothing is sent to third-party cloud services. Guest selfies are used only to run the search and are not stored afterwards. You retain full ownership and control of all data.</div></div></div>
+      <div class="faq-item fade-up delay-1"><div class="faq-q" onclick="toggleFaq(this)">Do guests need to sign up or download an app?<svg class="faq-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div><div class="faq-a"><div class="faq-a-inner">No. Guests receive a share link and can upload their selfie and search immediately — no sign-up, no login, no app download. The search works in any modern web browser on phone or desktop.</div></div></div>
+      <div class="faq-item fade-up delay-2"><div class="faq-q" onclick="toggleFaq(this)">How many photos can it search through?<svg class="faq-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div><div class="faq-a"><div class="faq-a-inner">FaceFind uses FAISS vector search which handles tens of thousands of faces in under 5 milliseconds. Collections with 50,000+ photos are supported. Search speed stays fast as the collection grows.</div></div></div>
+      <div class="faq-item fade-up delay-3"><div class="faq-q" onclick="toggleFaq(this)">What photo formats are supported?<svg class="faq-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div><div class="faq-a"><div class="faq-a-inner">FaceFind accepts JPEG, PNG, WEBP, and BMP for both the photo collection and guest selfies. Upload your collection as a ZIP file — flat or organised in folders, both structures are supported.</div></div></div>
+      <div class="faq-item fade-up delay-1"><div class="faq-q" onclick="toggleFaq(this)">How do I get started as a photographer?<svg class="faq-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div><div class="faq-a"><div class="faq-a-inner">Create a free account, upload your photo collection as a ZIP, wait for face indexing to complete (a few minutes for most event collections), then click Generate Share Link. Send that link to your guests and they can start finding themselves immediately.</div></div></div>
+    </div>
+  </section>
 
-  // ── ZIP: File selection ────────────────────────────────────────────────────
-  const zipFile   = document.getElementById('zipFile');
-  const uploadBtn = document.getElementById('uploadBtn');
-  const dropZone  = document.getElementById('dropZone');
+  <!-- Footer -->
+  <footer>
+    <div class="footer-inner">
+      <a href="/" class="footer-logo">FaceFind</a>
+      <div class="footer-links"><a href="/login.html">Sign in</a><a href="#faq">FAQ</a><a href="#how-it-works">How it works</a></div>
+      <span class="footer-copy">© 2025 FaceFind — AI face search for events</span>
+    </div>
+  </footer>
 
-  zipFile.addEventListener('change', () => {
-    uploadBtn.disabled = !zipFile.files.length;
-    if (zipFile.files.length) {
-      log(`Selected: ${zipFile.files[0].name} (${(zipFile.files[0].size/1024/1024).toFixed(1)} MB)`);
+  <script>
+    // ── Step labels for laptop animation ──
+    const STEPS = [
+      { num: '1', text: 'Snap a selfie' },
+      { num: '2', text: 'Upload your photo' },
+      { num: '3', text: 'AI scans the collection' },
+      { num: '4', text: 'Matches identified' },
+      { num: '5', text: 'Results ready instantly' },
+    ];
+
+    const stages    = document.querySelectorAll('.stage');
+    const stepLabel = document.getElementById('stepLabel');
+    const stepNum   = document.getElementById('stepNum');
+    const stepText  = document.getElementById('stepText');
+    let current = 0;
+    const DURATION = 4500;
+
+    function goTo(n) {
+      // Fade out stage + label
+      stages[current].classList.remove('active');
+      stepLabel.classList.remove('visible');
+
+      current = n % stages.length;
+
+      // Small delay then fade in new stage + label
+      setTimeout(() => {
+        stages[current].classList.add('active');
+        stepNum.textContent  = STEPS[current].num;
+        stepText.textContent = STEPS[current].text;
+        stepLabel.classList.add('visible');
+      }, 300);
     }
-  });
 
-  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
-  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-  dropZone.addEventListener('drop', e => {
-    e.preventDefault();
-    dropZone.classList.remove('dragover');
-    const f = e.dataTransfer.files[0];
-    if (f && f.name.endsWith('.zip')) {
-      const dt = new DataTransfer();
-      dt.items.add(f);
-      zipFile.files = dt.files;
-      uploadBtn.disabled = false;
-      log(`Selected: ${f.name} (${(f.size/1024/1024).toFixed(1)} MB)`);
+    // Show first label immediately
+    setTimeout(() => stepLabel.classList.add('visible'), 600);
+
+    setInterval(() => goTo(current + 1), DURATION);
+
+    // ── FAQ ──
+    function toggleFaq(el) {
+      const item = el.closest('.faq-item');
+      const isOpen = item.classList.contains('open');
+      document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'));
+      if (!isOpen) item.classList.add('open');
     }
-  });
 
-  // ── ZIP: Upload ────────────────────────────────────────────────────────────
-  uploadBtn.addEventListener('click', async () => {
-    const file = zipFile.files[0];
-    if (!file) return;
+    // ── Scroll animations ──
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+    document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
 
-    const name = document.getElementById('datasetName').value.trim();
-    const fd   = new FormData();
-    fd.append('file', file);
-    fd.append('name', name || file.name.replace('.zip',''));
+    // ── Nav shadow ──
+    window.addEventListener('scroll', () => {
+      document.getElementById('mainNav').classList.toggle('scrolled', window.scrollY > 20);
+    });
 
-    uploadBtn.disabled = true;
-    showProgress(true);
-    log(`Uploading ${file.name}…`);
-
-    try {
-      const r = await fetch(`${API}/api/datasets/upload-zip`, { method: 'POST', body: fd });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.detail || 'Upload failed');
-
-      // Show success state
-      showZipSuccess(file.name, d.dataset_id);
-      log(`Dataset created: ${d.dataset_id}`, 'ok');
-      log('Embedding job started in background…');
-      pollStatus(d.dataset_id);
-      loadDatasets();
-    } catch (e) {
-      log(`Error: ${e.message}`, 'err');
-      showProgress(false);
-      uploadBtn.disabled = false;
-    }
-  });
-
-  function showZipSuccess(filename, datasetId) {
-    dropZone.style.display = 'none';
-    document.getElementById('zipSuccess').classList.add('visible');
-    document.getElementById('zipSuccessMeta').innerHTML =
-      `<strong>${filename}</strong> uploaded — dataset ID: <strong>${datasetId}</strong><br>Embedding is running in the background.`;
-  }
-
-  function resetZipUpload() {
-    dropZone.style.display = '';
-    document.getElementById('zipSuccess').classList.remove('visible');
-    zipFile.value = '';
-    uploadBtn.disabled = true;
-    document.getElementById('datasetName').value = '';
-  }
-
-  // ── Drive: Link folder ─────────────────────────────────────────────────────
-  document.getElementById('driveBtn').addEventListener('click', async () => {
-    const url  = document.getElementById('driveFolderUrl').value.trim();
-    const name = document.getElementById('driveDatasetName').value.trim();
-    if (!url) { toast('Please paste a Google Drive folder URL.'); return; }
-
-    const btn = document.getElementById('driveBtn');
-    btn.disabled = true;
-    btn.textContent = '⏳ Linking…';
-    showProgress(true);
-    log(`Linking Drive folder…`);
-
-    const fd = new FormData();
-    fd.append('folder_url', url);
-    fd.append('name', name);
-
-    try {
-      const r = await fetch(`${API}/api/datasets/gdrive`, { method: 'POST', body: fd });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.detail || 'Failed to link Drive folder');
-
-      showDriveSuccess(url, d.dataset_id);
-      log(`Drive dataset created: ${d.dataset_id}`, 'ok');
-      log('Downloading images & embedding in background…');
-      pollStatus(d.dataset_id);
-      loadDatasets();
-    } catch (e) {
-      log(`Error: ${e.message}`, 'err');
-      toast(`Error: ${e.message}`);
-      showProgress(false);
-      btn.disabled = false;
-      btn.textContent = '🔗 Link Drive Folder & Start Embedding';
-    }
-  });
-
-  function showDriveSuccess(url, datasetId) {
-    document.getElementById('driveZone').style.display = 'none';
-    document.getElementById('driveNameField').style.display = 'none';
-    document.getElementById('driveBtn').style.display = 'none';
-    document.getElementById('driveSuccess').classList.add('visible');
-
-    const short = url.length > 52 ? url.slice(0, 52) + '…' : url;
-    document.getElementById('driveSuccessMeta').innerHTML =
-      `<strong>${short}</strong><br>Dataset ID: <strong>${datasetId}</strong><br>Images are downloading &amp; embedding in the background.`;
-  }
-
-  function resetDriveUpload() {
-    document.getElementById('driveZone').style.display = '';
-    document.getElementById('driveNameField').style.display = '';
-    document.getElementById('driveBtn').style.display = '';
-    document.getElementById('driveBtn').disabled = false;
-    document.getElementById('driveBtn').textContent = '🔗 Link Drive Folder & Start Embedding';
-    document.getElementById('driveSuccess').classList.remove('visible');
-    document.getElementById('driveFolderUrl').value = '';
-    document.getElementById('driveDatasetName').value = '';
-  }
-
-  // ── LFW ───────────────────────────────────────────────────────────────────
-  document.getElementById('lfwBtn').addEventListener('click', async () => {
-    try {
-      const r = await fetch(`${API}/api/datasets/lfw`, { method: 'POST' });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.detail);
-      if (d.status === 'already_ready') {
-        toast('LFW is already indexed and ready!');
-      } else {
-        log('LFW indexing started…', 'ok');
-        showProgress(true);
-        pollStatus('lfw');
-      }
-      loadDatasets();
-    } catch (e) {
-      toast(`Error: ${e.message}`);
-    }
-  });
-
-  // ── Status polling ─────────────────────────────────────────────────────────
-  function pollStatus(id) {
-    if (pollingInterval) clearInterval(pollingInterval);
-    pollingInterval = setInterval(async () => {
-      try {
-        const r = await fetch(`${API}/api/datasets/${id}/status`);
-        const d = await r.json();
-
-        const statusLabel = d.status === 'downloading'
-          ? `DOWNLOADING — fetching images from Drive…`
-          : `${d.status.toUpperCase()} — ${d.processed}/${d.total} images (${d.total > 0 ? Math.round((d.processed/d.total)*100) : 0}%)`;
-
-        const pct = d.total > 0 ? Math.round((d.processed / d.total) * 100) : (d.status === 'downloading' ? 10 : 0);
-        document.getElementById('progressBar').style.width = pct + '%';
-        document.getElementById('progressText').textContent = statusLabel;
-        loadDatasets();
-
-        if (d.status === 'ready') {
-          clearInterval(pollingInterval);
-          log(`✓ Done! ${d.face_count} face embeddings indexed.`, 'ok');
-          showProgress(false);
-          toast(`Dataset ready — ${d.face_count} faces indexed!`);
-        }
-        if (d.status === 'error') {
-          clearInterval(pollingInterval);
-          log(`Embedding job failed. ${d.error || ''}`, 'err');
-          showProgress(false);
-        }
-      } catch {}
-    }, 2000);
-  }
-
-  // ── Dataset list ───────────────────────────────────────────────────────────
-  async function loadDatasets() {
-    try {
-      const r = await fetch(`${API}/api/datasets`);
-      const data = await r.json();
-      const entries = Object.values(data);
-      const list = document.getElementById('datasetList');
-
-      if (!entries.length) {
-        list.innerHTML = '<div class="empty">No datasets yet. Upload one to get started.</div>';
-        return;
-      }
-
-      list.innerHTML = entries.sort((a,b) => b.created_at - a.created_at).map(ds => {
-        const srcIcon = ds.source === 'gdrive' ? '🔗 ' : '';
-        return `
-          <div class="dataset-item ${ds.id === selectedDatasetId ? 'selected' : ''}"
-               onclick="selectDataset('${ds.id}', '${ds.status}')">
-            <div class="dataset-name">${srcIcon}${ds.name}</div>
-            <div class="dataset-meta">
-              <span class="badge badge-${ds.status}">${ds.status}</span>
-              <span>${ds.face_count > 0 ? ds.face_count + ' faces' : (ds.total ? ds.total + ' imgs' : '')}</span>
-            </div>
-          </div>`;
-      }).join('');
-    } catch {}
-  }
-
-  function selectDataset(id, status) {
-    selectedDatasetId = id;
-    document.getElementById('shareBtn').disabled = (status !== 'ready');
-    loadDatasets();
-  }
-
-  // ── Share ──────────────────────────────────────────────────────────────────
-  document.getElementById('shareBtn').addEventListener('click', async () => {
-    if (!selectedDatasetId) return;
-    const fd = new FormData();
-    fd.append('dataset_id', selectedDatasetId);
-    try {
-      const r = await fetch(`${API}/api/shares`, { method: 'POST', body: fd });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.detail);
-      const shareUrl = `${window.location.origin}/share.html?id=${d.share_id}`;
-      document.getElementById('shareUrl').textContent = shareUrl;
-      document.getElementById('shareBox').classList.add('visible');
-      toast('Share link generated!');
-    } catch(e) {
-      toast(`Error: ${e.message}`);
-    }
-  });
-
-  document.getElementById('copyBtn').addEventListener('click', () => {
-    const url = document.getElementById('shareUrl').textContent;
-    navigator.clipboard.writeText(url).then(() => toast('Copied to clipboard!'));
-  });
-
-  // ── Helpers ────────────────────────────────────────────────────────────────
-  function log(msg, type='') {
-    const box = document.getElementById('logBox');
-    box.classList.add('visible');
-    const el = document.createElement('div');
-    el.className = `log-line ${type}`;
-    el.textContent = `> ${msg}`;
-    box.appendChild(el);
-    box.scrollTop = box.scrollHeight;
-  }
-
-  function showProgress(show) {
-    document.getElementById('progressWrap').classList.toggle('visible', show);
-  }
-
-  function toast(msg) {
-    const t = document.getElementById('toast');
-    t.textContent = msg;
-    t.classList.add('show');
-    setTimeout(() => t.classList.remove('show'), 3000);
-  }
-
-  // ── Init ───────────────────────────────────────────────────────────────────
-  loadDatasets();
-  setInterval(loadDatasets, 5000);
-</script>
+    // ── Smooth scroll ──
+    document.querySelectorAll('a[href^="#"]').forEach(a => {
+      a.addEventListener('click', e => {
+        e.preventDefault();
+        const t = document.querySelector(a.getAttribute('href'));
+        if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+  </script>
 </body>
 </html>
