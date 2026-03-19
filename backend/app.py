@@ -35,23 +35,6 @@ from googleapiclient.discovery import build
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("facefind")
 
-# ── Plan limits (mirrors frontend PLAN_CONFIG) ──────────────────────────────────
-PLAN_LIMITS = {
-    "free":          {"max_datasets": 1,    "max_images": 100},
-    "personal_lite": {"max_datasets": 5,    "max_images": 500},
-    "personal_pro":  {"max_datasets": 15,   "max_images": 2000},
-    "personal_max":  {"max_datasets": 30,   "max_images": 5000},
-    "photo_starter": {"max_datasets": 50,   "max_images": 10000},
-    "photo_pro":     {"max_datasets": 9999, "max_images": 20000},
-}
-
-def get_plan_limits(plan: str) -> dict:
-    return PLAN_LIMITS.get(plan, PLAN_LIMITS["free"])
-
-def count_images_in_dir(directory) -> int:
-    exts = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
-    return sum(1 for p in Path(directory).rglob("*") if p.suffix.lower() in exts)
-
 # ── Storage root (Railway Volume mounted at /data, falls back to local) ───────
 DATA_DIR       = Path(os.environ.get("DATA_DIR", "/data"))
 DATASETS_DIR   = DATA_DIR / "datasets"
@@ -134,10 +117,6 @@ def init_db():
             # Migration: add user_id to datasets table if it doesn't exist yet
             cur.execute("""
                 ALTER TABLE datasets ADD COLUMN IF NOT EXISTS user_id TEXT NOT NULL DEFAULT '';
-            """)
-            # Migration: add plan column to users (existing users default to free tier)
-            cur.execute("""
-                ALTER TABLE users ADD COLUMN IF NOT EXISTS plan TEXT NOT NULL DEFAULT 'free';
             """)
         conn.commit()
     log.info("DB tables ready")
@@ -301,19 +280,44 @@ def decode_image(data: bytes) -> np.ndarray:
         raise ValueError("Cannot decode image.")
     return img
 
-def compress_image(img_bgr: np.ndarray, max_width: int = 1920, quality: int = 85) -> np.ndarray:
-    """Compress image by resizing and reducing JPEG quality"""
+def encode_to_jpg(img_bgr: np.ndarray, quality: int = 92) -> bytes:
+    """Encode an OpenCV image to JPEG bytes at the given quality."""
+    _, buf = cv2.imencode('.jpg', img_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), quality])
+    return buf.tobytes()
+
+def cap_image(img_bgr: np.ndarray,
+              max_width: int = 3840,
+              max_bytes: int = None) -> bytes:
+    """Apply resolution cap and optional file-size cap to a single image.
+
+    Steps:
+      1. If width > max_width, resize down to max_width (4K).
+      2. If max_bytes is set and the encoded size exceeds it, reduce JPEG
+         quality iteratively (92 → 85 → 75 → 65 → 55) until it fits.
+         Stops at quality 55 to avoid visible artefacts.
+      3. Returns the final JPEG bytes.
+
+    Images already within both limits are encoded once at quality=92 (free
+    tier) or returned without re-encoding (paid — handled by the caller).
+    """
     h, w = img_bgr.shape[:2]
+
+    # Step 1: Resolution cap
     if w > max_width:
-        scale = max_width / w
-        new_w = max_width
-        new_h = int(h * scale)
-        img_bgr = cv2.resize(img_bgr, (new_w, new_h), interpolation=cv2.INTER_AREA)
-    
-    # Encode to JPEG with specified quality, then decode back
-    encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), quality]
-    _, encoded = cv2.imencode('.jpg', img_bgr, encode_param)
-    return cv2.imdecode(encoded, cv2.IMREAD_COLOR)
+        scale   = max_width / w
+        img_bgr = cv2.resize(img_bgr, (max_width, int(h * scale)),
+                             interpolation=cv2.INTER_AREA)
+
+    # Step 2: File-size cap (free tier only)
+    if max_bytes:
+        for quality in (92, 85, 75, 65, 55):
+            data = encode_to_jpg(img_bgr, quality)
+            if len(data) <= max_bytes:
+                return data
+        # If still over at quality 55, return it anyway — best we can do
+        return data
+    else:
+        return encode_to_jpg(img_bgr, 92)
 
 def extract_embedding(img_bgr: np.ndarray):
     model = get_face_model()
@@ -323,32 +327,55 @@ def extract_embedding(img_bgr: np.ndarray):
     best = max(faces, key=lambda f: (f.bbox[2]-f.bbox[0])*(f.bbox[3]-f.bbox[1]))
     return best.normed_embedding.astype("float32"), faces
 
-def compress_images_in_dir(directory: Path, max_width: int = 1920, quality: int = 85):
-    """Compress all images in a directory"""
+FREE_TIER_MAX_BYTES = 6 * 1024 * 1024  # 6 MB per image
+
+def compress_images_in_dir(directory: Path,
+                           free_tier: bool = False,
+                           max_width: int = 3840) -> tuple:
+    """Process all images in a directory.
+
+    free_tier=True  → 4K resolution cap + 6 MB per-file size cap.
+                      Images already ≤4K AND ≤6 MB are re-encoded once at
+                      quality 92 (to normalise formats); if they're already
+                      a small JPEG they can stay untouched.
+    free_tier=False → 4K resolution cap only. Images already ≤4K are
+                      completely untouched — no re-encoding, no quality loss.
+
+    Returns (total_count, processed_count).
+    """
     exts = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
     image_paths = [p for p in directory.rglob("*") if p.suffix.lower() in exts]
-    
+    processed = 0
+
     for img_path in image_paths:
         try:
+            file_size = img_path.stat().st_size
             img = cv2.imread(str(img_path))
             if img is None:
                 continue
-            
-            # Compress the image
-            compressed = compress_image(img, max_width, quality)
-            
-            # Save back, converting to .jpg if it was a different format
-            output_path = img_path.with_suffix('.jpg') if img_path.suffix.lower() != '.jpg' else img_path
-            cv2.imwrite(str(output_path), compressed, [int(cv2.IMWRITE_JPEG_QUALITY), quality])
-            
-            # Delete original if format changed
+            h, w = img.shape[:2]
+
+            needs_resize  = w > max_width
+            needs_sizecap = free_tier and file_size > FREE_TIER_MAX_BYTES
+
+            if not needs_resize and not needs_sizecap:
+                continue  # nothing to do — leave file completely untouched
+
+            max_bytes = FREE_TIER_MAX_BYTES if free_tier else None
+            data      = cap_image(img, max_width=max_width, max_bytes=max_bytes)
+
+            output_path = img_path.with_suffix('.jpg')
+            output_path.write_bytes(data)
             if output_path != img_path:
                 img_path.unlink()
-                
+            processed += 1
+
         except Exception as e:
-            log.warning(f"Failed to compress {img_path.name}: {e}")
-    
-    log.info(f"Compressed {len(image_paths)} images in {directory}")
+            log.warning(f"Failed to process {img_path.name}: {e}")
+
+    label = "4K + 6MB cap" if free_tier else "4K cap"
+    log.info(f"{label}: {processed}/{len(image_paths)} images processed in {directory}")
+    return len(image_paths), processed
 
 # ── Embedding job ─────────────────────────────────────────────────────────────
 
@@ -872,7 +899,7 @@ def logout(request: Request, response: Response):
 @app.get("/api/auth/me")
 def me(request: Request):
     user = require_auth(request)
-    return {"id": user["id"], "email": user["email"], "name": user["name"], "plan": user.get("plan", "free")}
+    return {"id": user["id"], "email": user["email"], "name": user["name"]}
 
 @app.get("/api/datasets")
 def list_datasets(request: Request):
@@ -885,19 +912,10 @@ async def upload_zip(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     name: str = Form(default=""),
-    compress: str = Form(default="false"),
 ):
     user = require_auth(request)
     if not file.filename.endswith(".zip"):
         raise HTTPException(400, "Please upload a .zip file.")
-
-    # Check dataset count limit
-    limits   = get_plan_limits(user.get("plan", "free"))
-    existing = db_list_datasets(user["id"])
-    if len(existing) >= limits["max_datasets"]:
-        raise HTTPException(403,
-            f"Dataset limit reached. Your plan allows {limits['max_datasets']} dataset(s). "
-            "Delete an existing dataset or upgrade your plan.")
 
     dataset_id  = str(uuid.uuid4())[:8]
     dataset_dir = DATASETS_DIR / dataset_id
@@ -905,37 +923,31 @@ async def upload_zip(
 
     zip_path = dataset_dir / "upload.zip"
     zip_path.write_bytes(await file.read())
-
+    
     # Extract ZIP
     with zipfile.ZipFile(zip_path) as zf:
         zf.extractall(dataset_dir)
     zip_path.unlink()
-
-    # Check image count limit
-    import shutil as _shutil
-    img_count = count_images_in_dir(dataset_dir)
-    if img_count > limits["max_images"]:
-        _shutil.rmtree(dataset_dir)
-        raise HTTPException(403,
-            f"Image limit exceeded. Your plan allows {limits['max_images']} images per dataset "
-            f"but this ZIP contains {img_count}. Upgrade your plan or reduce the collection size.")
-
-    # Compress images if requested
-    should_compress = compress.lower() == "true"
-    if should_compress:
-        log.info(f"[{dataset_id}] Compressing images...")
-        compress_images_in_dir(dataset_dir)
-
+    
+    # Register dataset first so status is visible in the UI immediately
     ds = {
         "id": dataset_id, "user_id": user["id"],
         "name": name or file.filename.replace(".zip",""),
         "source": "zip", "folder_id": None,
-        "status": "queued", "total": 0, "processed": 0,
+        "status": "compressing", "total": 0, "processed": 0,
         "face_count": 0, "error": None, "created_at": time.time(),
     }
     db_upsert_dataset(ds)
+
+    # Apply caps before embedding.
+    # Free tier: 4K resolution cap + 6 MB per-file size cap.
+    # Paid tiers: 4K resolution cap only, originals preserved otherwise.
+    is_free = user.get("plan", "free") == "free"
+    total_imgs, capped = compress_images_in_dir(dataset_dir, free_tier=is_free)
+    log.info(f"[{dataset_id}] {'Free' if is_free else 'Paid'} tier cap: {capped}/{total_imgs} images processed")
+
     background_tasks.add_task(run_embedding_job, dataset_id)
-    return {"dataset_id": dataset_id, "status": "queued"}
+    return {"dataset_id": dataset_id, "status": "compressing"}
 
 @app.post("/api/datasets/gdrive")
 async def use_gdrive_folder(
@@ -1006,7 +1018,6 @@ async def add_images_to_dataset(
     request: Request,
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    compress: str = Form(default="false"),
 ):
     user = require_auth(request)
     ds = db_get_dataset(dataset_id)
@@ -1018,39 +1029,25 @@ async def add_images_to_dataset(
         raise HTTPException(400, "Dataset must be in 'ready' state to add images.")
     if not file.filename.endswith(".zip"):
         raise HTTPException(400, "Please upload a .zip file.")
-
-    limits      = get_plan_limits(user.get("plan", "free"))
+    
     dataset_dir = DATASETS_DIR / dataset_id
-
+    
     # Create temp directory for new images
     temp_dir = dataset_dir / f"_temp_{int(time.time())}"
     temp_dir.mkdir()
-
+    
     # Extract new images
     zip_path = temp_dir / "upload.zip"
     zip_path.write_bytes(await file.read())
     with zipfile.ZipFile(zip_path) as zf:
         zf.extractall(temp_dir)
     zip_path.unlink()
-
-    # Check combined image count BEFORE moving any files
-    import shutil as _shutil
-    existing_count = count_images_in_dir(dataset_dir)
-    new_count      = count_images_in_dir(temp_dir)
-    combined       = existing_count + new_count
-    if combined > limits["max_images"]:
-        _shutil.rmtree(temp_dir)
-        raise HTTPException(403,
-            f"Image limit exceeded. Your plan allows {limits['max_images']} images per dataset. "
-            f"This dataset already has {existing_count} image(s) and you are adding {new_count} more "
-            f"({combined} total). Upgrade your plan or upload fewer images.")
-
-    # Compress if requested
-    should_compress = compress.lower() == "true"
-    if should_compress:
-        log.info(f"[{dataset_id}] Compressing new images...")
-        compress_images_in_dir(temp_dir)
-
+    
+    # Apply caps to new images before merging.
+    is_free = user.get("plan", "free") == "free"
+    total_imgs, capped = compress_images_in_dir(temp_dir, free_tier=is_free)
+    log.info(f"[{dataset_id}] {'Free' if is_free else 'Paid'} tier cap on new images: {capped}/{total_imgs} processed")
+    
     # Move all files from temp to main dataset directory
     import shutil
     for item in temp_dir.rglob("*"):

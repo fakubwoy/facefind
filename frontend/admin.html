@@ -548,8 +548,10 @@
     .badge-ready::before { background: var(--success); }
     .badge-error       { background: rgba(220,38,38,0.1);   color: var(--error);   }
     .badge-error::before { background: var(--error); }
-    .badge-downloading { background: rgba(147,112,219,0.1); color: #7c3aed; }
+    .badge-downloading  { background: rgba(147,112,219,0.1); color: #7c3aed; }
     .badge-downloading::before { background: #7c3aed; }
+    .badge-compressing  { background: rgba(217,119,6,0.1);  color: var(--warn); }
+    .badge-compressing::before { background: var(--warn); }
 
     /* ── Dataset list ── */
     .dataset-list { display: flex; flex-direction: column; gap: 10px; }
@@ -972,14 +974,6 @@
               <input type="text" id="datasetName" placeholder="e.g. Sarah & James Wedding 2024" />
             </div>
 
-            <div class="field-checkbox" style="margin-top:14px;">
-              <input type="checkbox" id="compressImages" />
-              <div>
-                <div class="field-checkbox-label">Compress images to save storage</div>
-                <div class="field-checkbox-hint">Compresses to 85% JPEG quality, max 1920px. Saves ~60–80% storage.</div>
-              </div>
-            </div>
-
             <button class="btn btn-primary" id="uploadBtn" disabled>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
               Upload &amp; Start Indexing
@@ -1116,14 +1110,6 @@
           <div id="addImagesFileSize"></div>
         </div>
 
-        <div class="field-checkbox" style="margin-bottom:18px;margin-top:14px;">
-          <input type="checkbox" id="addImagesCompress" />
-          <div>
-            <div class="field-checkbox-label">Compress images to save storage</div>
-            <div class="field-checkbox-hint">Compresses to 85% JPEG quality, max 1920px. Saves ~60–80% storage.</div>
-          </div>
-        </div>
-
         <button class="btn btn-primary" id="addImagesBtn" disabled style="margin-top:0;">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
           Add Photos &amp; Re-index
@@ -1227,12 +1213,10 @@
     const file = zipFile.files[0];
     if (!file) return;
 
-    const name     = document.getElementById('datasetName').value.trim();
-    const compress = document.getElementById('compressImages').checked;
+    const name = document.getElementById('datasetName').value.trim();
     const fd = new FormData();
     fd.append('file', file);
     if (name) fd.append('name', name);
-    fd.append('compress', compress ? 'true' : 'false');
 
     // Hide upload UI, hide limit wall, show progress panel immediately
     uploadBtn.disabled = true;
@@ -1415,20 +1399,24 @@
         // While queued or while model is loading (processing but total not set yet),
         // show an indeterminate pulse rather than a stuck 0% bar.
         const modelLoading = (d.status === 'queued') ||
+                             (d.status === 'compressing') ||
                              (d.status === 'processing' && d.total === 0);
 
         const pct    = modelLoading ? -1  // sentinel → indeterminate
                      : d.total > 0 ? Math.round((d.processed / d.total) * 100)
                      : 0;
-        const phase  = d.status === 'downloading' ? 'Downloading'
-                     : d.status === 'queued'       ? 'Loading AI model'
+        const phase  = d.status === 'downloading'  ? 'Downloading'
+                     : d.status === 'compressing'  ? 'Applying 4K cap'
+                     : d.status === 'queued'        ? 'Loading AI model'
                      : d.status === 'processing' && d.total === 0 ? 'Loading AI model'
-                     : d.status === 'processing'   ? 'Indexing faces'
-                     : d.status === 'ready'         ? 'Complete'
-                     : d.status === 'error'         ? 'Error'
+                     : d.status === 'processing'    ? 'Indexing faces'
+                     : d.status === 'ready'          ? 'Complete'
+                     : d.status === 'error'          ? 'Error'
                      : 'Queued';
         const detail = d.status === 'downloading'
           ? 'Downloading from Google Drive…'
+          : d.status === 'compressing'
+          ? 'Resizing images above 4K — lower quality images are untouched…'
           : modelLoading
           ? 'Warming up face recognition model — this takes ~30s on first run…'
           : d.status === 'processing' && d.total > 0
@@ -1641,11 +1629,9 @@
     const file = addImagesFile.files[0];
     if (!file || !currentAddImagesDatasetId) return;
 
-    const compress  = document.getElementById('addImagesCompress').checked;
-    const targetId  = currentAddImagesDatasetId;
+    const targetId = currentAddImagesDatasetId;
     const fd = new FormData();
     fd.append('file', file);
-    fd.append('compress', compress ? 'true' : 'false');
 
     // Switch modal to progress view
     document.getElementById('addImagesUploadForm').style.display = 'none';
