@@ -141,6 +141,10 @@ def init_db():
             cur.execute("""
                 ALTER TABLE users ADD COLUMN IF NOT EXISTS loyalty_discount_used BOOLEAN DEFAULT FALSE;
             """)
+            # Migration: billing interval (monthly vs annual)
+            cur.execute("""
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_interval TEXT DEFAULT 'monthly';
+            """)
             cur.execute("""
                 ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by TEXT DEFAULT NULL;
             """)
@@ -173,6 +177,9 @@ def init_db():
             # Migration: add previous_plan + proration fields to razorpay_orders
             cur.execute("""
                 ALTER TABLE razorpay_orders ADD COLUMN IF NOT EXISTS previous_plan TEXT DEFAULT NULL;
+            """)
+            cur.execute("""
+                ALTER TABLE razorpay_orders ADD COLUMN IF NOT EXISTS plan_interval TEXT DEFAULT 'monthly';
             """)
             cur.execute("""
                 ALTER TABLE razorpay_orders ADD COLUMN IF NOT EXISTS credit_applied_paise INT DEFAULT 0;
@@ -512,6 +519,25 @@ PLAN_PRICES_PAISE = {
     "photo_pro":      149900,  # ₹1,499
 }
 
+# Annual prices (roughly 2 months free — ~17% discount)
+PLAN_PRICES_ANNUAL_PAISE = {
+    "personal_lite":  99000,   # ₹990/yr  (saves ₹198)
+    "personal_pro":   199000,  # ₹1,990/yr (saves ₹398)
+    "personal_max":   349000,  # ₹3,490/yr (saves ₹698)
+    "photo_starter":  599000,  # ₹5,990/yr (saves ₹1,198)
+    "photo_pro":      1499000, # ₹14,990/yr (saves ₹2,998)
+}
+
+def get_plan_price(plan: str, interval: str = "monthly") -> int:
+    """Return the price in paise for a given plan and billing interval."""
+    if interval == "annual":
+        return PLAN_PRICES_ANNUAL_PAISE.get(plan, 0)
+    return PLAN_PRICES_PAISE.get(plan, 0)
+
+def get_billing_period_days(interval: str = "monthly") -> int:
+    """Return the number of days in a billing period."""
+    return 365 if interval == "annual" else 30
+
 def get_plan_limits(user: dict) -> dict:
     plan = user.get("plan", "free") or "free"
     return PLAN_LIMITS.get(plan, PLAN_LIMITS["free"])
@@ -525,42 +551,44 @@ def plan_rank(plan: str) -> int:
     except ValueError:
         return 0
 
-def compute_proration_credit(current_plan: str, cycle_start: float) -> int:
+def compute_proration_credit(current_plan: str, cycle_start: float, interval: str = "monthly") -> int:
     """
     Calculate unused credit (in paise) remaining in the current billing period.
-    Uses a 30-day billing month. Returns 0 if cycle_start is unknown or plan is free.
+    Supports both monthly (30-day) and annual (365-day) billing cycles.
+    Returns 0 if cycle_start is unknown or plan is free.
     """
     if not cycle_start or current_plan == "free" or current_plan not in PLAN_PRICES_PAISE:
         return 0
-    price = PLAN_PRICES_PAISE[current_plan]
+    price = get_plan_price(current_plan, interval)
+    period_days = get_billing_period_days(interval)
     elapsed_seconds = time.time() - cycle_start
-    days_elapsed = min(elapsed_seconds / 86400, 30)
-    days_remaining = max(30 - days_elapsed, 0)
-    credit = int((days_remaining / 30) * price)
+    days_elapsed = min(elapsed_seconds / 86400, period_days)
+    days_remaining = max(period_days - days_elapsed, 0)
+    credit = int((days_remaining / period_days) * price)
     return credit
 
-def compute_upgrade_charge(current_plan: str, target_plan: str, cycle_start: float, credits_paise: int) -> dict:
+def compute_upgrade_charge(current_plan: str, target_plan: str, cycle_start: float, credits_paise: int, current_interval: str = "monthly", target_interval: str = "monthly") -> dict:
     """
     Compute what a user actually pays to upgrade.
-    - Prorates unused time on current plan as credit
+    - Prorates unused time on current plan as credit (respects monthly vs annual)
     - Also applies any stored account credits (referrals, goodwill)
     - Never charges less than ₹1 (100 paise) — Razorpay minimum
     Returns dict with: full_price, proration_credit, account_credit, total_credit, charge, is_free_upgrade
     """
-    full_price = PLAN_PRICES_PAISE.get(target_plan, 0)
-    proration_credit = compute_proration_credit(current_plan, cycle_start)
+    full_price = get_plan_price(target_plan, target_interval)
+    proration_credit = compute_proration_credit(current_plan, cycle_start, current_interval)
     total_credit = min(proration_credit + (credits_paise or 0), full_price)
     charge = max(full_price - total_credit, 0)
     return {
-        "full_price_paise":      full_price,
+        "full_price_paise":       full_price,
         "proration_credit_paise": proration_credit,
-        "account_credit_paise":  credits_paise or 0,
-        "total_credit_paise":    total_credit,
-        "charge_paise":          charge,
-        "is_free_upgrade":       charge == 0,
+        "account_credit_paise":   credits_paise or 0,
+        "total_credit_paise":     total_credit,
+        "charge_paise":           charge,
+        "is_free_upgrade":        charge == 0,
     }
 
-def apply_loyalty_discount(user: dict, target_plan: str) -> int:
+def apply_loyalty_discount(user: dict, target_plan: str, target_interval: str = "monthly") -> int:
     """
     If user has been on any paid plan ≥ 60 days without a downgrade,
     and hasn't used a loyalty discount before, give 20% off first month of next tier.
@@ -579,7 +607,7 @@ def apply_loyalty_discount(user: dict, target_plan: str) -> int:
         return 0
     if plan_rank(target_plan) <= plan_rank(current_plan):
         return 0
-    full_price = PLAN_PRICES_PAISE.get(target_plan, 0)
+    full_price = get_plan_price(target_plan, target_interval)
     return int(full_price * 0.20)  # 20% off
 
 def count_images_in_dir(directory: Path) -> int:
@@ -1063,9 +1091,9 @@ def require_auth(request) -> dict:
 
 # ── License key helpers ───────────────────────────────────────────────────────
 
-def generate_license_key(user_id: str, plan: str) -> str:
+def generate_license_key(user_id: str, plan: str, interval: str = "monthly") -> str:
     """
-    Issue a new license key for a user based on their plan.
+    Issue a new license key for a user based on their plan and billing interval.
     Revokes any existing active key first (one key per user at a time).
     Returns the new license key string.
     """
@@ -1087,6 +1115,10 @@ def generate_license_key(user_id: str, plan: str) -> str:
         conn.commit()
 
     now = time.time()
+    # Key expires at end of the billing period: 365 days for annual, 30 days for monthly
+    period_days = get_billing_period_days(interval)
+    expires_at = now + period_days * 24 * 3600
+
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
@@ -1098,12 +1130,12 @@ def generate_license_key(user_id: str, plan: str) -> str:
                 user_id,
                 plan,
                 now,
-                now + 365 * 24 * 3600,   # 1-year validity
+                expires_at,
                 limits["max_activations"],
             ))
         conn.commit()
 
-    log.info(f"License key issued: {key[:12]}… for user {user_id} on plan {plan}")
+    log.info(f"License key issued: {key[:12]}… for user {user_id} on plan {plan} ({interval}, expires {period_days}d)")
     return key
 
 
@@ -1252,6 +1284,7 @@ def me(request: Request):
         "email": user["email"],
         "name":  user["name"],
         "plan":  user.get("plan") or "free",
+        "plan_interval":           user.get("plan_interval") or "monthly",
         "credits_paise":           user.get("credits_paise") or 0,
         "scheduled_downgrade":     user.get("scheduled_downgrade"),
         "scheduled_downgrade_at":  user.get("scheduled_downgrade_at"),
@@ -1690,7 +1723,8 @@ def generate_key_endpoint(request: Request):
         raise HTTPException(403, "Your current plan does not include self-hosted access. Please upgrade.")
 
     try:
-        key = generate_license_key(user["id"], plan)
+        interval = user.get("plan_interval") or "monthly"
+        key = generate_license_key(user["id"], plan, interval)
     except ValueError as e:
         raise HTTPException(400, str(e))
 
@@ -1894,6 +1928,10 @@ async def create_order(request: Request):
     if plan not in PLAN_PRICES_PAISE:
         raise HTTPException(400, f"Unknown plan: {plan}")
 
+    target_interval = (body.get("interval") or "monthly").strip()
+    if target_interval not in ("monthly", "annual"):
+        raise HTTPException(400, "interval must be 'monthly' or 'annual'.")
+
     current_plan = user.get("plan", "free") or "free"
     if plan == current_plan:
         raise HTTPException(400, "You are already on this plan.")
@@ -1905,14 +1943,19 @@ async def create_order(request: Request):
 
     cycle_start = user.get("plan_cycle_start")
     credits_paise = user.get("credits_paise") or 0
+    current_interval = user.get("plan_interval") or "monthly"
 
     # ── Loyalty discount (one-time, 20% off for loyal paid users upgrading) ──
     loyalty_discount = 0
     if is_upgrade:
-        loyalty_discount = apply_loyalty_discount(user, plan)
+        loyalty_discount = apply_loyalty_discount(user, plan, target_interval)
 
     # ── Compute what the user actually owes ───────────────────────────────────
-    billing = compute_upgrade_charge(current_plan, plan, cycle_start, credits_paise + loyalty_discount)
+    billing = compute_upgrade_charge(
+        current_plan, plan, cycle_start, credits_paise + loyalty_discount,
+        current_interval=current_interval,
+        target_interval=target_interval,
+    )
     charge_paise = billing["charge_paise"]
     proration_credit = billing["proration_credit_paise"]
     total_credit_used = billing["total_credit_paise"]
@@ -1920,22 +1963,23 @@ async def create_order(request: Request):
     # ── Free upgrade: credits cover the full price ────────────────────────────
     if is_upgrade and charge_paise == 0:
         now = time.time()
-        new_credits = max((credits_paise + loyalty_discount) - (PLAN_PRICES_PAISE[plan] - proration_credit), 0)
+        new_credits = max((credits_paise + loyalty_discount) - (get_plan_price(plan, target_interval) - proration_credit), 0)
         with get_db() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
                     UPDATE users SET plan=%s, plan_cycle_start=%s, credits_paise=%s,
+                           plan_interval=%s,
                            loyalty_discount_used=CASE WHEN %s>0 THEN TRUE ELSE loyalty_discount_used END,
                            scheduled_downgrade=NULL, scheduled_downgrade_at=NULL
                     WHERE id=%s
-                """, (plan, now, new_credits, loyalty_discount, user["id"]))
+                """, (plan, now, new_credits, target_interval, loyalty_discount, user["id"]))
                 cur.execute("""
                     INSERT INTO razorpay_orders
-                      (order_id, user_id, plan, amount_paise, status, created_at, previous_plan, credit_applied_paise)
-                    VALUES (%s, %s, %s, %s, 'paid', %s, %s, %s)
+                      (order_id, user_id, plan, amount_paise, status, created_at, previous_plan, credit_applied_paise, plan_interval)
+                    VALUES (%s, %s, %s, %s, 'paid', %s, %s, %s, %s)
                 """, (
                     f"free_upgrade_{user['id'][:8]}_{int(now)}",
-                    user["id"], plan, 0, now, current_plan, total_credit_used
+                    user["id"], plan, 0, now, current_plan, total_credit_used, target_interval
                 ))
             conn.commit()
         token = request.cookies.get("ff_token", "")
@@ -1959,6 +2003,7 @@ async def create_order(request: Request):
             "user_id":          user["id"],
             "user_email":       user["email"],
             "plan":             plan,
+            "plan_interval":    target_interval,
             "previous_plan":    current_plan,
             "proration_credit": proration_credit,
             "loyalty_discount": loyalty_discount,
@@ -1988,24 +2033,25 @@ async def create_order(request: Request):
         with conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO razorpay_orders
-                  (order_id, user_id, plan, amount_paise, status, created_at, previous_plan, credit_applied_paise)
-                VALUES (%s, %s, %s, %s, 'created', %s, %s, %s)
-            """, (order_id, user["id"], plan, charge_paise, time.time(), current_plan, total_credit_used))
+                  (order_id, user_id, plan, amount_paise, status, created_at, previous_plan, credit_applied_paise, plan_interval)
+                VALUES (%s, %s, %s, %s, 'created', %s, %s, %s, %s)
+            """, (order_id, user["id"], plan, charge_paise, time.time(), current_plan, total_credit_used, target_interval))
         conn.commit()
 
-    log.info(f"Razorpay order created: {order_id} user={user['id']} {current_plan}→{plan} charge={charge_paise}p credit={total_credit_used}p loyalty={loyalty_discount}p")
+    log.info(f"Razorpay order created: {order_id} user={user['id']} {current_plan}→{plan} ({target_interval}) charge={charge_paise}p credit={total_credit_used}p loyalty={loyalty_discount}p")
 
     return {
-        "order_id":              order_id,
-        "amount":                charge_paise,
-        "currency":              "INR",
-        "key_id":                RAZORPAY_KEY_ID,
-        "user_name":             user["name"],
-        "user_email":            user["email"],
-        "plan":                  plan,
-        "billing":               billing,
+        "order_id":               order_id,
+        "amount":                 charge_paise,
+        "currency":               "INR",
+        "key_id":                 RAZORPAY_KEY_ID,
+        "user_name":              user["name"],
+        "user_email":             user["email"],
+        "plan":                   plan,
+        "plan_interval":          target_interval,
+        "billing":                billing,
         "loyalty_discount_paise": loyalty_discount,
-        "free_upgrade":          False,
+        "free_upgrade":           False,
     }
 
 
@@ -2060,8 +2106,9 @@ async def verify_payment(request: Request):
         return {"ok": True, "plan": order_row["plan"], "already_processed": True}
 
     plan = order_row["plan"]
-    previous_plan = order_row.get("previous_plan") or ""
+    previous_plan  = order_row.get("previous_plan") or ""
     credit_applied = order_row.get("credit_applied_paise") or 0
+    plan_interval  = order_row.get("plan_interval") or "monthly"
 
     # ── Update user plan + mark order paid ───────────────────────────────────
     now = time.time()
@@ -2070,11 +2117,12 @@ async def verify_payment(request: Request):
             cur.execute("""
                 UPDATE users SET
                     plan=%s,
+                    plan_interval=%s,
                     plan_cycle_start=%s,
                     scheduled_downgrade=NULL,
                     scheduled_downgrade_at=NULL
                 WHERE id=%s
-            """, (plan, now, user["id"]))
+            """, (plan, plan_interval, now, user["id"]))
             # Deduct any account credits used (proration is virtual — no deduction needed)
             if credit_applied > 0:
                 cur.execute("""
@@ -2197,52 +2245,65 @@ def check_admin_secret(request: Request):
 def billing_info(request: Request):
     """
     Return everything the frontend needs to render upgrade/downgrade options:
-    - Current plan + cycle start
+    - Current plan + cycle start + billing interval
     - Proration credit available (for upgrades)
     - Account credits balance
     - Loyalty discount eligibility
     - Scheduled downgrade (if any)
     - Dataset usage vs new-plan limits (for downgrade warnings)
+    - Renewal date based on correct billing period (30 or 365 days)
     """
     user = require_auth(request)
-    current_plan = user.get("plan", "free") or "free"
-    cycle_start  = user.get("plan_cycle_start")
-    credits      = user.get("credits_paise") or 0
+    current_plan     = user.get("plan", "free") or "free"
+    current_interval = user.get("plan_interval") or "monthly"
+    cycle_start      = user.get("plan_cycle_start")
+    credits          = user.get("credits_paise") or 0
     loyalty_discount = apply_loyalty_discount(user, "")  # just checking eligibility
 
-    # Compute upgrade costs for every higher plan
+    # Compute upgrade costs for every higher plan (show both monthly and annual options)
     upgrade_costs = {}
     for plan, price in PLAN_PRICES_PAISE.items():
         if plan_rank(plan) > plan_rank(current_plan):
-            loyalty = apply_loyalty_discount(user, plan)
-            billing = compute_upgrade_charge(current_plan, plan, cycle_start, credits + loyalty)
-            upgrade_costs[plan] = {
-                **billing,
-                "loyalty_discount_paise": loyalty,
-                "loyalty_eligible": loyalty > 0,
-            }
+            upgrade_costs[plan] = {}
+            for target_interval in ("monthly", "annual"):
+                loyalty = apply_loyalty_discount(user, plan, target_interval)
+                billing = compute_upgrade_charge(
+                    current_plan, plan, cycle_start, credits + loyalty,
+                    current_interval=current_interval,
+                    target_interval=target_interval,
+                )
+                upgrade_costs[plan][target_interval] = {
+                    **billing,
+                    "loyalty_discount_paise": loyalty,
+                    "loyalty_eligible": loyalty > 0,
+                }
 
     # Dataset usage for downgrade warning
     datasets = db_list_datasets(user["id"])
     dataset_count = len(datasets)
 
-    # Days remaining in cycle
+    # Days remaining in current cycle (correct period for monthly vs annual)
     days_remaining = None
+    renewal_at = None
     if cycle_start and current_plan != "free":
+        period_days = get_billing_period_days(current_interval)
         elapsed = (time.time() - cycle_start) / 86400
-        days_remaining = max(round(30 - elapsed), 0)
+        days_remaining = max(round(period_days - elapsed), 0)
+        renewal_at = cycle_start + period_days * 86400
 
     return {
-        "plan":                 current_plan,
-        "plan_cycle_start":     cycle_start,
-        "days_remaining":       days_remaining,
-        "credits_paise":        credits,
-        "scheduled_downgrade":  user.get("scheduled_downgrade"),
+        "plan":                   current_plan,
+        "plan_interval":          current_interval,
+        "plan_cycle_start":       cycle_start,
+        "renewal_at":             renewal_at,
+        "days_remaining":         days_remaining,
+        "credits_paise":          credits,
+        "scheduled_downgrade":    user.get("scheduled_downgrade"),
         "scheduled_downgrade_at": user.get("scheduled_downgrade_at"),
-        "loyalty_eligible":     apply_loyalty_discount(user, "photo_pro") > 0,  # any upgrade eligible
-        "upgrade_costs":        upgrade_costs,
-        "dataset_count":        dataset_count,
-        "plan_limits":          PLAN_LIMITS,
+        "loyalty_eligible":       apply_loyalty_discount(user, "photo_pro") > 0,
+        "upgrade_costs":          upgrade_costs,
+        "dataset_count":          dataset_count,
+        "plan_limits":            PLAN_LIMITS,
     }
 
 
@@ -2272,10 +2333,12 @@ async def schedule_downgrade(request: Request):
     if plan_rank(target) >= plan_rank(current_plan):
         raise HTTPException(400, "Use the upgrade flow to move to a higher plan.")
 
-    # Calculate when the downgrade fires (end of current 30-day cycle)
+    # Calculate when the downgrade fires (end of current billing cycle)
     cycle_start = user.get("plan_cycle_start") or time.time()
+    current_interval = user.get("plan_interval") or "monthly"
+    period_days = get_billing_period_days(current_interval)
     elapsed_seconds = time.time() - cycle_start
-    seconds_remaining = max(30 * 86400 - elapsed_seconds, 0)
+    seconds_remaining = max(period_days * 86400 - elapsed_seconds, 0)
     downgrade_at = time.time() + seconds_remaining
 
     # Dataset over-limit warning
@@ -2346,8 +2409,10 @@ async def cancel_subscription(request: Request):
         raise HTTPException(400, "Your subscription is already scheduled for cancellation.")
 
     cycle_start = user.get("plan_cycle_start") or time.time()
+    current_interval = user.get("plan_interval") or "monthly"
+    period_days = get_billing_period_days(current_interval)
     elapsed_seconds = time.time() - cycle_start
-    seconds_remaining = max(30 * 86400 - elapsed_seconds, 0)
+    seconds_remaining = max(period_days * 86400 - elapsed_seconds, 0)
     cancels_at = time.time() + seconds_remaining
 
     with get_db() as conn:
@@ -2386,7 +2451,7 @@ async def apply_downgrade(request: Request):
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT id, email, plan, scheduled_downgrade, scheduled_downgrade_at, plan_cycle_start
+                SELECT id, email, plan, plan_interval, scheduled_downgrade, scheduled_downgrade_at, plan_cycle_start
                 FROM users
                 WHERE scheduled_downgrade IS NOT NULL
                   AND scheduled_downgrade_at <= %s
@@ -2404,6 +2469,7 @@ async def apply_downgrade(request: Request):
                     cur.execute("""
                         UPDATE users SET
                             plan=%s,
+                            plan_interval='monthly',
                             plan_cycle_start=NULL,
                             scheduled_downgrade=NULL,
                             scheduled_downgrade_at=NULL
@@ -2420,7 +2486,7 @@ async def apply_downgrade(request: Request):
             # Issue new license key at new plan tier if eligible
             if SELF_HOSTED_PLAN_LIMITS.get(new_plan):
                 try:
-                    generate_license_key(user_id, new_plan)
+                    generate_license_key(user_id, new_plan, "monthly")
                 except Exception as e:
                     log.warning(f"Could not reissue key for {user_id} on {new_plan}: {e}")
 
@@ -2569,6 +2635,91 @@ async def admin_add_credits(request: Request):
     return {"ok": True, "email": target_email, "credits_added_paise": amount_paise}
 
 
+@app.post("/api/billing/send-renewal-reminders")
+async def send_renewal_reminders(request: Request):
+    """
+    Cron endpoint: email users whose subscription renews within the next 7 days.
+    Safe to run daily. Protected by ADMIN_SECRET.
+    Respects plan_interval so annual subscribers get the correct renewal date.
+    """
+    check_admin_secret(request)
+
+    now = time.time()
+    window_start = now
+    window_end   = now + 7 * 86400  # 7 days ahead
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT id, email, name, plan, plan_interval, plan_cycle_start
+                FROM users
+                WHERE plan != 'free'
+                  AND plan_cycle_start IS NOT NULL
+                  AND scheduled_downgrade IS NULL
+            """)
+            rows = cur.fetchall()
+
+    plan_labels = {
+        "personal_lite": "Personal Lite",   "personal_pro": "Personal Pro",
+        "personal_max":  "Personal Max",    "photo_starter": "Studio Starter",
+        "photo_pro":     "Studio Pro",
+    }
+    sent = []
+    for row in rows:
+        interval    = row.get("plan_interval") or "monthly"
+        period_days = get_billing_period_days(interval)
+        renewal_at  = row["plan_cycle_start"] + period_days * 86400
+
+        if window_start <= renewal_at <= window_end:
+            days_until = max(round((renewal_at - now) / 86400), 0)
+            plan_label = plan_labels.get(row["plan"], row["plan"])
+            price_paise = get_plan_price(row["plan"], interval)
+            price_inr   = price_paise // 100
+            renewal_date = __import__('datetime').datetime.utcfromtimestamp(renewal_at).strftime('%d %b %Y')
+            period_label = "year" if interval == "annual" else "month"
+            try:
+                html = f"""
+                <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:480px;margin:0 auto;background:#f9f7f4;padding:32px 24px">
+                  <div style="text-align:center;margin-bottom:24px">
+                    <span style="font-size:28px;font-weight:800;color:#4f46e5;letter-spacing:-1px">FaceFind</span>
+                  </div>
+                  <div style="background:#fff;border-radius:16px;padding:36px;box-shadow:0 4px 16px rgba(0,0,0,0.07)">
+                    <h2 style="margin:0 0 8px;font-size:20px;color:#1c1917">Your subscription renews in {days_until} day{'s' if days_until != 1 else ''}</h2>
+                    <p style="margin:0 0 24px;font-size:14px;color:#78716c;line-height:1.65">
+                      Hi {row['name']}, just a heads-up that your <strong style="color:#1c1917">{plan_label}</strong> ({interval}) plan
+                      will automatically renew on <strong style="color:#1c1917">{renewal_date}</strong> for
+                      <strong style="color:#1c1917">&#x20B9;{price_inr:,}/{period_label}</strong>.
+                    </p>
+                    <div style="background:#f9f7f4;border-radius:10px;padding:16px 20px;margin-bottom:24px;">
+                      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:8px;">
+                        <span style="color:#78716c">Plan</span><span style="font-weight:700;color:#1c1917">{plan_label}</span>
+                      </div>
+                      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:8px;">
+                        <span style="color:#78716c">Billing</span><span style="font-weight:700;color:#1c1917">{interval.title()}</span>
+                      </div>
+                      <div style="display:flex;justify-content:space-between;font-size:13px;">
+                        <span style="color:#78716c">Renewal date</span><span style="font-weight:700;color:#1c1917">{renewal_date}</span>
+                      </div>
+                    </div>
+                    <p style="font-size:12px;color:#a8a29e;margin:0 0 20px;text-align:center">
+                      To cancel before renewal, visit your account settings.
+                    </p>
+                    <a href="https://facefind-production.up.railway.app/admin.html"
+                       style="display:block;text-align:center;background:#4f46e5;color:#fff;font-weight:700;font-size:14px;padding:12px 24px;border-radius:10px;text-decoration:none;">
+                      Manage subscription
+                    </a>
+                  </div>
+                </div>
+                """
+                send_email(row["email"], f"FaceFind — your {plan_label} plan renews on {renewal_date}", html)
+                sent.append({"user_id": row["id"], "email": row["email"], "renewal_at": renewal_at, "days_until": days_until})
+                log.info(f"Renewal reminder sent: user={row['id']} plan={row['plan']} ({interval}) renews={renewal_date}")
+            except Exception as e:
+                log.warning(f"Renewal reminder email failed for {row['id']}: {e}")
+
+    return {"ok": True, "sent": sent, "count": len(sent)}
+
+
 # ── Admin endpoints ───────────────────────────────────────────────────────────
 
 @app.post("/api/admin/set-plan")
@@ -2591,7 +2742,7 @@ def admin_set_plan(request: Request, target_email: str = Form(...), plan: str = 
             if not target_user:
                 raise HTTPException(404, "User not found.")
             cur.execute("""
-                UPDATE users SET plan=%s, plan_cycle_start=%s,
+                UPDATE users SET plan=%s, plan_interval='monthly', plan_cycle_start=%s,
                        scheduled_downgrade=NULL, scheduled_downgrade_at=NULL
                 WHERE email=%s
             """, (plan, time.time() if plan != "free" else None, target_email.lower()))

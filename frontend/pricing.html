@@ -700,13 +700,14 @@
   // Checks if the user is logged in and adapts the page accordingly:
   // ── Razorpay checkout ──────────────────────────────────────────────────────
   const PLAN_META = {
-    'personal_lite':  { label: 'Personal Lite',    amount: '₹99/mo'    },
-    'personal_pro':   { label: 'Personal Pro',     amount: '₹199/mo'   },
-    'personal_max':   { label: 'Personal Max',     amount: '₹349/mo'   },
-    'photo_starter':  { label: 'Studio Starter',   amount: '₹599/mo'   },
-    'photo_pro':      { label: 'Studio Pro',       amount: '₹1,499/mo' },
+    'personal_lite':  { label: 'Personal Lite',    monthly: '₹99/mo',    annual: '₹990/yr'    },
+    'personal_pro':   { label: 'Personal Pro',     monthly: '₹199/mo',   annual: '₹1,990/yr'  },
+    'personal_max':   { label: 'Personal Max',     monthly: '₹349/mo',   annual: '₹3,490/yr'  },
+    'photo_starter':  { label: 'Studio Starter',   monthly: '₹599/mo',   annual: '₹5,990/yr'  },
+    'photo_pro':      { label: 'Studio Pro',       monthly: '₹1,499/mo', annual: '₹14,990/yr' },
   };
   const PLAN_PRICES = { personal_lite:99, personal_pro:199, personal_max:349, photo_starter:599, photo_pro:1499 };
+  const PLAN_PRICES_ANNUAL = { personal_lite:990, personal_pro:1990, personal_max:3490, photo_starter:5990, photo_pro:14990 };
   const PLAN_ORDER  = ['free','personal_lite','personal_pro','personal_max','photo_starter','photo_pro'];
   function planRank(p){ return PLAN_ORDER.indexOf(p); }
   function inrFmt(paise){ return '₹' + (paise/100).toLocaleString('en-IN'); }
@@ -747,7 +748,7 @@
       const r = await fetch('/api/payments/create-order', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan }),
+        body: JSON.stringify({ plan, interval: billing }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.detail || 'Could not create order.');
@@ -768,13 +769,13 @@
       return;
     }
 
-    const billing = order.billing || {};
+    const billing_obj = order.billing || {};
     const options = {
       key:         order.key_id,
       amount:      order.amount,
       currency:    'INR',
       name:        'FaceFind',
-      description: PLAN_META[plan]?.label || plan,
+      description: `${PLAN_META[plan]?.label || plan} (${order.plan_interval === 'annual' ? 'Annual' : 'Monthly'})`,
       order_id:    order.order_id,
       prefill:     { name: order.user_name, email: order.user_email },
       theme:       { color: '#4f46e5' },
@@ -793,14 +794,14 @@
           const vd = await vr.json();
           if (!vr.ok) throw new Error(vd.detail || 'Verification failed.');
           _billingInfo = null;
-          showPayModal('success', plan, null, { billing, loyalty_discount_paise: order.loyalty_discount_paise });
+          showPayModal('success', plan, null, { billing: billing_obj, loyalty_discount_paise: order.loyalty_discount_paise, plan_interval: order.plan_interval });
         } catch (e) { showPayModal('error', plan, e.message); }
       },
     };
 
     // Show savings summary before Razorpay modal if there's a meaningful discount
-    if (billing.proration_credit_paise > 0 || billing.total_credit_paise > 0) {
-      const confirmed = await showUpgradeSummary(plan, billing, order.loyalty_discount_paise);
+    if (billing_obj.proration_credit_paise > 0 || billing_obj.total_credit_paise > 0) {
+      const confirmed = await showUpgradeSummary(plan, billing_obj, order.loyalty_discount_paise);
       if (!confirmed) { closePayModal(); return; }
     }
 
@@ -872,7 +873,9 @@
     const targetLabel = PLAN_META[targetPlan]?.label || (targetPlan === 'free' ? 'Free' : targetPlan);
     const newLimits = info?.plan_limits?.[targetPlan] || {};
     const daysRemaining = info?.days_remaining ?? null;
-    const daysText = daysRemaining != null ? `~${daysRemaining} days` : 'the rest of your current billing period';
+    const interval = info?.plan_interval || 'monthly';
+    const periodLabel = interval === 'annual' ? 'year' : 'month';
+    const daysText = daysRemaining != null ? `~${daysRemaining} days` : `the rest of your current billing ${periodLabel}`;
     const over = info?.dataset_count > (newLimits.max_datasets || 0);
 
     box.innerHTML = `
@@ -945,14 +948,15 @@
         `<div style="font-family:Fraunces,serif;font-size:20px;font-weight:800;color:#1c1917;margin-bottom:8px;">Confirming payment…</div>
          <div style="font-size:13px;color:#78716c;">Please wait, do not close this page</div>`;
     } else if (state === 'success' || state === 'success_free') {
-      const billing = extra?.billing || {};
+      const billing_obj = extra?.billing || {};
       const loyalty = extra?.loyalty_discount_paise || 0;
       const isFree  = state === 'success_free';
+      const intervalLabel = extra?.plan_interval === 'annual' ? 'Annual' : 'Monthly';
       let savingsNote = '';
       if (isFree) {
         savingsNote = `<div style="font-size:12px;color:#059669;margin-bottom:16px;font-weight:600;">Covered entirely by your credits — no payment needed!</div>`;
-      } else if (billing.total_credit_paise > 0) {
-        savingsNote = `<div style="font-size:12px;color:#059669;margin-bottom:16px;font-weight:600;">You saved ${inrFmt(billing.total_credit_paise)} on this upgrade</div>`;
+      } else if (billing_obj.total_credit_paise > 0) {
+        savingsNote = `<div style="font-size:12px;color:#059669;margin-bottom:16px;font-weight:600;">You saved ${inrFmt(billing_obj.total_credit_paise)} on this upgrade</div>`;
       }
       box.innerHTML =
         `<div style="width:64px;height:64px;background:#ecfdf5;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">
@@ -960,7 +964,7 @@
          </div>
          <div style="font-family:Fraunces,serif;font-size:22px;font-weight:800;color:#1c1917;margin-bottom:8px;">You're all set!</div>
          <div style="font-size:14px;color:#78716c;margin-bottom:12px;line-height:1.6;">
-           Your <strong style="color:#1c1917">${meta.label}</strong> plan is now active.${isFree ? '' : '<br>A confirmation email is on its way.'}
+           Your <strong style="color:#1c1917">${meta.label} (${intervalLabel})</strong> plan is now active.${isFree ? '' : '<br>A confirmation email is on its way.'}
          </div>
          ${savingsNote}
          <a href="/admin.html" style="display:inline-block;background:#4f46e5;color:#fff;font-weight:700;font-size:14px;padding:12px 28px;border-radius:10px;text-decoration:none;">
@@ -1062,6 +1066,24 @@
         billingPromise.then(info => {
           if (!info) return;
 
+          // Show renewal date on the current plan card
+          if (info.renewal_at && info.plan !== 'free') {
+            const renewalDate = new Date(info.renewal_at * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+            const intervalLabel = info.plan_interval === 'annual' ? 'Annual' : 'Monthly';
+            PLAN_CTAS.forEach(({ id, plan }) => {
+              if (plan !== userPlan) return;
+              const el = document.getElementById(id);
+              if (!el || !el.parentNode) return;
+              const existing = el.parentNode.querySelector('.renewal-badge');
+              if (existing) return;
+              const badge = document.createElement('div');
+              badge.className = 'renewal-badge';
+              badge.style.cssText = 'font-size:11px;color:#78716c;font-weight:600;margin-top:4px;';
+              badge.textContent = `${intervalLabel} · renews ${renewalDate}`;
+              el.parentNode.insertBefore(badge, el.nextSibling);
+            });
+          }
+
           // If cancellation is already scheduled, update the cancel button to show "Undo" state
           if (info.scheduled_downgrade === 'free') {
             const badgeMap = { 'p1-cta':'badge-p1','p2-cta':'badge-p2','p3-cta':'badge-p3','ph1-cta':'badge-ph1','ph2-cta':'badge-ph2' };
@@ -1085,7 +1107,9 @@
           PLAN_CTAS.forEach(({ id, plan }) => {
             const el = document.getElementById(id);
             if (!el || plan === userPlan || planRank(plan) <= planRank(userPlan)) return;
-            const cost = info.upgrade_costs?.[plan];
+            const costByInterval = info.upgrade_costs?.[plan];
+            if (!costByInterval) return;
+            const cost = costByInterval[billing] || costByInterval['monthly'];
             if (!cost) return;
             const savings = cost.full_price_paise - cost.charge_paise;
             if (savings > 0) {
@@ -1119,7 +1143,9 @@
       document.body.appendChild(modal);
     }
     const info = await getBillingInfo();
-    const daysLeft = info?.days_remaining != null ? `~${info.days_remaining} days` : 'the rest of your billing period';
+    const interval = info?.plan_interval || 'monthly';
+    const periodLabel = interval === 'annual' ? 'billing year' : 'billing period';
+    const daysLeft = info?.days_remaining != null ? `~${info.days_remaining} days` : `the rest of your ${periodLabel}`;
     const box = document.getElementById('payModalBox');
     box.innerHTML = `
       <div style="font-family:Fraunces,serif;font-size:20px;font-weight:800;color:#1c1917;margin-bottom:6px;">Cancel subscription?</div>
