@@ -1993,12 +1993,14 @@
         if (currentPlan !== 'free' && bi.scheduled_downgrade !== 'free') {
           extras.push(`<button onclick="cancelSubscription()" style="background:none;border:1.5px solid var(--border);font-size:11px;color:var(--muted);cursor:pointer;padding:4px 12px;border-radius:6px;font-family:inherit;font-weight:600;transition:border-color 0.2s,color 0.2s;" onmouseover="this.style.borderColor='#dc2626';this.style.color='#dc2626';" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)';">Cancel subscription</button>`);
         }
-        if (extras.length) {
-          const extraEl = document.createElement('div');
+        let extraEl = document.getElementById('planExtras');
+        if (!extraEl) {
+          extraEl = document.createElement('div');
+          extraEl.id = 'planExtras';
           extraEl.style.cssText = 'display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap;';
-          extraEl.innerHTML = extras.join('');
           document.getElementById('planLimits').insertAdjacentElement('afterend', extraEl);
         }
+        extraEl.innerHTML = extras.length ? extras.join('') : '';
       }
     } catch {}
 
