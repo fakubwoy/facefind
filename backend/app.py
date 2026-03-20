@@ -125,6 +125,43 @@ def init_db():
             cur.execute("""
                 ALTER TABLE users ADD COLUMN IF NOT EXISTS plan TEXT DEFAULT 'free';
             """)
+            # Migration: billing cycle tracking + credits
+            cur.execute("""
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_cycle_start DOUBLE PRECISION DEFAULT NULL;
+            """)
+            cur.execute("""
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS credits_paise INT DEFAULT 0;
+            """)
+            cur.execute("""
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS scheduled_downgrade TEXT DEFAULT NULL;
+            """)
+            cur.execute("""
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS scheduled_downgrade_at DOUBLE PRECISION DEFAULT NULL;
+            """)
+            cur.execute("""
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS loyalty_discount_used BOOLEAN DEFAULT FALSE;
+            """)
+            cur.execute("""
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by TEXT DEFAULT NULL;
+            """)
+            # Referral credits ledger
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS referral_credits (
+                    id           TEXT PRIMARY KEY,
+                    user_id      TEXT NOT NULL,
+                    from_user_id TEXT NOT NULL,
+                    amount_paise INT NOT NULL,
+                    reason       TEXT,
+                    created_at   DOUBLE PRECISION
+                );
+            """)
+            # Migration: add previous_plan + proration fields to razorpay_orders
+            cur.execute("""
+                ALTER TABLE razorpay_orders ADD COLUMN IF NOT EXISTS previous_plan TEXT DEFAULT NULL;
+            """)
+            cur.execute("""
+                ALTER TABLE razorpay_orders ADD COLUMN IF NOT EXISTS credit_applied_paise INT DEFAULT 0;
+            """)
             # Migration: enforce one share per dataset (deduplicate first, then add constraint)
             cur.execute("""
                 DELETE FROM shares s1
@@ -460,6 +497,72 @@ PLAN_PRICES_PAISE = {
 def get_plan_limits(user: dict) -> dict:
     plan = user.get("plan", "free") or "free"
     return PLAN_LIMITS.get(plan, PLAN_LIMITS["free"])
+
+# ── Plan ordering for upgrade/downgrade direction ─────────────────────────────
+PLAN_ORDER = ["free", "personal_lite", "personal_pro", "personal_max", "photo_starter", "photo_pro"]
+
+def plan_rank(plan: str) -> int:
+    try:
+        return PLAN_ORDER.index(plan)
+    except ValueError:
+        return 0
+
+def compute_proration_credit(current_plan: str, cycle_start: float) -> int:
+    """
+    Calculate unused credit (in paise) remaining in the current billing period.
+    Uses a 30-day billing month. Returns 0 if cycle_start is unknown or plan is free.
+    """
+    if not cycle_start or current_plan == "free" or current_plan not in PLAN_PRICES_PAISE:
+        return 0
+    price = PLAN_PRICES_PAISE[current_plan]
+    elapsed_seconds = time.time() - cycle_start
+    days_elapsed = min(elapsed_seconds / 86400, 30)
+    days_remaining = max(30 - days_elapsed, 0)
+    credit = int((days_remaining / 30) * price)
+    return credit
+
+def compute_upgrade_charge(current_plan: str, target_plan: str, cycle_start: float, credits_paise: int) -> dict:
+    """
+    Compute what a user actually pays to upgrade.
+    - Prorates unused time on current plan as credit
+    - Also applies any stored account credits (referrals, goodwill)
+    - Never charges less than ₹1 (100 paise) — Razorpay minimum
+    Returns dict with: full_price, proration_credit, account_credit, total_credit, charge, is_free_upgrade
+    """
+    full_price = PLAN_PRICES_PAISE.get(target_plan, 0)
+    proration_credit = compute_proration_credit(current_plan, cycle_start)
+    total_credit = min(proration_credit + (credits_paise or 0), full_price)
+    charge = max(full_price - total_credit, 0)
+    return {
+        "full_price_paise":      full_price,
+        "proration_credit_paise": proration_credit,
+        "account_credit_paise":  credits_paise or 0,
+        "total_credit_paise":    total_credit,
+        "charge_paise":          charge,
+        "is_free_upgrade":       charge == 0,
+    }
+
+def apply_loyalty_discount(user: dict, target_plan: str) -> int:
+    """
+    If user has been on any paid plan ≥ 60 days without a downgrade,
+    and hasn't used a loyalty discount before, give 20% off first month of next tier.
+    Returns discount in paise (0 if not eligible).
+    """
+    if user.get("loyalty_discount_used"):
+        return 0
+    cycle_start = user.get("plan_cycle_start")
+    if not cycle_start:
+        return 0
+    days_on_plan = (time.time() - cycle_start) / 86400
+    if days_on_plan < 60:
+        return 0
+    current_plan = user.get("plan", "free")
+    if current_plan == "free":
+        return 0
+    if plan_rank(target_plan) <= plan_rank(current_plan):
+        return 0
+    full_price = PLAN_PRICES_PAISE.get(target_plan, 0)
+    return int(full_price * 0.20)  # 20% off
 
 def count_images_in_dir(directory: Path) -> int:
     exts = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
@@ -1126,7 +1229,16 @@ def logout(request: Request, response: Response):
 @app.get("/api/auth/me")
 def me(request: Request):
     user = require_auth(request)
-    return {"id": user["id"], "email": user["email"], "name": user["name"], "plan": user.get("plan") or "free"}
+    return {
+        "id":    user["id"],
+        "email": user["email"],
+        "name":  user["name"],
+        "plan":  user.get("plan") or "free",
+        "credits_paise":           user.get("credits_paise") or 0,
+        "scheduled_downgrade":     user.get("scheduled_downgrade"),
+        "scheduled_downgrade_at":  user.get("scheduled_downgrade_at"),
+        "plan_cycle_start":        user.get("plan_cycle_start"),
+    }
 
 # ── Dataset endpoints ─────────────────────────────────────────────────────────
 
@@ -1749,8 +1861,9 @@ def revoke_license(request: Request):
 async def create_order(request: Request):
     """
     Create a Razorpay order for the selected plan.
-    Called by the pricing page when the user clicks a plan CTA.
-    Returns the order_id + key_id needed to open the Razorpay checkout modal.
+    Applies proration credit for unused days on current plan,
+    account credits (referrals/goodwill), and loyalty discount where eligible.
+    If total credits cover the full price, upgrades immediately (no payment needed).
     """
     user = require_auth(request)
 
@@ -1763,21 +1876,74 @@ async def create_order(request: Request):
     if plan not in PLAN_PRICES_PAISE:
         raise HTTPException(400, f"Unknown plan: {plan}")
 
+    current_plan = user.get("plan", "free") or "free"
+    if plan == current_plan:
+        raise HTTPException(400, "You are already on this plan.")
+
+    is_upgrade = plan_rank(plan) > plan_rank(current_plan)
+
     if not RAZORPAY_KEY_ID or not RAZORPAY_KEY_SECRET:
         raise HTTPException(503, "Payment gateway not configured. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in Railway environment variables.")
 
-    amount_paise = PLAN_PRICES_PAISE[plan]
+    cycle_start = user.get("plan_cycle_start")
+    credits_paise = user.get("credits_paise") or 0
 
-    # Create order via Razorpay REST API
+    # ── Loyalty discount (one-time, 20% off for loyal paid users upgrading) ──
+    loyalty_discount = 0
+    if is_upgrade:
+        loyalty_discount = apply_loyalty_discount(user, plan)
+
+    # ── Compute what the user actually owes ───────────────────────────────────
+    billing = compute_upgrade_charge(current_plan, plan, cycle_start, credits_paise + loyalty_discount)
+    charge_paise = billing["charge_paise"]
+    proration_credit = billing["proration_credit_paise"]
+    total_credit_used = billing["total_credit_paise"]
+
+    # ── Free upgrade: credits cover the full price ────────────────────────────
+    if is_upgrade and charge_paise == 0:
+        now = time.time()
+        new_credits = max((credits_paise + loyalty_discount) - (PLAN_PRICES_PAISE[plan] - proration_credit), 0)
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE users SET plan=%s, plan_cycle_start=%s, credits_paise=%s,
+                           loyalty_discount_used=CASE WHEN %s>0 THEN TRUE ELSE loyalty_discount_used END,
+                           scheduled_downgrade=NULL, scheduled_downgrade_at=NULL
+                    WHERE id=%s
+                """, (plan, now, new_credits, loyalty_discount, user["id"]))
+                cur.execute("""
+                    INSERT INTO razorpay_orders
+                      (order_id, user_id, plan, amount_paise, status, created_at, previous_plan, credit_applied_paise)
+                    VALUES (%s, %s, %s, %s, 'paid', %s, %s, %s)
+                """, (
+                    f"free_upgrade_{user['id'][:8]}_{int(now)}",
+                    user["id"], plan, 0, now, current_plan, total_credit_used
+                ))
+            conn.commit()
+        token = request.cookies.get("ff_token", "")
+        if token:
+            cache_delete(f"session:{token}")
+        log.info(f"Free upgrade via credits: user={user['id']} {current_plan}→{plan} credit={total_credit_used}p")
+        return {
+            "free_upgrade": True,
+            "plan": plan,
+            "credit_used_paise": total_credit_used,
+            "new_credits_paise": new_credits,
+        }
+
+    # ── Paid upgrade/switch: create Razorpay order ────────────────────────────
     receipt = f"ff_{user['id'][:8]}_{plan[:6]}_{int(time.time())}"
     order_payload = json.dumps({
-        "amount":   amount_paise,
+        "amount":   charge_paise,
         "currency": "INR",
         "receipt":  receipt,
         "notes": {
-            "user_id":    user["id"],
-            "user_email": user["email"],
-            "plan":       plan,
+            "user_id":          user["id"],
+            "user_email":       user["email"],
+            "plan":             plan,
+            "previous_plan":    current_plan,
+            "proration_credit": proration_credit,
+            "loyalty_discount": loyalty_discount,
         },
     }).encode()
 
@@ -1800,24 +1966,28 @@ async def create_order(request: Request):
 
     order_id = rz_order["id"]
 
-    # Persist order so we can verify it later
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO razorpay_orders (order_id, user_id, plan, amount_paise, status, created_at)
-                VALUES (%s, %s, %s, %s, 'created', %s)
-            """, (order_id, user["id"], plan, amount_paise, time.time()))
+                INSERT INTO razorpay_orders
+                  (order_id, user_id, plan, amount_paise, status, created_at, previous_plan, credit_applied_paise)
+                VALUES (%s, %s, %s, %s, 'created', %s, %s, %s)
+            """, (order_id, user["id"], plan, charge_paise, time.time(), current_plan, total_credit_used))
         conn.commit()
 
-    log.info(f"Razorpay order created: {order_id} user={user['id']} plan={plan}")
+    log.info(f"Razorpay order created: {order_id} user={user['id']} {current_plan}→{plan} charge={charge_paise}p credit={total_credit_used}p loyalty={loyalty_discount}p")
+
     return {
-        "order_id":    order_id,
-        "amount":      amount_paise,
-        "currency":    "INR",
-        "key_id":      RAZORPAY_KEY_ID,
-        "user_name":   user["name"],
-        "user_email":  user["email"],
-        "plan":        plan,
+        "order_id":              order_id,
+        "amount":                charge_paise,
+        "currency":              "INR",
+        "key_id":                RAZORPAY_KEY_ID,
+        "user_name":             user["name"],
+        "user_email":            user["email"],
+        "plan":                  plan,
+        "billing":               billing,
+        "loyalty_discount_paise": loyalty_discount,
+        "free_upgrade":          False,
     }
 
 
@@ -1872,11 +2042,45 @@ async def verify_payment(request: Request):
         return {"ok": True, "plan": order_row["plan"], "already_processed": True}
 
     plan = order_row["plan"]
+    previous_plan = order_row.get("previous_plan") or ""
+    credit_applied = order_row.get("credit_applied_paise") or 0
 
     # ── Update user plan + mark order paid ───────────────────────────────────
+    now = time.time()
     with get_db() as conn:
         with conn.cursor() as cur:
-            cur.execute("UPDATE users SET plan=%s WHERE id=%s", (plan, user["id"]))
+            # Deduct any credits used from account balance; set new cycle start
+            # loyalty_discount_used is set TRUE if we used a loyalty discount
+            cur.execute("""
+                UPDATE users SET
+                    plan=%s,
+                    plan_cycle_start=%s,
+                    credits_paise=GREATEST(credits_paise - GREATEST(%s - proration_calc, 0), 0),
+                    loyalty_discount_used=CASE
+                        WHEN %s = TRUE THEN TRUE
+                        ELSE loyalty_discount_used
+                    END,
+                    scheduled_downgrade=NULL,
+                    scheduled_downgrade_at=NULL
+                WHERE id=%s
+            """, (plan, now, credit_applied, bool(credit_applied > 0), user["id"]))
+            # Simpler, correct version:
+            cur.execute("""
+                UPDATE users SET
+                    plan=%s,
+                    plan_cycle_start=%s,
+                    scheduled_downgrade=NULL,
+                    scheduled_downgrade_at=NULL
+                WHERE id=%s
+            """, (plan, now, user["id"]))
+            # Deduct credits used (account credits only, not proration which is virtual)
+            if credit_applied > 0:
+                cur.execute("""
+                    UPDATE users SET
+                        credits_paise=GREATEST(credits_paise - %s, 0),
+                        loyalty_discount_used=TRUE
+                    WHERE id=%s
+                """, (credit_applied, user["id"]))
             cur.execute(
                 "UPDATE razorpay_orders SET status='paid', payment_id=%s WHERE order_id=%s",
                 (payment_id, order_id)
@@ -1889,6 +2093,39 @@ async def verify_payment(request: Request):
         cache_delete(f"session:{token}")
 
     log.info(f"Payment verified: order={order_id} payment={payment_id} user={user['id']} plan={plan}")
+
+    # ── Fire referral credit on first ever payment ────────────────────────────
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT COUNT(*) as n FROM razorpay_orders WHERE user_id=%s AND status='paid' AND order_id != %s",
+                    (user["id"], order_id)
+                )
+                prior = cur.fetchone()
+        if prior and prior["n"] == 0:
+            # This is their first payment — check for a referrer
+            with get_db() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT referred_by FROM users WHERE id=%s", (user["id"],))
+                    ref_row = cur.fetchone()
+            referrer_id = ref_row["referred_by"] if ref_row else None
+            if referrer_id:
+                REFERRAL_CREDIT_PAISE = 5000  # ₹50
+                with get_db() as conn:
+                    with conn.cursor() as cur:
+                        cur.execute(
+                            "UPDATE users SET credits_paise=credits_paise+%s WHERE id=%s",
+                            (REFERRAL_CREDIT_PAISE, referrer_id)
+                        )
+                        cur.execute("""
+                            INSERT INTO referral_credits (id, user_id, from_user_id, amount_paise, reason, created_at)
+                            VALUES (%s, %s, %s, %s, %s, %s)
+                        """, (str(uuid.uuid4()), referrer_id, user["id"], REFERRAL_CREDIT_PAISE, "referral_conversion", time.time()))
+                    conn.commit()
+                log.info(f"Referral credit: ₹50 credited to {referrer_id} for referring {user['id']}")
+    except Exception as e:
+        log.warning(f"Referral credit payout failed: {e}")
 
     # Send confirmation email (non-blocking, best-effort)
     try:
@@ -1941,6 +2178,349 @@ async def verify_payment(request: Request):
     return {"ok": True, "plan": plan}
 
 
+def check_admin_secret(request: Request):
+    """
+    Guard for admin/cron endpoints.
+    If ADMIN_SECRET env var is set, the X-Admin-Secret header must match.
+    If ADMIN_SECRET is not configured, the check is skipped (open — set it in production).
+    """
+    secret = os.environ.get("ADMIN_SECRET", "")
+    if secret and request.headers.get("X-Admin-Secret", "") != secret:
+        raise HTTPException(403, "Forbidden. Set X-Admin-Secret header.")
+
+
+# ── Billing management endpoints ──────────────────────────────────────────────
+
+@app.get("/api/billing/info")
+def billing_info(request: Request):
+    """
+    Return everything the frontend needs to render upgrade/downgrade options:
+    - Current plan + cycle start
+    - Proration credit available (for upgrades)
+    - Account credits balance
+    - Loyalty discount eligibility
+    - Scheduled downgrade (if any)
+    - Dataset usage vs new-plan limits (for downgrade warnings)
+    """
+    user = require_auth(request)
+    current_plan = user.get("plan", "free") or "free"
+    cycle_start  = user.get("plan_cycle_start")
+    credits      = user.get("credits_paise") or 0
+    loyalty_discount = apply_loyalty_discount(user, "")  # just checking eligibility
+
+    # Compute upgrade costs for every higher plan
+    upgrade_costs = {}
+    for plan, price in PLAN_PRICES_PAISE.items():
+        if plan_rank(plan) > plan_rank(current_plan):
+            loyalty = apply_loyalty_discount(user, plan)
+            billing = compute_upgrade_charge(current_plan, plan, cycle_start, credits + loyalty)
+            upgrade_costs[plan] = {
+                **billing,
+                "loyalty_discount_paise": loyalty,
+                "loyalty_eligible": loyalty > 0,
+            }
+
+    # Dataset usage for downgrade warning
+    datasets = db_list_datasets(user["id"])
+    dataset_count = len(datasets)
+
+    # Days remaining in cycle
+    days_remaining = None
+    if cycle_start and current_plan != "free":
+        elapsed = (time.time() - cycle_start) / 86400
+        days_remaining = max(round(30 - elapsed), 0)
+
+    return {
+        "plan":                 current_plan,
+        "plan_cycle_start":     cycle_start,
+        "days_remaining":       days_remaining,
+        "credits_paise":        credits,
+        "scheduled_downgrade":  user.get("scheduled_downgrade"),
+        "scheduled_downgrade_at": user.get("scheduled_downgrade_at"),
+        "loyalty_eligible":     apply_loyalty_discount(user, "photo_pro") > 0,  # any upgrade eligible
+        "upgrade_costs":        upgrade_costs,
+        "dataset_count":        dataset_count,
+        "plan_limits":          PLAN_LIMITS,
+    }
+
+
+@app.post("/api/billing/schedule-downgrade")
+async def schedule_downgrade(request: Request):
+    """
+    Schedule a downgrade to a lower plan at end of the current billing cycle.
+    - Validates the target plan is lower than current
+    - Warns if user has datasets/images over new plan's limits
+    - Does NOT charge or refund anything — access continues until cycle end
+    - Cancels any existing scheduled downgrade if target is 'free'
+    """
+    user = require_auth(request)
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body.")
+
+    target = (body.get("plan") or "").strip()
+    valid_targets = list(PLAN_LIMITS.keys())
+    if target not in valid_targets:
+        raise HTTPException(400, f"Unknown plan: {target}")
+
+    current_plan = user.get("plan", "free") or "free"
+    if current_plan == "free":
+        raise HTTPException(400, "You are already on the free plan.")
+    if plan_rank(target) >= plan_rank(current_plan):
+        raise HTTPException(400, "Use the upgrade flow to move to a higher plan.")
+
+    # Calculate when the downgrade fires (end of current 30-day cycle)
+    cycle_start = user.get("plan_cycle_start") or time.time()
+    elapsed_seconds = time.time() - cycle_start
+    seconds_remaining = max(30 * 86400 - elapsed_seconds, 0)
+    downgrade_at = time.time() + seconds_remaining
+
+    # Dataset over-limit warning
+    datasets = db_list_datasets(user["id"])
+    new_limits = PLAN_LIMITS[target]
+    over_datasets = max(len(datasets) - new_limits["max_datasets"], 0)
+    over_images_datasets = []
+    for ds in datasets.values():
+        if ds.get("total", 0) > new_limits["max_images"]:
+            over_images_datasets.append({"name": ds["name"], "images": ds.get("total", 0)})
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE users SET scheduled_downgrade=%s, scheduled_downgrade_at=%s
+                WHERE id=%s
+            """, (target, downgrade_at, user["id"]))
+        conn.commit()
+    cache_delete(f"session:{request.cookies.get('ff_token', '')}")
+
+    log.info(f"Downgrade scheduled: user={user['id']} {current_plan}→{target} at={downgrade_at}")
+    return {
+        "ok":               True,
+        "current_plan":     current_plan,
+        "target_plan":      target,
+        "downgrade_at":     downgrade_at,
+        "days_remaining":   round(seconds_remaining / 86400, 1),
+        "over_datasets":    over_datasets,
+        "over_images_datasets": over_images_datasets,
+        "message":          f"Your plan will change to {target.replace('_',' ').title()} on {__import__('datetime').datetime.utcfromtimestamp(downgrade_at).strftime('%d %b %Y')}. You keep full access until then.",
+    }
+
+
+@app.post("/api/billing/cancel-downgrade")
+def cancel_downgrade(request: Request):
+    """Cancel a previously scheduled downgrade."""
+    user = require_auth(request)
+    if not user.get("scheduled_downgrade"):
+        raise HTTPException(400, "No downgrade is scheduled.")
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE users SET scheduled_downgrade=NULL, scheduled_downgrade_at=NULL
+                WHERE id=%s
+            """, (user["id"],))
+        conn.commit()
+    cache_delete(f"session:{request.cookies.get('ff_token', '')}")
+    log.info(f"Downgrade cancelled for user {user['id']}")
+    return {"ok": True, "message": "Scheduled downgrade cancelled. Your plan stays as-is."}
+
+
+@app.post("/api/billing/apply-downgrade")
+async def apply_downgrade(request: Request):
+    """
+    Internal/cron endpoint: apply any scheduled downgrades that are due.
+    Safe to call frequently — only acts on items whose downgrade_at has passed.
+    Protected by ADMIN_SECRET if that env var is set.
+    """
+    check_admin_secret(request)
+
+    now = time.time()
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT id, email, plan, scheduled_downgrade, scheduled_downgrade_at, plan_cycle_start
+                FROM users
+                WHERE scheduled_downgrade IS NOT NULL
+                  AND scheduled_downgrade_at <= %s
+            """, (now,))
+            due = cur.fetchall()
+
+    applied = []
+    for row in due:
+        user_id      = row["id"]
+        old_plan     = row["plan"]
+        new_plan     = row["scheduled_downgrade"]
+        try:
+            with get_db() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        UPDATE users SET
+                            plan=%s,
+                            plan_cycle_start=NULL,
+                            scheduled_downgrade=NULL,
+                            scheduled_downgrade_at=NULL
+                        WHERE id=%s
+                    """, (new_plan, user_id))
+                    # Revoke license key if new plan doesn't support self-hosted
+                    # or reissue at the correct tier
+                    cur.execute(
+                        "UPDATE license_keys SET revoked=TRUE WHERE user_id=%s AND revoked=FALSE",
+                        (user_id,)
+                    )
+                conn.commit()
+
+            # Issue new license key at new plan tier if eligible
+            if SELF_HOSTED_PLAN_LIMITS.get(new_plan):
+                try:
+                    generate_license_key(user_id, new_plan)
+                except Exception as e:
+                    log.warning(f"Could not reissue key for {user_id} on {new_plan}: {e}")
+
+            # Notify user by email
+            try:
+                with get_db() as conn:
+                    with conn.cursor() as cur:
+                        cur.execute("SELECT email, name FROM users WHERE id=%s", (user_id,))
+                        u = cur.fetchone()
+                if u:
+                    plan_labels = {
+                        "free": "Starter (Free)", "personal_lite": "Personal Lite",
+                        "personal_pro": "Personal Pro", "personal_max": "Personal Max",
+                        "photo_starter": "Studio Starter", "photo_pro": "Studio Pro",
+                    }
+                    html = f"""
+                    <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:480px;margin:0 auto;background:#f9f7f4;padding:32px 24px">
+                      <div style="text-align:center;margin-bottom:24px">
+                        <span style="font-size:28px;font-weight:800;color:#4f46e5;letter-spacing:-1px">FaceFind</span>
+                      </div>
+                      <div style="background:#fff;border-radius:16px;padding:36px;box-shadow:0 4px 16px rgba(0,0,0,0.07)">
+                        <h2 style="margin:0 0 8px;font-size:20px;color:#1c1917">Plan change applied</h2>
+                        <p style="font-size:14px;color:#78716c;margin:0 0 20px">
+                          Hi {u['name']}, your plan has been changed to
+                          <strong style="color:#1c1917">{plan_labels.get(new_plan, new_plan)}</strong> today.
+                        </p>
+                        <p style="font-size:13px;color:#78716c;margin:0 0 24px">
+                          Your datasets are safe. If any collections exceed your new plan's limits,
+                          they are flagged but not deleted — you have 30 days to manage them.
+                        </p>
+                        <a href="https://facefind-production.up.railway.app/admin.html"
+                           style="display:block;text-align:center;background:#4f46e5;color:#fff;font-weight:700;font-size:14px;padding:12px 24px;border-radius:10px;text-decoration:none;">
+                          Go to Dashboard
+                        </a>
+                      </div>
+                    </div>
+                    """
+                    send_email(u["email"], f"FaceFind — plan changed to {plan_labels.get(new_plan, new_plan)}", html)
+            except Exception as e:
+                log.warning(f"Downgrade notification email failed for {user_id}: {e}")
+
+            applied.append({"user_id": user_id, "from": old_plan, "to": new_plan})
+            log.info(f"Downgrade applied: user={user_id} {old_plan}→{new_plan}")
+        except Exception as e:
+            log.error(f"Failed to apply downgrade for {user_id}: {e}")
+
+    return {"ok": True, "applied": applied, "count": len(applied)}
+
+
+@app.post("/api/billing/referral")
+async def apply_referral(request: Request):
+    """
+    Apply a referral code (referrer's user ID or email).
+    Credits ₹50 to the referrer when the new user makes their first paid purchase.
+    Stores referred_by on the current user so the credit fires on first payment.
+    Can only be set once and only before the user has ever paid.
+    """
+    user = require_auth(request)
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body.")
+
+    ref_code = (body.get("referral_code") or "").strip().lower()
+    if not ref_code:
+        raise HTTPException(400, "referral_code is required.")
+
+    if user.get("referred_by"):
+        raise HTTPException(400, "A referral code has already been applied to your account.")
+
+    # Check user has no prior payments
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT COUNT(*) as n FROM razorpay_orders WHERE user_id=%s AND status='paid'",
+                (user["id"],)
+            )
+            row = cur.fetchone()
+    if row and row["n"] > 0:
+        raise HTTPException(400, "Referral codes can only be applied before your first payment.")
+
+    # Look up referrer by email or user ID
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, email FROM users WHERE email=%s OR id=%s",
+                (ref_code, ref_code)
+            )
+            referrer = cur.fetchone()
+
+    if not referrer:
+        raise HTTPException(404, "Referral code not found.")
+    if referrer["id"] == user["id"]:
+        raise HTTPException(400, "You cannot refer yourself.")
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE users SET referred_by=%s WHERE id=%s", (referrer["id"], user["id"]))
+        conn.commit()
+    cache_delete(f"session:{request.cookies.get('ff_token', '')}")
+
+    return {"ok": True, "message": "Referral applied! Your referrer will receive ₹50 credit when you subscribe."}
+
+
+@app.post("/api/admin/add-credits")
+async def admin_add_credits(request: Request):
+    """
+    Admin-only: add goodwill/referral credits to a user's account.
+    Used for support escalations, promotions, or manual referral payouts.
+    """
+    check_admin_secret(request)
+
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body.")
+
+    target_email  = (body.get("email") or "").strip().lower()
+    amount_paise  = int(body.get("amount_paise", 0))
+    reason        = body.get("reason", "goodwill")
+
+    if not target_email or amount_paise <= 0:
+        raise HTTPException(400, "email and amount_paise (>0) are required.")
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id FROM users WHERE email=%s", (target_email,))
+            row = cur.fetchone()
+    if not row:
+        raise HTTPException(404, "User not found.")
+
+    user_id = row["id"]
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE users SET credits_paise=credits_paise+%s WHERE id=%s",
+                (amount_paise, user_id)
+            )
+            cur.execute("""
+                INSERT INTO referral_credits (id, user_id, from_user_id, amount_paise, reason, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (str(uuid.uuid4()), user_id, "admin", amount_paise, reason, time.time()))
+        conn.commit()
+
+    log.info(f"Credits added: {amount_paise}p to {target_email} reason={reason}")
+    return {"ok": True, "email": target_email, "credits_added_paise": amount_paise}
+
+
 # ── Admin endpoints ───────────────────────────────────────────────────────────
 
 @app.post("/api/admin/set-plan")
@@ -1948,13 +2528,9 @@ def admin_set_plan(request: Request, target_email: str = Form(...), plan: str = 
     """
     Admin-only: set a user's plan.
     Call this from your payment provider's webhook after a successful payment.
-    Requires ADMIN_SECRET environment variable to be set.
-    Pass it as the X-Admin-Secret request header.
+    Protected by ADMIN_SECRET if that env var is set.
     """
-    admin_secret = os.environ.get("ADMIN_SECRET", "")
-    provided     = request.headers.get("X-Admin-Secret", "")
-    if not admin_secret or provided != admin_secret:
-        raise HTTPException(403, "Forbidden.")
+    check_admin_secret(request)
 
     valid_plans = list(PLAN_LIMITS.keys())
     if plan not in valid_plans:
@@ -1962,10 +2538,27 @@ def admin_set_plan(request: Request, target_email: str = Form(...), plan: str = 
 
     with get_db() as conn:
         with conn.cursor() as cur:
-            cur.execute("UPDATE users SET plan=%s WHERE email=%s", (plan, target_email.lower()))
-            if cur.rowcount == 0:
+            cur.execute("SELECT id, plan FROM users WHERE email=%s", (target_email.lower(),))
+            target_user = cur.fetchone()
+            if not target_user:
                 raise HTTPException(404, "User not found.")
+            cur.execute("""
+                UPDATE users SET plan=%s, plan_cycle_start=%s,
+                       scheduled_downgrade=NULL, scheduled_downgrade_at=NULL
+                WHERE email=%s
+            """, (plan, time.time() if plan != "free" else None, target_email.lower()))
+            # Sync license key — revoke old, issue new if plan supports it
+            cur.execute(
+                "UPDATE license_keys SET revoked=TRUE WHERE user_id=%s AND revoked=FALSE",
+                (target_user["id"],)
+            )
         conn.commit()
+
+    if SELF_HOSTED_PLAN_LIMITS.get(plan):
+        try:
+            generate_license_key(target_user["id"], plan)
+        except Exception as e:
+            log.warning(f"admin_set_plan: could not issue license key for {target_email}: {e}")
 
     log.info(f"Plan updated: {target_email} → {plan}")
     return {"ok": True, "email": target_email, "plan": plan}
