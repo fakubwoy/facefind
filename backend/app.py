@@ -155,9 +155,27 @@ def init_db():
                     created_at   DOUBLE PRECISION
                 );
             """)
+            # Migration: backfill plan_cycle_start for existing paid users who have none.
+            # Uses their most recent paid order's created_at as a best estimate.
+            cur.execute("""
+                UPDATE users u
+                SET plan_cycle_start = sub.latest_order
+                FROM (
+                    SELECT user_id, MAX(created_at) AS latest_order
+                    FROM razorpay_orders
+                    WHERE status = 'paid'
+                    GROUP BY user_id
+                ) sub
+                WHERE u.id = sub.user_id
+                  AND u.plan != 'free'
+                  AND u.plan_cycle_start IS NULL;
+            """)
             # Migration: add previous_plan + proration fields to razorpay_orders
             cur.execute("""
                 ALTER TABLE razorpay_orders ADD COLUMN IF NOT EXISTS previous_plan TEXT DEFAULT NULL;
+            """)
+            cur.execute("""
+                ALTER TABLE razorpay_orders ADD COLUMN IF NOT EXISTS credit_applied_paise INT DEFAULT 0;
             """)
             cur.execute("""
                 ALTER TABLE razorpay_orders ADD COLUMN IF NOT EXISTS credit_applied_paise INT DEFAULT 0;
@@ -2049,22 +2067,6 @@ async def verify_payment(request: Request):
     now = time.time()
     with get_db() as conn:
         with conn.cursor() as cur:
-            # Deduct any credits used from account balance; set new cycle start
-            # loyalty_discount_used is set TRUE if we used a loyalty discount
-            cur.execute("""
-                UPDATE users SET
-                    plan=%s,
-                    plan_cycle_start=%s,
-                    credits_paise=GREATEST(credits_paise - GREATEST(%s - proration_calc, 0), 0),
-                    loyalty_discount_used=CASE
-                        WHEN %s = TRUE THEN TRUE
-                        ELSE loyalty_discount_used
-                    END,
-                    scheduled_downgrade=NULL,
-                    scheduled_downgrade_at=NULL
-                WHERE id=%s
-            """, (plan, now, credit_applied, bool(credit_applied > 0), user["id"]))
-            # Simpler, correct version:
             cur.execute("""
                 UPDATE users SET
                     plan=%s,
@@ -2073,7 +2075,7 @@ async def verify_payment(request: Request):
                     scheduled_downgrade_at=NULL
                 WHERE id=%s
             """, (plan, now, user["id"]))
-            # Deduct credits used (account credits only, not proration which is virtual)
+            # Deduct any account credits used (proration is virtual — no deduction needed)
             if credit_applied > 0:
                 cur.execute("""
                     UPDATE users SET
@@ -2325,7 +2327,52 @@ def cancel_downgrade(request: Request):
     return {"ok": True, "message": "Scheduled downgrade cancelled. Your plan stays as-is."}
 
 
-@app.post("/api/billing/apply-downgrade")
+@app.post("/api/billing/cancel-subscription")
+async def cancel_subscription(request: Request):
+    """
+    Cancel a paid subscription.
+    - Does NOT immediately drop the user to free
+    - Schedules a downgrade to 'free' at end of current billing cycle
+    - User keeps full access until then
+    - Can be undone with /api/billing/cancel-downgrade before the cycle ends
+    """
+    user = require_auth(request)
+    current_plan = user.get("plan", "free") or "free"
+
+    if current_plan == "free":
+        raise HTTPException(400, "You are already on the free plan.")
+
+    if user.get("scheduled_downgrade") == "free":
+        raise HTTPException(400, "Your subscription is already scheduled for cancellation.")
+
+    cycle_start = user.get("plan_cycle_start") or time.time()
+    elapsed_seconds = time.time() - cycle_start
+    seconds_remaining = max(30 * 86400 - elapsed_seconds, 0)
+    cancels_at = time.time() + seconds_remaining
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE users SET scheduled_downgrade='free', scheduled_downgrade_at=%s
+                WHERE id=%s
+            """, (cancels_at, user["id"]))
+        conn.commit()
+    cache_delete(f"session:{request.cookies.get('ff_token', '')}")
+
+    import datetime
+    cancels_date = datetime.datetime.utcfromtimestamp(cancels_at).strftime('%d %b %Y')
+    days_left = round(seconds_remaining / 86400, 1)
+
+    log.info(f"Subscription cancelled: user={user['id']} plan={current_plan} access_until={cancels_at}")
+    return {
+        "ok":           True,
+        "cancels_at":   cancels_at,
+        "days_left":    days_left,
+        "message":      f"Your subscription is cancelled. You keep full {current_plan.replace('_',' ').title()} access until {cancels_date}, then move to the free plan. You can undo this any time before then.",
+    }
+
+
+
 async def apply_downgrade(request: Request):
     """
     Internal/cron endpoint: apply any scheduled downgrades that are due.

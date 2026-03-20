@@ -1020,8 +1020,21 @@
         // Free strip CTA
         const freeStripCta = document.getElementById('freeStripCta');
         if (freeStripCta) {
-          freeStripCta.href = '/admin.html';
-          freeStripCta.innerHTML = 'Go to dashboard ' + ARROW_SVG;
+          if (userPlan === 'free') {
+            freeStripCta.href = '/admin.html';
+            freeStripCta.innerHTML = 'Go to dashboard ' + ARROW_SVG;
+          } else {
+            // Paid user — show cancel subscription link instead
+            freeStripCta.removeAttribute('href');
+            freeStripCta.style.cursor = 'pointer';
+            freeStripCta.style.color = 'var(--muted)';
+            freeStripCta.style.background = 'transparent';
+            freeStripCta.style.border = 'none';
+            freeStripCta.style.textDecoration = 'underline';
+            freeStripCta.style.fontSize = '13px';
+            freeStripCta.innerHTML = 'Cancel subscription';
+            freeStripCta.onclick = (e) => { e.preventDefault(); handleCancelSubscription(); };
+          }
         }
 
         // Update plan CTA labels
@@ -1045,6 +1058,20 @@
         // Enhance upgrade CTAs with savings hints once billing info loads
         billingPromise.then(info => {
           if (!info) return;
+
+          // If cancellation is already scheduled, update free strip to show undo option
+          if (info.scheduled_downgrade === 'free') {
+            const freeStrip = document.getElementById('freeStripCta');
+            if (freeStrip) {
+              const dAt = info.scheduled_downgrade_at
+                ? new Date(info.scheduled_downgrade_at * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+                : '';
+              freeStrip.innerHTML = `Cancels ${dAt} — <span style="text-decoration:underline;cursor:pointer;" onclick="undoCancellation()">Undo</span>`;
+              freeStrip.style.color = '#dc2626';
+              freeStrip.onclick = null;
+            }
+          }
+
           PLAN_CTAS.forEach(({ id, plan }) => {
             const el = document.getElementById(id);
             if (!el || plan === userPlan || planRank(plan) <= planRank(userPlan)) return;
@@ -1071,6 +1098,72 @@
         if (footerSignIn) { footerSignIn.href = '/admin.html'; footerSignIn.textContent = 'Dashboard'; }
       });
   })();
+
+  async function handleCancelSubscription() {
+    let modal = document.getElementById('payModal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'payModal';
+      modal.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:24px;';
+      modal.innerHTML = '<div id="payModalBox" style="background:#fff;border-radius:20px;padding:36px 32px;max-width:420px;width:100%;text-align:left;box-shadow:0 24px 64px rgba(0,0,0,.18);font-family:Plus Jakarta Sans,sans-serif;"></div>';
+      document.body.appendChild(modal);
+    }
+    const info = await getBillingInfo();
+    const daysLeft = info?.days_remaining ?? '—';
+    const box = document.getElementById('payModalBox');
+    box.innerHTML = `
+      <div style="font-family:Fraunces,serif;font-size:20px;font-weight:800;color:#1c1917;margin-bottom:6px;">Cancel subscription?</div>
+      <div style="font-size:13px;color:#78716c;margin-bottom:20px;">We're sorry to see you go.</div>
+      <div style="background:#f9f7f4;border-radius:12px;padding:14px 16px;margin-bottom:16px;font-size:13px;color:#44403c;line-height:1.7;">
+        • You keep <strong>full access</strong> for the remaining <strong>~${daysLeft} days</strong> you've already paid for<br>
+        • After that your account moves to the <strong>free plan</strong><br>
+        • Your data is safe — over-limit datasets are flagged, not deleted, with a 30-day grace period<br>
+        • You can <strong>resubscribe any time</strong> and pick up where you left off
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;">
+        <button onclick="closePayModal();" style="background:#f2efe9;border:none;color:#44403c;font-weight:600;font-size:14px;padding:10px 20px;border-radius:10px;cursor:pointer;">Keep my plan</button>
+        <button id="confirmCancelBtn" onclick="confirmCancelSubscription()"
+          style="background:#dc2626;border:none;color:#fff;font-weight:700;font-size:14px;padding:10px 20px;border-radius:10px;cursor:pointer;">Yes, cancel</button>
+      </div>`;
+  }
+
+  async function confirmCancelSubscription() {
+    const btn = document.getElementById('confirmCancelBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Cancelling…'; }
+    try {
+      const r = await fetch('/api/billing/cancel-subscription', {
+        method: 'POST', credentials: 'include',
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || 'Failed.');
+      _billingInfo = null;
+      const box = document.getElementById('payModalBox');
+      if (box) box.innerHTML = `
+        <div style="text-align:center;">
+          <div style="width:56px;height:56px;background:#fef2f2;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <div style="font-family:Fraunces,serif;font-size:20px;font-weight:800;color:#1c1917;margin-bottom:8px;">Subscription cancelled</div>
+          <div style="font-size:13px;color:#78716c;line-height:1.6;margin-bottom:20px;">${d.message}</div>
+          <button onclick="closePayModal();location.reload();" style="background:#4f46e5;border:none;color:#fff;font-weight:700;font-size:14px;padding:10px 24px;border-radius:10px;cursor:pointer;">Got it</button>
+        </div>`;
+    } catch(e) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Yes, cancel'; }
+      alert('Could not cancel: ' + e.message);
+    }
+  }
+
+  async function undoCancellation() {
+    try {
+      const r = await fetch('/api/billing/cancel-downgrade', { method: 'POST', credentials: 'include' });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || 'Failed.');
+      _billingInfo = null;
+      location.reload();
+    } catch(e) {
+      alert('Could not undo: ' + e.message);
+    }
+  }
 
   function ahSignOut() {
     fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
