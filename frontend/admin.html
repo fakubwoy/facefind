@@ -99,7 +99,7 @@
       gap: 7px;
     }
 
-    .logout-btn {
+    .logout-btn-REMOVED {
       background: none;
       border: 1.5px solid var(--border);
       color: var(--muted);
@@ -879,14 +879,8 @@
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M3 20c0-4.4 4-8 9-8s9 3.6 9 8"/></svg>
         —
       </div>
-      <a href="/download.html" class="header-nav-link hidden" id="selfHostedNavLink">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        Self-Hosted
-      </a>
-      <button class="logout-btn" onclick="doLogout()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-        Sign Out
-      </button>
+
+
     </div>
   </header>
 
@@ -1183,7 +1177,7 @@
   async function checkAuth() {
     try {
       const r = await fetch(`${API}/api/auth/me`, { credentials: 'include' });
-      if (!r.ok) { window.location.replace('/login.html'); return; }
+      if (!r.ok) { window.location.replace('/'); return; }
       const user = await r.json();
       document.getElementById('userTag').innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M3 20c0-4.4 4-8 9-8s9 3.6 9 8"/></svg>${user.name || user.email}`;
       // Show the Self-Hosted nav link only for plans that include self-hosted access
@@ -1191,7 +1185,7 @@
         document.getElementById('selfHostedNavLink').classList.remove('hidden');
       }
     } catch {
-      window.location.replace('/login.html');
+      window.location.replace('/');
     }
   }
 
@@ -1513,7 +1507,7 @@
   async function loadDatasets() {
     try {
       const r = await fetch(`${API}/api/datasets`, { credentials: 'include' });
-      if (r.status === 401) { window.location.replace('/login.html'); return; }
+      if (r.status === 401) { window.location.replace('/'); return; }
       const data = await r.json();
       const entries = Object.values(data);
       const list = document.getElementById('datasetList');
