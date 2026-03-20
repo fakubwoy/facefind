@@ -869,12 +869,24 @@ def db_delete_session(token: str):
     cache_delete(f"session:{token}")
 
 def require_auth(request) -> dict:
-    from fastapi import Request
+    """
+    Self-hosted: always return the local user — no auth check needed.
+    Falls back to cookie/header auth if a session exists (autologin sets one),
+    otherwise returns the first user in the DB (always the license holder).
+    """
     token = request.cookies.get("ff_token") or request.headers.get("X-Auth-Token", "")
-    user = db_get_session_user(token)
-    if not user:
-        raise HTTPException(401, "Not authenticated.")
-    return user
+    user = db_get_session_user(token) if token else None
+    if user:
+        return user
+    # Fallback: return first user in DB (single-user app, always the owner)
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM users LIMIT 1")
+            row = cur.fetchone()
+    if row:
+        return dict(row)
+    # No user yet (DB just created, autologin hasn't run) — return a stub
+    return {"id": "local", "email": "local@selfhosted", "name": "Local User", "plan": "photo_pro"}
 
 # ── License key helpers ───────────────────────────────────────────────────────
 
@@ -1663,6 +1675,142 @@ def admin_set_plan(request: Request, target_email: str = Form(...), plan: str = 
 def debug_email():
     """Self-hosted: email is disabled, OTPs are logged to console."""
     return {"status": "Email disabled in self-hosted mode. OTPs are printed to the console."}
+
+
+# ── ngrok public tunnel ───────────────────────────────────────────────────────
+import subprocess, platform, urllib.request, zipfile, stat
+
+NGROK_TOKEN_FILE = DATA_DIR.parent / ".ngrok_token" if "DATA_DIR" in os.environ else Path(".ngrok_token")
+_ngrok_proc = None
+_ngrok_url  = ""
+
+def _ngrok_bin_path() -> Path:
+    base = Path(os.environ.get("DATA_DIR", ".")).parent
+    ext  = ".exe" if platform.system() == "Windows" else ""
+    return base / f"ngrok{ext}"
+
+def _download_ngrok() -> Path:
+    dest = _ngrok_bin_path()
+    if dest.exists():
+        return dest
+    system = platform.system()
+    if system == "Windows":
+        url = "https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip"
+    elif system == "Darwin":
+        url = "https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-darwin-amd64.zip"
+    else:
+        url = "https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.zip"
+    log.info(f"Downloading ngrok from {url}")
+    zip_path = dest.parent / "ngrok.zip"
+    urllib.request.urlretrieve(url, str(zip_path))
+    with zipfile.ZipFile(str(zip_path)) as zf:
+        zf.extractall(str(dest.parent))
+    zip_path.unlink(missing_ok=True)
+    dest.chmod(dest.stat().st_mode | stat.S_IEXEC)
+    log.info(f"ngrok downloaded to {dest}")
+    return dest
+
+def _get_ngrok_url() -> str:
+    try:
+        req = urllib.request.Request("http://127.0.0.1:4040/api/tunnels")
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read())
+        tunnels = data.get("tunnels", [])
+        for t in tunnels:
+            if t.get("proto") == "https":
+                return t["public_url"]
+        if tunnels:
+            return tunnels[0]["public_url"]
+    except Exception:
+        pass
+    return ""
+
+
+@app.get("/api/ngrok/status")
+def ngrok_status():
+    global _ngrok_url
+    token_exists = _ngrok_token_file().exists()
+    if _ngrok_url:
+        # verify tunnel still up
+        live = _get_ngrok_url()
+        if not live:
+            _ngrok_url = ""
+    return {
+        "running":     bool(_ngrok_url),
+        "url":         _ngrok_url,
+        "has_token":   token_exists,
+    }
+
+def _ngrok_token_file() -> Path:
+    base = Path(os.environ.get("DATA_DIR", str(Path.home()))).parent
+    return base / ".ngrok_token"
+
+@app.post("/api/ngrok/start")
+async def ngrok_start(request: Request):
+    global _ngrok_proc, _ngrok_url
+    body = await request.json()
+    token = (body.get("token") or "").strip()
+
+    if _ngrok_url:
+        return {"ok": True, "url": _ngrok_url, "already_running": True}
+
+    # Save token if provided
+    tok_file = _ngrok_token_file()
+    if token:
+        tok_file.write_text(token)
+    elif tok_file.exists():
+        token = tok_file.read_text().strip()
+
+    if not token:
+        raise HTTPException(400, "ngrok authtoken required.")
+
+    try:
+        ngrok_bin = _download_ngrok()
+    except Exception as e:
+        raise HTTPException(500, f"Failed to download ngrok: {e}")
+
+    port = int(os.environ.get("PORT", 8000))
+
+    # Configure token
+    try:
+        subprocess.run(
+            [str(ngrok_bin), "config", "add-authtoken", token],
+            capture_output=True, timeout=10
+        )
+    except Exception as e:
+        raise HTTPException(500, f"Failed to configure ngrok token: {e}")
+
+    # Start tunnel
+    try:
+        _ngrok_proc = subprocess.Popen(
+            [str(ngrok_bin), "http", str(port)],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
+    except Exception as e:
+        raise HTTPException(500, f"Failed to start ngrok: {e}")
+
+    # Wait for tunnel to be ready
+    for _ in range(20):
+        time.sleep(0.5)
+        url = _get_ngrok_url()
+        if url:
+            _ngrok_url = url
+            log.info(f"ngrok tunnel up: {url}")
+            return {"ok": True, "url": url}
+
+    _ngrok_proc.kill()
+    _ngrok_proc = None
+    raise HTTPException(500, "ngrok started but tunnel URL not available. Check your authtoken.")
+
+
+@app.post("/api/ngrok/stop")
+def ngrok_stop():
+    global _ngrok_proc, _ngrok_url
+    if _ngrok_proc:
+        _ngrok_proc.terminate()
+        _ngrok_proc = None
+    _ngrok_url = ""
+    return {"ok": True}
 
 # ── Health ────────────────────────────────────────────────────────────────────
 

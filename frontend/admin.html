@@ -1171,28 +1171,7 @@
   let selectedDatasetId = null;
   let pollingInterval = null;
 
-  // ── Auth guard ─────────────────────────────────────────────────────────────
-  const SELF_HOSTED_PLANS = ['personal_lite','personal_pro','personal_max','photo_starter','photo_pro'];
-
-  async function checkAuth() {
-    try {
-      const r = await fetch(`${API}/api/auth/me`, { credentials: 'include' });
-      if (!r.ok) { window.location.replace('/'); return; }
-      const user = await r.json();
-      document.getElementById('userTag').innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M3 20c0-4.4 4-8 9-8s9 3.6 9 8"/></svg>${user.name || user.email}`;
-      // Show the Self-Hosted nav link only for plans that include self-hosted access
-      if (SELF_HOSTED_PLANS.includes(user.plan)) {
-        document.getElementById('selfHostedNavLink').classList.remove('hidden');
-      }
-    } catch {
-      window.location.replace('/');
-    }
-  }
-
-  async function doLogout() {
-    await fetch(`${API}/api/auth/logout`, { method: 'POST', credentials: 'include' });
-    window.location.replace('/');
-  }
+  // Auth guard removed — self-hosted is always single-user, always authenticated
 
   // ── Tab switching ──────────────────────────────────────────────────────────
   function switchTab(name, btn) {
@@ -1507,7 +1486,7 @@
   async function loadDatasets() {
     try {
       const r = await fetch(`${API}/api/datasets`, { credentials: 'include' });
-      if (r.status === 401) { window.location.replace('/'); return; }
+      if (!r.ok) { console.warn('datasets fetch failed', r.status); return; }
       const data = await r.json();
       const entries = Object.values(data);
       const list = document.getElementById('datasetList');
@@ -1840,10 +1819,11 @@
   async function loadPlanBanner() {
     try {
       const r = await fetch(`${API}/api/auth/me`, { credentials: 'include' });
-      if (!r.ok) return;
-      const user = await r.json();
-      // Backwards-compat: existing users have no plan → 'free'
-      currentPlan = user.plan || 'free';
+      if (r.ok) {
+        const user = await r.json();
+        currentPlan = user.plan || 'free';
+        document.getElementById('userTag').innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M3 20c0-4.4 4-8 9-8s9 3.6 9 8"/></svg>${user.name || user.email}`;
+      }
     } catch { currentPlan = 'free'; }
 
     const cfg = PLAN_CONFIG[currentPlan] || PLAN_CONFIG.free;
@@ -1875,13 +1855,13 @@
     // Style upgrade button
     if (cfg.isProPhoto) {
       upBtn.className = 'plan-upgrade-btn gold';
-      upBtn.href = '/download.html';
+      upBtn.style.display = 'none'; upBtn.href = '#';
       upBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg> Manage plan`;
     } else if (currentPlan !== 'free') {
-      upBtn.href = '/download.html';
+      upBtn.style.display = 'none'; upBtn.href = '#';
       upBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg> Self-Hosted & Upgrade';
     } else {
-      upBtn.href = '/pricing.html';
+      upBtn.style.display = 'none'; upBtn.href = '#';
       upBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg> Upgrade plan';
     }
 
@@ -1913,7 +1893,6 @@
   }
 
   // ── Init ───────────────────────────────────────────────────────────────────
-  checkAuth();
   loadDatasets();
   loadPlanBanner();
   // Background refresh — skips while active polling is running to avoid
