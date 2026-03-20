@@ -1991,7 +1991,7 @@
           extras.push(`<span style="font-size:11px;color:var(--muted);">${bi.days_remaining}d remaining</span>`);
         }
         if (currentPlan !== 'free' && bi.scheduled_downgrade !== 'free') {
-          extras.push(`<button onclick="cancelSubscription()" style="background:none;border:none;font-size:11px;color:var(--muted);cursor:pointer;padding:0;text-decoration:underline;margin-left:2px;">Cancel subscription</button>`);
+          extras.push(`<button onclick="cancelSubscription()" style="background:none;border:1.5px solid var(--border);font-size:11px;color:var(--muted);cursor:pointer;padding:4px 12px;border-radius:6px;font-family:inherit;font-weight:600;transition:border-color 0.2s,color 0.2s;" onmouseover="this.style.borderColor='#dc2626';this.style.color='#dc2626';" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)';">Cancel subscription</button>`);
         }
         if (extras.length) {
           const extraEl = document.createElement('div');

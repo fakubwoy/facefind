@@ -868,7 +868,8 @@
     const box = document.getElementById('payModalBox');
     const targetLabel = PLAN_META[targetPlan]?.label || (targetPlan === 'free' ? 'Free' : targetPlan);
     const newLimits = info?.plan_limits?.[targetPlan] || {};
-    const daysRemaining = info?.days_remaining ?? '—';
+    const daysRemaining = info?.days_remaining ?? null;
+    const daysText = daysRemaining != null ? `~${daysRemaining} days` : 'the rest of your current billing period';
     const over = info?.dataset_count > (newLimits.max_datasets || 0);
 
     box.innerHTML = `
@@ -876,7 +877,7 @@
       <div style="font-size:13px;color:#78716c;margin-bottom:20px;">Your plan change is scheduled — no refund, full access until cycle ends.</div>
       <div style="background:#fffbeb;border:1.5px solid #fde68a;border-radius:12px;padding:14px 16px;margin-bottom:16px;font-size:13px;color:#92400e;line-height:1.6;">
         <strong>What happens:</strong><br>
-        • You keep <strong>${PLAN_META[currentPlan]?.label || currentPlan}</strong> access for the remaining <strong>~${daysRemaining} days</strong> you've already paid for.<br>
+        • You keep <strong>${PLAN_META[currentPlan]?.label || currentPlan}</strong> access for <strong>${daysText}</strong> you've already paid for.<br>
         • Your plan switches to ${targetLabel} at the end of this billing cycle.<br>
         • Your data is safe. Over-limit datasets are flagged (not deleted) with a 30-day grace period.
       </div>
@@ -1039,8 +1040,8 @@
             // Inject cancel link below the current plan button
             const cancelWrap = document.createElement('div');
             cancelWrap.id = 'cancelSubWrap';
-            cancelWrap.style.cssText = 'text-align:center;margin-top:10px;';
-            cancelWrap.innerHTML = `<button onclick="handleCancelSubscription()" style="background:none;border:none;font-size:12px;color:var(--muted,#78716c);cursor:pointer;text-decoration:underline;padding:0;">Cancel subscription</button>`;
+            cancelWrap.style.cssText = 'text-align:center;margin-top:8px;';
+            cancelWrap.innerHTML = `<button onclick="handleCancelSubscription()" style="background:none;border:1.5px solid var(--border,#e8e3db);font-size:12px;color:var(--muted,#78716c);cursor:pointer;padding:6px 16px;border-radius:8px;font-family:inherit;font-weight:600;transition:border-color 0.2s,color 0.2s;" onmouseover="this.style.borderColor='#dc2626';this.style.color='#dc2626';" onmouseout="this.style.borderColor='var(--border,#e8e3db)';this.style.color='var(--muted,#78716c)';">Cancel subscription</button>`;
             el.parentNode && el.parentNode.insertBefore(cancelWrap, el.nextSibling);
           } else if (planRank(plan) < planRank(userPlan)) {
             el.innerHTML = 'Downgrade ' + ARROW_SVG;
@@ -1105,13 +1106,13 @@
       document.body.appendChild(modal);
     }
     const info = await getBillingInfo();
-    const daysLeft = info?.days_remaining ?? '—';
+    const daysLeft = info?.days_remaining != null ? `~${info.days_remaining} days` : 'the rest of your billing period';
     const box = document.getElementById('payModalBox');
     box.innerHTML = `
       <div style="font-family:Fraunces,serif;font-size:20px;font-weight:800;color:#1c1917;margin-bottom:6px;">Cancel subscription?</div>
       <div style="font-size:13px;color:#78716c;margin-bottom:20px;">We're sorry to see you go.</div>
       <div style="background:#f9f7f4;border-radius:12px;padding:14px 16px;margin-bottom:16px;font-size:13px;color:#44403c;line-height:1.7;">
-        • You keep <strong>full access</strong> for the remaining <strong>~${daysLeft} days</strong> you've already paid for<br>
+        • You keep <strong>full access</strong> for <strong>${daysLeft}</strong> you've already paid for<br>
         • After that your account moves to the <strong>free plan</strong><br>
         • Your data is safe — over-limit datasets are flagged, not deleted, with a 30-day grace period<br>
         • You can <strong>resubscribe any time</strong> and pick up where you left off
