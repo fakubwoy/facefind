@@ -1013,7 +1013,8 @@
       .then(user => {
         if (!user) return; // not logged in — CTAs already wired above
 
-        const userPlan = user.plan || 'free';
+        const userPlan     = user.plan || 'free';
+        const userInterval = user.plan_interval || 'monthly';
 
         // Swap nav
         const pricingNav = document.getElementById('mainNav');
@@ -1034,39 +1035,108 @@
           freeStripCta.innerHTML = 'Go to dashboard ' + ARROW_SVG;
         }
 
-        // Update plan CTA labels
-        const billingPromise = getBillingInfo();
-        PLAN_CTAS.forEach(({ id, label, plan }) => {
-          const el = document.getElementById(id);
-          if (!el) return;
-          if (plan === userPlan) {
-            // Show the "Current plan" badge next to the plan name
-            const badgeMap = { 'p1-cta':'badge-p1','p2-cta':'badge-p2','p3-cta':'badge-p3','ph1-cta':'badge-ph1','ph2-cta':'badge-ph2' };
-            const badge = document.getElementById(badgeMap[id]);
-            if (badge) badge.style.display = 'inline-flex';
-            // Change the CTA button to "Cancel plan"
-            const isPhotoPlan = plan.startsWith('photo');
-            el.innerHTML = 'Cancel plan';
-            el.style.opacity = '1';
-            el.style.cursor = 'pointer';
-            el.style.background = 'transparent';
-            el.style.color = isPhotoPlan ? 'var(--gold-dark,#b45309)' : 'var(--primary,#4f46e5)';
-            el.style.border = isPhotoPlan ? '1.5px solid rgba(217,119,6,0.4)' : '1.5px solid rgba(79,70,229,0.35)';
-            el.style.boxShadow = 'none';
-            el.onclick = (e) => { e.preventDefault(); handleCancelSubscription(); };
-          } else if (planRank(plan) < planRank(userPlan)) {
-            el.innerHTML = 'Downgrade ' + ARROW_SVG;
-            el.style.opacity = '0.7';
-          } else {
-            el.innerHTML = label + ' ' + ARROW_SVG;
-          }
-        });
+        const badgeMap = { 'p1-cta':'badge-p1','p2-cta':'badge-p2','p3-cta':'badge-p3','ph1-cta':'badge-ph1','ph2-cta':'badge-ph2' };
 
-        // Enhance upgrade CTAs with savings hints once billing info loads
+        // renderCTAs() is called once now and again whenever the billing toggle changes,
+        // so the "Current plan" badge and button state always match the visible interval.
+        function renderCTAs() {
+          PLAN_CTAS.forEach(({ id, label, plan }) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const badge = document.getElementById(badgeMap[id]);
+            const isPhotoPlan = plan.startsWith('photo');
+            const isSamePlan = plan === userPlan;
+            const isSameInterval = billing === userInterval;
+
+            if (isSamePlan && isSameInterval) {
+              // Exact match — show "Current plan" badge and "Cancel plan" button
+              if (badge) badge.style.display = 'inline-flex';
+              el.innerHTML = 'Cancel plan';
+              el.style.opacity = '1';
+              el.style.cursor = 'pointer';
+              el.style.background = 'transparent';
+              el.style.color = isPhotoPlan ? 'var(--gold-dark,#b45309)' : 'var(--primary,#4f46e5)';
+              el.style.border = isPhotoPlan ? '1.5px solid rgba(217,119,6,0.4)' : '1.5px solid rgba(79,70,229,0.35)';
+              el.style.boxShadow = 'none';
+              el.onclick = (e) => { e.preventDefault(); handleCancelSubscription(); };
+
+            } else if (isSamePlan && !isSameInterval) {
+              // Same plan tier, different interval — offer a switch
+              if (badge) badge.style.display = 'none';
+              const switchLabel = billing === 'annual' ? 'Switch to Annual' : 'Switch to Monthly';
+              el.innerHTML = switchLabel + ' ' + ARROW_SVG;
+              el.style.opacity = '1';
+              el.style.cursor = 'pointer';
+              el.style.background = isPhotoPlan ? 'var(--gold,#d97706)' : 'var(--primary,#4f46e5)';
+              el.style.color = '#fff';
+              el.style.border = 'none';
+              el.style.boxShadow = '';
+              el.onclick = (e) => { e.preventDefault(); startCheckout(plan); };
+
+            } else if (planRank(plan) < planRank(userPlan)) {
+              if (badge) badge.style.display = 'none';
+              el.innerHTML = 'Downgrade ' + ARROW_SVG;
+              el.style.opacity = '0.7';
+              el.style.background = '';
+              el.style.color = '';
+              el.style.border = '';
+              el.style.boxShadow = '';
+              el.onclick = (e) => { e.preventDefault(); startCheckout(plan); };
+
+            } else {
+              if (badge) badge.style.display = 'none';
+              el.innerHTML = label + ' ' + ARROW_SVG;
+              el.style.opacity = '1';
+              el.style.background = '';
+              el.style.color = '';
+              el.style.border = '';
+              el.style.boxShadow = '';
+              el.onclick = (e) => { e.preventDefault(); startCheckout(plan); };
+            }
+          });
+        }
+
+        // Initial render
+        renderCTAs();
+
+        // Re-render CTAs whenever the billing toggle changes so badge/button
+        // always reflects which interval tab is currently visible.
+        const _origSetBilling = window.setBilling;
+        window.setBilling = function(m) {
+          _origSetBilling(m);
+          renderCTAs();
+        };
+
+        // Enhance state once billing info loads — undo state, renewal badge, savings hints
+        const billingPromise = getBillingInfo();
         billingPromise.then(info => {
           if (!info) return;
 
-          // Show renewal date on the current plan card
+          // Scheduled cancellation: fold "Undo" state into the setBilling wrapper
+          // so it re-applies on every toggle switch.
+          if (info.scheduled_downgrade === 'free') {
+            const dAt = info.scheduled_downgrade_at
+              ? new Date(info.scheduled_downgrade_at * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+              : '';
+            const applyUndo = () => {
+              PLAN_CTAS.forEach(({ id, plan }) => {
+                if (plan !== userPlan || billing !== userInterval) return;
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.innerHTML = `Cancels ${dAt} — <span style="text-decoration:underline">Undo</span>`;
+                el.style.color = '#dc2626';
+                el.style.border = '1.5px solid rgba(220,38,38,0.35)';
+                el.onclick = (e) => { e.preventDefault(); undoCancellation(); };
+              });
+            };
+            const _prev = window.setBilling;
+            window.setBilling = function(m) { _prev(m); applyUndo(); };
+            applyUndo();
+            const freeStrip = document.getElementById('freeStripCta');
+            if (freeStrip) freeStrip.style.display = 'none';
+          }
+
+          // Renewal badge — only visible when the toggle matches the user's interval
           if (info.renewal_at && info.plan !== 'free') {
             const renewalDate = new Date(info.renewal_at * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
             const intervalLabel = info.plan_interval === 'annual' ? 'Annual' : 'Monthly';
@@ -1074,36 +1144,22 @@
               if (plan !== userPlan) return;
               const el = document.getElementById(id);
               if (!el || !el.parentNode) return;
-              const existing = el.parentNode.querySelector('.renewal-badge');
-              if (existing) return;
-              const badge = document.createElement('div');
-              badge.className = 'renewal-badge';
-              badge.style.cssText = 'font-size:11px;color:#78716c;font-weight:600;margin-top:4px;';
-              badge.textContent = `${intervalLabel} · renews ${renewalDate}`;
-              el.parentNode.insertBefore(badge, el.nextSibling);
+              let badge = el.parentNode.querySelector('.renewal-badge');
+              if (!badge) {
+                badge = document.createElement('div');
+                badge.className = 'renewal-badge';
+                badge.style.cssText = 'font-size:11px;color:#78716c;font-weight:600;margin-top:4px;';
+                badge.textContent = `${intervalLabel} · renews ${renewalDate}`;
+                el.parentNode.insertBefore(badge, el.nextSibling);
+              }
+              const syncBadge = () => { badge.style.display = (billing === userInterval) ? 'block' : 'none'; };
+              syncBadge();
+              const _prev2 = window.setBilling;
+              window.setBilling = function(m) { _prev2(m); syncBadge(); };
             });
           }
 
-          // If cancellation is already scheduled, update the cancel button to show "Undo" state
-          if (info.scheduled_downgrade === 'free') {
-            const badgeMap = { 'p1-cta':'badge-p1','p2-cta':'badge-p2','p3-cta':'badge-p3','ph1-cta':'badge-ph1','ph2-cta':'badge-ph2' };
-            PLAN_CTAS.forEach(({ id, plan }) => {
-              if (plan !== userPlan) return;
-              const el = document.getElementById(id);
-              if (!el) return;
-              const dAt = info.scheduled_downgrade_at
-                ? new Date(info.scheduled_downgrade_at * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
-                : '';
-              const isPhotoPlan = plan.startsWith('photo');
-              el.innerHTML = `Cancels ${dAt} — <span style="text-decoration:underline">Undo</span>`;
-              el.style.color = '#dc2626';
-              el.style.border = '1.5px solid rgba(220,38,38,0.35)';
-              el.onclick = (e) => { e.preventDefault(); undoCancellation(); };
-            });
-            const freeStrip = document.getElementById('freeStripCta');
-            if (freeStrip) freeStrip.style.display = 'none';
-          }
-
+          // Savings hints on upgrade cards
           PLAN_CTAS.forEach(({ id, plan }) => {
             const el = document.getElementById(id);
             if (!el || plan === userPlan || planRank(plan) <= planRank(userPlan)) return;
@@ -1113,16 +1169,16 @@
             if (!cost) return;
             const savings = cost.full_price_paise - cost.charge_paise;
             if (savings > 0) {
-              const badge = document.createElement('div');
-              badge.style.cssText = 'font-size:11px;color:#059669;font-weight:700;margin-top:4px;';
-              badge.textContent = `Save ${inrFmt(savings)} with your credits`;
-              el.parentNode && el.parentNode.insertBefore(badge, el.nextSibling);
+              const hint = document.createElement('div');
+              hint.style.cssText = 'font-size:11px;color:#059669;font-weight:700;margin-top:4px;';
+              hint.textContent = `Save ${inrFmt(savings)} with your credits`;
+              el.parentNode && el.parentNode.insertBefore(hint, el.nextSibling);
             }
             if (cost.loyalty_eligible) {
-              const badge2 = document.createElement('div');
-              badge2.style.cssText = 'font-size:11px;color:#d97706;font-weight:700;margin-top:2px;';
-              badge2.textContent = '20% loyalty discount available';
-              el.parentNode && el.parentNode.insertBefore(badge2, el.nextSibling);
+              const hint2 = document.createElement('div');
+              hint2.style.cssText = 'font-size:11px;color:#d97706;font-weight:700;margin-top:2px;';
+              hint2.textContent = '20% loyalty discount available';
+              el.parentNode && el.parentNode.insertBefore(hint2, el.nextSibling);
             }
           });
         });
