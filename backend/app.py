@@ -2373,6 +2373,7 @@ async def cancel_subscription(request: Request):
 
 
 
+@app.post("/api/billing/apply-downgrade")
 async def apply_downgrade(request: Request):
     """
     Internal/cron endpoint: apply any scheduled downgrades that are due.

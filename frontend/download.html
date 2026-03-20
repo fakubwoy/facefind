@@ -959,7 +959,7 @@
 
   async function doLogout() {
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
-    window.location.href = '/login.html';
+    window.location.href = '/';
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────

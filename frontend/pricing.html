@@ -101,7 +101,10 @@
     .pip-blue { background:var(--primary); }
     .pip-gold { background:var(--gold); }
 
-    .card-name { font-family:'Fraunces',serif; font-size:22px; font-weight:800; color:var(--text); letter-spacing:-0.4px; margin-bottom:5px; }
+    .card-name { font-family:'Fraunces',serif; font-size:22px; font-weight:800; color:var(--text); letter-spacing:-0.4px; margin-bottom:5px; display:flex; align-items:center; gap:9px; flex-wrap:wrap; }
+    .current-plan-badge { font-family:'Plus Jakarta Sans',sans-serif; font-size:10.5px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase; padding:3px 10px; border-radius:999px; white-space:nowrap; display:none; align-items:center; gap:5px; }
+    .current-plan-badge.badge-blue { background:var(--primary-light); color:var(--primary); border:1.5px solid rgba(79,70,229,0.25); }
+    .current-plan-badge.badge-gold { background:var(--gold-light); color:var(--gold-dark); border:1.5px solid rgba(217,119,6,0.25); }
     .card-tagline { font-size:13px; color:var(--muted); line-height:1.5; margin-bottom:22px; min-height:40px; }
     .card-price { display:flex; align-items:flex-end; gap:3px; margin-bottom:4px; }
     .p-sym { font-size:18px; font-weight:700; color:var(--text); padding-bottom:6px; }
@@ -378,7 +381,7 @@
 
       <!-- Lite -->
       <div class="plan-card fade-up d1">
-        <div class="card-name">Lite</div>
+        <div class="card-name">Lite<span class="current-plan-badge badge-blue" id="badge-p1">✓ Current plan</span></div>
         <div class="card-tagline">Occasional events — a few per year.</div>
         <div class="card-price"><span class="p-sym">&#x20B9;</span><span class="p-num" id="p1-num">99</span><span class="p-cad" id="p1-cad">/month</span></div>
         <div class="p-eq" id="p1-eq">&nbsp;</div>
@@ -401,7 +404,7 @@
       <!-- Pro (featured) -->
       <div class="plan-card card-featured fade-up d2">
         <span class="card-pip pip-blue"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> Most popular</span>
-        <div class="card-name">Pro</div>
+        <div class="card-name">Pro<span class="current-plan-badge badge-blue" id="badge-p2">✓ Current plan</span></div>
         <div class="card-tagline">Regular events — families, parties, reunions.</div>
         <div class="card-price"><span class="p-sym">&#x20B9;</span><span class="p-num" id="p2-num">199</span><span class="p-cad" id="p2-cad">/month</span></div>
         <div class="p-eq" id="p2-eq">&nbsp;</div>
@@ -423,7 +426,7 @@
 
       <!-- Max -->
       <div class="plan-card fade-up d3">
-        <div class="card-name">Max</div>
+        <div class="card-name">Max<span class="current-plan-badge badge-blue" id="badge-p3">✓ Current plan</span></div>
         <div class="card-tagline">Power users with large or frequent collections.</div>
         <div class="card-price"><span class="p-sym">&#x20B9;</span><span class="p-num" id="p3-num">349</span><span class="p-cad" id="p3-cad">/month</span></div>
         <div class="p-eq" id="p3-eq">&nbsp;</div>
@@ -455,7 +458,7 @@
       <!-- Studio Starter -->
       <div class="plan-card card-gold fade-up d1">
         <span class="card-pip" style="visibility:hidden;">placeholder</span>
-        <div class="card-name">Studio Starter</div>
+        <div class="card-name">Studio Starter<span class="current-plan-badge badge-gold" id="badge-ph1">✓ Current plan</span></div>
         <div class="card-tagline">Starting out, or running a handful of events per month.</div>
         <div class="card-price"><span class="p-sym">&#x20B9;</span><span class="p-num" id="ph1-num">599</span><span class="p-cad" id="ph1-cad">/month</span></div>
         <div class="p-eq" id="ph1-eq">&nbsp;</div>
@@ -481,7 +484,7 @@
       <!-- Studio Pro (featured) -->
       <div class="plan-card card-gold-feat fade-up d2">
         <span class="card-pip pip-gold"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> Best value</span>
-        <div class="card-name">Studio Pro</div>
+        <div class="card-name">Studio Pro<span class="current-plan-badge badge-gold" id="badge-ph2">✓ Current plan</span></div>
         <div class="card-tagline">Full-time photographers running events regularly.</div>
         <div class="card-price"><span class="p-sym">&#x20B9;</span><span class="p-num" id="ph2-num">1,499</span><span class="p-cad" id="ph2-cad">/month</span></div>
         <div class="p-eq" id="ph2-eq">&nbsp;</div>
@@ -1033,16 +1036,20 @@
           const el = document.getElementById(id);
           if (!el) return;
           if (plan === userPlan) {
-            el.innerHTML = '✓ Current plan';
-            el.style.opacity = '0.55';
-            el.style.cursor = 'default';
-            el.onclick = (e) => e.preventDefault();
-            // Inject cancel link below the current plan button
-            const cancelWrap = document.createElement('div');
-            cancelWrap.id = 'cancelSubWrap';
-            cancelWrap.style.cssText = 'text-align:center;margin-top:8px;';
-            cancelWrap.innerHTML = `<button onclick="handleCancelSubscription()" style="background:none;border:1.5px solid var(--border,#e8e3db);font-size:12px;color:var(--muted,#78716c);cursor:pointer;padding:6px 16px;border-radius:8px;font-family:inherit;font-weight:600;transition:border-color 0.2s,color 0.2s;" onmouseover="this.style.borderColor='#dc2626';this.style.color='#dc2626';" onmouseout="this.style.borderColor='var(--border,#e8e3db)';this.style.color='var(--muted,#78716c)';">Cancel subscription</button>`;
-            el.parentNode && el.parentNode.insertBefore(cancelWrap, el.nextSibling);
+            // Show the "Current plan" badge next to the plan name
+            const badgeMap = { 'p1-cta':'badge-p1','p2-cta':'badge-p2','p3-cta':'badge-p3','ph1-cta':'badge-ph1','ph2-cta':'badge-ph2' };
+            const badge = document.getElementById(badgeMap[id]);
+            if (badge) badge.style.display = 'inline-flex';
+            // Change the CTA button to "Cancel plan"
+            const isPhotoPlan = plan.startsWith('photo');
+            el.innerHTML = 'Cancel plan';
+            el.style.opacity = '1';
+            el.style.cursor = 'pointer';
+            el.style.background = 'transparent';
+            el.style.color = isPhotoPlan ? 'var(--gold-dark,#b45309)' : 'var(--primary,#4f46e5)';
+            el.style.border = isPhotoPlan ? '1.5px solid rgba(217,119,6,0.4)' : '1.5px solid rgba(79,70,229,0.35)';
+            el.style.boxShadow = 'none';
+            el.onclick = (e) => { e.preventDefault(); handleCancelSubscription(); };
           } else if (planRank(plan) < planRank(userPlan)) {
             el.innerHTML = 'Downgrade ' + ARROW_SVG;
             el.style.opacity = '0.7';
@@ -1055,16 +1062,22 @@
         billingPromise.then(info => {
           if (!info) return;
 
-          // If cancellation is already scheduled, update free strip to show undo option
+          // If cancellation is already scheduled, update the cancel button to show "Undo" state
           if (info.scheduled_downgrade === 'free') {
-            const cancelWrap = document.getElementById('cancelSubWrap');
-            if (cancelWrap) {
+            const badgeMap = { 'p1-cta':'badge-p1','p2-cta':'badge-p2','p3-cta':'badge-p3','ph1-cta':'badge-ph1','ph2-cta':'badge-ph2' };
+            PLAN_CTAS.forEach(({ id, plan }) => {
+              if (plan !== userPlan) return;
+              const el = document.getElementById(id);
+              if (!el) return;
               const dAt = info.scheduled_downgrade_at
                 ? new Date(info.scheduled_downgrade_at * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
                 : '';
-              cancelWrap.innerHTML = `<span style="font-size:12px;color:#dc2626;font-weight:600;">Cancels ${dAt} — <button onclick="undoCancellation()" style="background:none;border:none;color:#dc2626;font-size:12px;font-weight:700;cursor:pointer;padding:0;text-decoration:underline;">Undo</button></span>`;
-            }
-            // Also remove the free strip undo block if it exists (cleanup)
+              const isPhotoPlan = plan.startsWith('photo');
+              el.innerHTML = `Cancels ${dAt} — <span style="text-decoration:underline">Undo</span>`;
+              el.style.color = '#dc2626';
+              el.style.border = '1.5px solid rgba(220,38,38,0.35)';
+              el.onclick = (e) => { e.preventDefault(); undoCancellation(); };
+            });
             const freeStrip = document.getElementById('freeStripCta');
             if (freeStrip) freeStrip.style.display = 'none';
           }
@@ -1164,6 +1177,6 @@
 
   function ahSignOut() {
     fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
-      .finally(() => { window.location.href = '/login.html'; });
+      .finally(() => { window.location.href = '/'; });
   }
 </script>
