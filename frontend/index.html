@@ -124,12 +124,12 @@
 
     /* ── Hero ── */
     .hero {
-      max-width: 1100px;
+      max-width: 1200px;
       margin: 0 auto;
       padding: 88px 28px 72px;
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 48px;
+      grid-template-columns: 1fr 1.2fr;
+      gap: 32px;
       align-items: center;
     }
     @media (max-width: 820px) {
@@ -148,7 +148,7 @@
       border-radius: 100px;
       margin-bottom: 24px;
       border: 1px solid rgba(79,70,229,0.15);
-      animation: fadeInDown 0.6s ease both;
+      animation: fadeInDown 0.35s ease both;
     }
     .hero-title {
       font-family: 'Fraunces', serif;
@@ -158,7 +158,7 @@
       letter-spacing: -2px;
       margin-bottom: 22px;
       color: var(--text);
-      animation: fadeInUp 0.7s 0.1s ease both;
+      animation: fadeInUp 0.4s 0.05s ease both;
     }
     .hero-title .highlight { color: var(--primary); }
     .hero-desc {
@@ -167,13 +167,13 @@
       line-height: 1.75;
       margin-bottom: 38px;
       max-width: 460px;
-      animation: fadeInUp 0.7s 0.2s ease both;
+      animation: fadeInUp 0.4s 0.1s ease both;
     }
     .hero-actions {
       display: flex;
       gap: 12px;
       flex-wrap: wrap;
-      animation: fadeInUp 0.7s 0.3s ease both;
+      animation: fadeInUp 0.4s 0.15s ease both;
     }
     .btn-primary {
       display: inline-flex;
@@ -216,7 +216,7 @@
       margin-top: 28px;
       font-size: 13px;
       color: var(--muted);
-      animation: fadeInUp 0.7s 0.4s ease both;
+      animation: fadeInUp 0.4s 0.2s ease both;
     }
     .proof-avatars { display: flex; }
     .proof-avatar {
@@ -239,14 +239,13 @@
       display: flex;
       justify-content: center;
       align-items: center;
-      animation: fadeIn 0.8s 0.3s ease both;
+      animation: fadeIn 0.5s 0.15s ease both;
     }
 
     /* Wrapper that holds the scene + the step label above */
     .laptop-anim-wrap {
       position: relative;
       width: 100%;
-      max-width: 620px;
     }
 
     /* Step label — floats above the laptop, fades in/out */
@@ -265,7 +264,7 @@
       box-shadow: 0 4px 20px rgba(79,70,229,0.12);
       white-space: nowrap;
       opacity: 0;
-      transition: opacity 0.45s ease;
+      transition: opacity 0.25s ease;
       pointer-events: none;
       z-index: 10;
     }
@@ -290,7 +289,7 @@
     .scene {
       position: relative;
       width: 100%;
-      padding-bottom: 62%;
+      padding-bottom: 57%;
       height: 0;
     }
     .scene > svg.bg-svg {
@@ -308,8 +307,8 @@
     */
     .screen-overlay {
       position: absolute;
-      left: 23.29%; top: 15.88%;
-      width: 53.41%; height: 48.04%;
+      left: 12.24%; top: 9.39%;
+      width: 75.52%; height: 74.24%;
       border-radius: 3px;
       overflow: hidden;
       display: flex;
@@ -341,7 +340,7 @@
     .stage {
       position: absolute; inset: 0;
       opacity: 0;
-      transition: opacity 0.55s ease;
+      transition: opacity 0.3s ease;
     }
     .stage.active { opacity: 1; }
     .stage svg { width: 100%; height: 100%; display: block; }
@@ -463,14 +462,14 @@
     @keyframes fadeInDown { from { opacity:0; transform:translateY(-12px); } to { opacity:1; transform:translateY(0); } }
     @keyframes fadeInUp   { from { opacity:0; transform:translateY(20px); }  to { opacity:1; transform:translateY(0); } }
     @keyframes fadeIn     { from { opacity:0; }                               to { opacity:1; } }
-    .fade-up { opacity:0; transform:translateY(28px); transition: opacity 0.65s ease, transform 0.65s ease; }
+    .fade-up { opacity:0; transform:translateY(28px); transition: opacity 0.4s ease, transform 0.4s ease; }
     .fade-up.visible { opacity:1; transform:translateY(0); }
-    .fade-up.delay-1 { transition-delay:0.1s; }
-    .fade-up.delay-2 { transition-delay:0.2s; }
-    .fade-up.delay-3 { transition-delay:0.3s; }
-    .fade-up.delay-4 { transition-delay:0.4s; }
-    .fade-up.delay-5 { transition-delay:0.5s; }
-    .fade-up.delay-6 { transition-delay:0.6s; }
+    .fade-up.delay-1 { transition-delay:0.05s; }
+    .fade-up.delay-2 { transition-delay:0.1s; }
+    .fade-up.delay-3 { transition-delay:0.15s; }
+    .fade-up.delay-4 { transition-delay:0.2s; }
+    .fade-up.delay-5 { transition-delay:0.25s; }
+    .fade-up.delay-6 { transition-delay:0.3s; }
   </style>
 </head>
 <body>
@@ -530,7 +529,7 @@
 
         <div class="scene">
           <!-- Static laptop + person SVG -->
-          <svg class="bg-svg" viewBox="0 0 820 510" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <svg class="bg-svg" viewBox="120 50 580 330" fill="none" xmlns="http://www.w3.org/2000/svg">
             <rect width="820" height="510" fill="#f9f7f4"/>
             <!-- Desk (shorter — raised up) -->
             <line x1="0" y1="368" x2="820" y2="368" stroke="#4f46e5" stroke-width="3.5" stroke-linecap="round"/>
@@ -889,7 +888,7 @@
     const stepNum   = document.getElementById('stepNum');
     const stepText  = document.getElementById('stepText');
     let current = 0;
-    const DURATION = 4500;
+    const DURATION = 2500;
 
     function goTo(n) {
       // Fade out stage + label
@@ -904,11 +903,11 @@
         stepNum.textContent  = STEPS[current].num;
         stepText.textContent = STEPS[current].text;
         stepLabel.classList.add('visible');
-      }, 300);
+      }, 150);
     }
 
     // Show first label immediately
-    setTimeout(() => stepLabel.classList.add('visible'), 600);
+    setTimeout(() => stepLabel.classList.add('visible'), 300);
 
     setInterval(() => goTo(current + 1), DURATION);
 
