@@ -176,6 +176,9 @@ jobs:
               import app as facefind_app
               import hashlib, secrets, time as t, uuid
 
+              # DB tables must exist before we touch them — init_db is idempotent
+              facefind_app.init_db()
+
               user_info = fetch_user_info(key)
 
               if user_info and user_info.get("email"):
