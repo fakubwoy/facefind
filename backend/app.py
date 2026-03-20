@@ -7,7 +7,7 @@ FaceFind – Backend API (Railway Edition)
 """
 
 import os, io, re, uuid, time, json, pickle, zipfile, threading, hashlib, secrets, base64
-import smtplib, random
+import smtplib, random, hmac
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.message import EmailMessage
@@ -148,6 +148,18 @@ def init_db():
                     created_at  DOUBLE PRECISION,
                     expires_at  DOUBLE PRECISION,
                     used        BOOLEAN DEFAULT FALSE
+                );
+            """)
+            # Razorpay orders table
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS razorpay_orders (
+                    order_id        TEXT PRIMARY KEY,
+                    user_id         TEXT NOT NULL,
+                    plan            TEXT NOT NULL,
+                    amount_paise    INT NOT NULL,
+                    status          TEXT DEFAULT 'created',
+                    payment_id      TEXT,
+                    created_at      DOUBLE PRECISION
                 );
             """)
         conn.commit()
@@ -412,6 +424,19 @@ SELF_HOSTED_PLAN_LIMITS = {
         "max_activations":     5,
         "offline_grace_hours": 336,
     },
+}
+
+# ── Razorpay config ───────────────────────────────────────────────────────────
+RAZORPAY_KEY_ID     = os.environ.get("RAZORPAY_KEY_ID", "")
+RAZORPAY_KEY_SECRET = os.environ.get("RAZORPAY_KEY_SECRET", "")
+
+# Amount in paise (INR × 100), plan key → monthly amount
+PLAN_PRICES_PAISE = {
+    "personal_lite":  9900,    # ₹99
+    "personal_pro":   19900,   # ₹199
+    "personal_max":   34900,   # ₹349
+    "photo_starter":  59900,   # ₹599
+    "photo_pro":      149900,  # ₹1,499
 }
 
 def get_plan_limits(user: dict) -> dict:
@@ -1662,6 +1687,204 @@ def revoke_license(request: Request):
 
     log.info(f"License revoked for user {user['id']}")
     return {"ok": True, "message": "License key revoked. You can generate a new one at any time."}
+
+
+# ── Payment endpoints (Razorpay) ──────────────────────────────────────────────
+
+@app.post("/api/payments/create-order")
+async def create_order(request: Request):
+    """
+    Create a Razorpay order for the selected plan.
+    Called by the pricing page when the user clicks a plan CTA.
+    Returns the order_id + key_id needed to open the Razorpay checkout modal.
+    """
+    user = require_auth(request)
+
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body.")
+
+    plan = (body.get("plan") or "").strip()
+    if plan not in PLAN_PRICES_PAISE:
+        raise HTTPException(400, f"Unknown plan: {plan}")
+
+    if not RAZORPAY_KEY_ID or not RAZORPAY_KEY_SECRET:
+        raise HTTPException(503, "Payment gateway not configured. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in Railway environment variables.")
+
+    amount_paise = PLAN_PRICES_PAISE[plan]
+
+    # Create order via Razorpay REST API
+    receipt = f"ff_{user['id'][:8]}_{plan[:6]}_{int(time.time())}"
+    order_payload = json.dumps({
+        "amount":   amount_paise,
+        "currency": "INR",
+        "receipt":  receipt,
+        "notes": {
+            "user_id":    user["id"],
+            "user_email": user["email"],
+            "plan":       plan,
+        },
+    }).encode()
+
+    auth_str = base64.b64encode(f"{RAZORPAY_KEY_ID}:{RAZORPAY_KEY_SECRET}".encode()).decode()
+    rz_req = urllib.request.Request(
+        "https://api.razorpay.com/v1/orders",
+        data=order_payload,
+        headers={
+            "Content-Type":  "application/json",
+            "Authorization": f"Basic {auth_str}",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(rz_req, timeout=15) as resp:
+            rz_order = json.loads(resp.read())
+    except Exception as e:
+        log.error(f"Razorpay create order error: {e}")
+        raise HTTPException(502, "Could not create payment order. Please try again.")
+
+    order_id = rz_order["id"]
+
+    # Persist order so we can verify it later
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO razorpay_orders (order_id, user_id, plan, amount_paise, status, created_at)
+                VALUES (%s, %s, %s, %s, 'created', %s)
+            """, (order_id, user["id"], plan, amount_paise, time.time()))
+        conn.commit()
+
+    log.info(f"Razorpay order created: {order_id} user={user['id']} plan={plan}")
+    return {
+        "order_id":    order_id,
+        "amount":      amount_paise,
+        "currency":    "INR",
+        "key_id":      RAZORPAY_KEY_ID,
+        "user_name":   user["name"],
+        "user_email":  user["email"],
+        "plan":        plan,
+    }
+
+
+@app.post("/api/payments/verify")
+async def verify_payment(request: Request):
+    """
+    Verify the Razorpay payment signature after checkout completes.
+    On success: updates the user's plan and marks the order paid.
+
+    Body (JSON):
+        razorpay_order_id, razorpay_payment_id, razorpay_signature
+    """
+    user = require_auth(request)
+
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body.")
+
+    order_id   = body.get("razorpay_order_id", "")
+    payment_id = body.get("razorpay_payment_id", "")
+    signature  = body.get("razorpay_signature", "")
+
+    if not all([order_id, payment_id, signature]):
+        raise HTTPException(400, "Missing payment fields.")
+
+    # ── Verify HMAC-SHA256 signature ─────────────────────────────────────────
+    expected = hmac.new(
+        RAZORPAY_KEY_SECRET.encode(),
+        f"{order_id}|{payment_id}".encode(),
+        hashlib.sha256,
+    ).hexdigest()
+
+    if not hmac.compare_digest(expected, signature):
+        log.warning(f"Razorpay signature mismatch for order {order_id}")
+        raise HTTPException(400, "Payment verification failed. Signature mismatch.")
+
+    # ── Fetch the order from our DB ──────────────────────────────────────────
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT * FROM razorpay_orders WHERE order_id=%s AND user_id=%s",
+                (order_id, user["id"])
+            )
+            order_row = cur.fetchone()
+
+    if not order_row:
+        raise HTTPException(404, "Order not found.")
+
+    if order_row["status"] == "paid":
+        # Idempotent — already processed
+        return {"ok": True, "plan": order_row["plan"], "already_processed": True}
+
+    plan = order_row["plan"]
+
+    # ── Update user plan + mark order paid ───────────────────────────────────
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE users SET plan=%s WHERE id=%s", (plan, user["id"]))
+            cur.execute(
+                "UPDATE razorpay_orders SET status='paid', payment_id=%s WHERE order_id=%s",
+                (payment_id, order_id)
+            )
+        conn.commit()
+
+    # Invalidate any cached session so /api/auth/me returns the new plan
+    token = request.cookies.get("ff_token", "")
+    if token:
+        cache_delete(f"session:{token}")
+
+    log.info(f"Payment verified: order={order_id} payment={payment_id} user={user['id']} plan={plan}")
+
+    # Send confirmation email (non-blocking, best-effort)
+    try:
+        plan_labels = {
+            "personal_lite":  "Personal Lite",
+            "personal_pro":   "Personal Pro",
+            "personal_max":   "Personal Max",
+            "photo_starter":  "Studio Starter",
+            "photo_pro":      "Studio Pro",
+        }
+        plan_label = plan_labels.get(plan, plan)
+        amount_inr = order_row["amount_paise"] // 100
+        html = f"""
+        <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:480px;margin:0 auto;background:#f9f7f4;padding:32px 24px">
+          <div style="text-align:center;margin-bottom:24px">
+            <span style="font-size:28px;font-weight:800;color:#4f46e5;letter-spacing:-1px">FaceFind</span>
+          </div>
+          <div style="background:#fff;border-radius:16px;padding:36px;box-shadow:0 4px 16px rgba(0,0,0,0.07)">
+            <div style="text-align:center;margin-bottom:20px;">
+              <div style="width:56px;height:56px;background:#ecfdf5;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+            </div>
+            <h2 style="margin:0 0 8px;font-size:20px;color:#1c1917;text-align:center">Payment confirmed!</h2>
+            <p style="margin:0 0 24px;font-size:14px;color:#78716c;text-align:center">
+              Your <strong style="color:#1c1917">{plan_label}</strong> plan is now active.
+            </p>
+            <div style="background:#f9f7f4;border-radius:10px;padding:16px 20px;margin-bottom:24px;">
+              <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:8px;">
+                <span style="color:#78716c">Plan</span><span style="font-weight:700;color:#1c1917">{plan_label}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:8px;">
+                <span style="color:#78716c">Amount paid</span><span style="font-weight:700;color:#1c1917">&#x20B9;{amount_inr}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:13px;">
+                <span style="color:#78716c">Payment ID</span><span style="font-weight:600;color:#4f46e5;font-size:11px;font-family:monospace">{payment_id}</span>
+              </div>
+            </div>
+            <a href="https://facefind-production.up.railway.app/admin.html"
+               style="display:block;text-align:center;background:#4f46e5;color:#fff;font-weight:700;font-size:14px;padding:12px 24px;border-radius:10px;text-decoration:none;">
+              Go to Dashboard
+            </a>
+          </div>
+        </div>
+        """
+        send_email(user["email"], f"FaceFind — {plan_label} plan activated ✓", html)
+    except Exception as e:
+        log.warning(f"Could not send payment confirmation email: {e}")
+
+    return {"ok": True, "plan": plan}
 
 
 # ── Admin endpoints ───────────────────────────────────────────────────────────

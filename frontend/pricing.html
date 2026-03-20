@@ -8,6 +8,7 @@
   <meta name="robots" content="index, follow" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700;9..144,800;9..144,900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -260,6 +261,13 @@
     }
     #adminHeader .ah-nav-link:hover { border-color: #d4cfc7; color: #44403c; background: #f2efe9; }
     #adminHeader .ah-nav-link.hidden { display: none; }
+    #adminHeader .ah-nav-link#ahSelfHostedLink {
+      color: var(--primary); border-color: rgba(79,70,229,0.3);
+      background: var(--primary-light);
+    }
+    #adminHeader .ah-nav-link#ahSelfHostedLink:hover {
+      background: #e0e7ff; border-color: var(--primary); color: var(--primary-dark);
+    }
   </style>
 </head>
 <body>
@@ -277,7 +285,7 @@
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M3 20c0-4.4 4-8 9-8s9 3.6 9 8"/></svg>
       —
     </div>
-    <a href="/download.html" class="ah-nav-link" id="ahSelfHostedLink">
+    <a href="/download.html" class="ah-nav-link hidden" id="ahSelfHostedLink">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Self-Hosted
     </a>
@@ -685,18 +693,131 @@
 <script>
   // ── Auth-aware UI ─────────────────────────────────────────────────────────────
   // Checks if the user is logged in and adapts the page accordingly:
-  //   - Nav CTA → "Go to dashboard" (with avatar initial)
-  //   - Free strip CTA → "Go to dashboard"
-  //   - All plan card CTAs → "Upgrade to X" (keeps existing label text, changes href)
-  //   - For self-hosted eligible plans → plan card CTAs point to /download.html
-  //   - Footer sign-in link → "Dashboard"
+  // ── Razorpay checkout ──────────────────────────────────────────────────────
+  const PLAN_META = {
+    'personal_lite':  { label: 'Personal Lite',    amount: '₹99/mo'    },
+    'personal_pro':   { label: 'Personal Pro',     amount: '₹199/mo'   },
+    'personal_max':   { label: 'Personal Max',     amount: '₹349/mo'   },
+    'photo_starter':  { label: 'Studio Starter',   amount: '₹599/mo'   },
+    'photo_pro':      { label: 'Studio Pro',       amount: '₹1,499/mo' },
+  };
+
+  async function startCheckout(plan) {
+    let me;
+    try {
+      const r = await fetch('/api/auth/me', { credentials: 'include' });
+      if (!r.ok) { window.location.href = `/login.html?next=/pricing.html`; return; }
+      me = await r.json();
+    } catch { window.location.href = `/login.html?next=/pricing.html`; return; }
+
+    showPayModal('loading', plan);
+
+    let order;
+    try {
+      const r = await fetch('/api/payments/create-order', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || 'Could not create order.');
+      order = d;
+    } catch (e) { showPayModal('error', plan, e.message); return; }
+
+    closePayModal();
+
+    if (typeof Razorpay === 'undefined') {
+      showPayModal('error', plan, 'Payment gateway failed to load. Please disable any ad blocker and try again.');
+      return;
+    }
+
+    const options = {
+      key:         order.key_id,
+      amount:      order.amount,
+      currency:    'INR',
+      name:        'FaceFind',
+      description: PLAN_META[plan]?.label || plan,
+      order_id:    order.order_id,
+      prefill:     { name: order.user_name, email: order.user_email },
+      theme:       { color: '#4f46e5' },
+      handler: async function (response) {
+        showPayModal('verifying', plan);
+        try {
+          const vr = await fetch('/api/payments/verify', {
+            method: 'POST', credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              razorpay_order_id:   response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature:  response.razorpay_signature,
+            }),
+          });
+          const vd = await vr.json();
+          if (!vr.ok) throw new Error(vd.detail || 'Verification failed.');
+          showPayModal('success', plan);
+        } catch (e) { showPayModal('error', plan, e.message); }
+      },
+    };
+
+    const rzp = new Razorpay(options);
+    rzp.on('payment.failed', (resp) => {
+      showPayModal('error', plan, resp.error?.description || 'Payment failed.');
+    });
+    rzp.open();
+  }
+
+  function showPayModal(state, plan, errMsg) {
+    let modal = document.getElementById('payModal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'payModal';
+      modal.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:24px;';
+      modal.innerHTML = '<div id="payModalBox" style="background:#fff;border-radius:20px;padding:36px 32px;max-width:400px;width:100%;text-align:center;box-shadow:0 24px 64px rgba(0,0,0,.18);font-family:Plus Jakarta Sans,sans-serif;"></div>';
+      document.body.appendChild(modal);
+    }
+    const box = document.getElementById('payModalBox');
+    const meta = PLAN_META[plan] || {};
+    const SPIN = '<div style="width:48px;height:48px;border:3px solid #e8e3db;border-top-color:#4f46e5;border-radius:50%;animation:payspin .7s linear infinite;margin:0 auto 20px;"></div><style>@keyframes payspin{to{transform:rotate(360deg)}}</style>';
+
+    if (state === 'loading') {
+      box.innerHTML = SPIN +
+        `<div style="font-family:Fraunces,serif;font-size:20px;font-weight:800;color:#1c1917;margin-bottom:8px;">Preparing checkout…</div>
+         <div style="font-size:13px;color:#78716c;">Setting up your ${meta.label || plan} order</div>`;
+    } else if (state === 'verifying') {
+      box.innerHTML = SPIN +
+        `<div style="font-family:Fraunces,serif;font-size:20px;font-weight:800;color:#1c1917;margin-bottom:8px;">Confirming payment…</div>
+         <div style="font-size:13px;color:#78716c;">Please wait, do not close this page</div>`;
+    } else if (state === 'success') {
+      box.innerHTML =
+        `<div style="width:64px;height:64px;background:#ecfdf5;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">
+           <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+         </div>
+         <div style="font-family:Fraunces,serif;font-size:22px;font-weight:800;color:#1c1917;margin-bottom:8px;">You're all set!</div>
+         <div style="font-size:14px;color:#78716c;margin-bottom:24px;line-height:1.6;">
+           Your <strong style="color:#1c1917">${meta.label}</strong> plan is now active.<br>A confirmation email is on its way.
+         </div>
+         <a href="/admin.html" style="display:inline-block;background:#4f46e5;color:#fff;font-weight:700;font-size:14px;padding:12px 28px;border-radius:10px;text-decoration:none;">
+           Go to Dashboard →
+         </a>`;
+    } else if (state === 'error') {
+      box.innerHTML =
+        `<div style="width:64px;height:64px;background:#fef2f2;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">
+           <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+         </div>
+         <div style="font-family:Fraunces,serif;font-size:20px;font-weight:800;color:#1c1917;margin-bottom:8px;">Payment issue</div>
+         <div style="font-size:13px;color:#78716c;margin-bottom:24px;line-height:1.6;">${errMsg || 'Something went wrong. Please try again.'}</div>
+         <button onclick="closePayModal()" style="background:#f2efe9;border:none;color:#44403c;font-weight:600;font-size:14px;padding:10px 24px;border-radius:10px;cursor:pointer;">Close</button>`;
+    }
+  }
+
+  function closePayModal() {
+    const m = document.getElementById('payModal');
+    if (m) m.remove();
+  }
+
+  // ── Logged-in state: swap nav, update CTA labels ───────────────────────────
   (function () {
-    const API = '';
-
-    // Plans that include self-hosted access — these get routed to download.html
     const SELF_HOSTED_PLANS = ['personal_lite','personal_pro','personal_max','photo_starter','photo_pro'];
-
-    // Plan card IDs and their label text (used when logged in)
     const PLAN_CTAS = [
       { id: 'p1-cta',  label: 'Upgrade to Lite',           plan: 'personal_lite'  },
       { id: 'p2-cta',  label: 'Upgrade to Pro',            plan: 'personal_pro'   },
@@ -704,67 +825,61 @@
       { id: 'ph1-cta', label: 'Upgrade to Studio Starter', plan: 'photo_starter'  },
       { id: 'ph2-cta', label: 'Upgrade to Studio Pro',     plan: 'photo_pro'      },
     ];
-
     const ARROW_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>';
-    const DL_SVG    = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
 
-    fetch(`${API}/api/auth/me`, { credentials: 'include' })
+    // Wire checkout on all CTAs regardless of login state
+    PLAN_CTAS.forEach(({ id, plan }) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.removeAttribute('href');
+      el.style.cursor = 'pointer';
+      el.onclick = (e) => { e.preventDefault(); startCheckout(plan); };
+    });
+
+    fetch('/api/auth/me', { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
       .catch(() => null)
       .then(user => {
-        if (!user) return; // not logged in — leave everything as-is
+        if (!user) return; // not logged in — CTAs already wired above
 
-        const name  = user.name || user.email || '';
-        const initial = name.trim()[0]?.toUpperCase() || '?';
         const userPlan = user.plan || 'free';
-        const isEligible = SELF_HOSTED_PLANS.includes(userPlan);
 
-        // ── Swap nav: hide pricing nav, show admin-style header ──────────────
+        // Swap nav
         const pricingNav = document.getElementById('mainNav');
         if (pricingNav) pricingNav.style.display = 'none';
-
         const adminHeader = document.getElementById('adminHeader');
         if (adminHeader) adminHeader.style.display = 'flex';
 
-        // Self-Hosted link is always visible — no eligibility gate on visibility
-
-        // Populate user name in the admin header
+        // User tag
         const ahUserTag = document.getElementById('ahUserTag');
-        if (ahUserTag) {
-          ahUserTag.innerHTML =
-            '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M3 20c0-4.4 4-8 9-8s9 3.6 9 8"/></svg>' +
-            (user.name || user.email || '');
-        }
+        if (ahUserTag) ahUserTag.innerHTML =
+          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M3 20c0-4.4 4-8 9-8s9 3.6 9 8"/></svg>' +
+          (user.name || user.email || '');
 
-        // ── Free strip CTA: "Go to dashboard" ────────────────────────────────
+        // Free strip CTA
         const freeStripCta = document.getElementById('freeStripCta');
         if (freeStripCta) {
           freeStripCta.href = '/admin.html';
           freeStripCta.innerHTML = 'Go to dashboard ' + ARROW_SVG;
         }
 
-        // ── Plan card CTAs ────────────────────────────────────────────────────
-        // If the user already has self-hosted access, link to /download.html.
-        // Otherwise route to /admin.html (where they manage their subscription).
+        // Update plan CTA labels
         PLAN_CTAS.forEach(({ id, label, plan }) => {
           const el = document.getElementById(id);
           if (!el) return;
-          if (isEligible) {
-            // Already on a paid self-hosted plan → go download
-            el.href = '/download.html';
-            el.innerHTML = (plan === userPlan ? 'Download &amp; Manage ' + DL_SVG : label + ' ' + ARROW_SVG);
+          if (plan === userPlan) {
+            el.innerHTML = '✓ Current plan';
+            el.style.opacity = '0.55';
+            el.style.cursor = 'default';
+            el.onclick = (e) => e.preventDefault();
           } else {
-            el.href = '/admin.html';
             el.innerHTML = label + ' ' + ARROW_SVG;
           }
         });
 
-        // ── Footer sign-in link → Dashboard ──────────────────────────────────
+        // Footer sign-in link
         const footerSignIn = document.getElementById('footerSignIn');
-        if (footerSignIn) {
-          footerSignIn.href = '/admin.html';
-          footerSignIn.textContent = 'Dashboard';
-        }
+        if (footerSignIn) { footerSignIn.href = '/admin.html'; footerSignIn.textContent = 'Dashboard'; }
       });
   })();
 
@@ -773,5 +888,3 @@
       .finally(() => { window.location.href = '/login.html'; });
   }
 </script>
-</body>
-</html>
