@@ -112,7 +112,7 @@ def init_db():
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS shares (
                     share_id     TEXT PRIMARY KEY,
-                    dataset_id   TEXT NOT NULL,
+                    dataset_id   TEXT NOT NULL UNIQUE,
                     dataset_name TEXT,
                     created_at   DOUBLE PRECISION
                 );
@@ -124,6 +124,24 @@ def init_db():
             # Migration: add plan column to users
             cur.execute("""
                 ALTER TABLE users ADD COLUMN IF NOT EXISTS plan TEXT DEFAULT 'free';
+            """)
+            # Migration: enforce one share per dataset (deduplicate first, then add constraint)
+            cur.execute("""
+                DELETE FROM shares s1
+                USING shares s2
+                WHERE s1.created_at < s2.created_at
+                  AND s1.dataset_id = s2.dataset_id;
+            """)
+            cur.execute("""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_constraint
+                        WHERE conname = 'shares_dataset_id_unique'
+                    ) THEN
+                        ALTER TABLE shares ADD CONSTRAINT shares_dataset_id_unique UNIQUE (dataset_id);
+                    END IF;
+                END$$;
             """)
             # License keys table
             cur.execute("""
@@ -1305,15 +1323,51 @@ def create_share(request: Request, dataset_id: str = Form(...)):
         raise HTTPException(404, "Dataset not found.")
     if ds["status"] != "ready":
         raise HTTPException(400, "Dataset is not ready yet.")
+
+    # Return existing share link if one already exists for this dataset
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT share_id FROM shares WHERE dataset_id = %s LIMIT 1",
+                (dataset_id,)
+            )
+            existing = cur.fetchone()
+    if existing:
+        return {"share_id": existing["share_id"]}
+
     share_id = str(uuid.uuid4())[:12]
     share = {
-        "share_id":    share_id,
-        "dataset_id":  dataset_id,
+        "share_id":     share_id,
+        "dataset_id":   dataset_id,
         "dataset_name": ds["name"],
-        "created_at":  time.time(),
+        "created_at":   time.time(),
     }
     db_insert_share(share)
     return {"share_id": share_id}
+
+
+@app.delete("/api/shares/{share_id}")
+def delete_share(share_id: str, request: Request):
+    """
+    Delete a share link — revokes guest access and frees the slot so a
+    fresh link can be created for the same dataset if needed.
+    Only the dataset owner can delete it.
+    """
+    user = require_auth(request)
+    share = db_get_share(share_id)
+    if not share:
+        raise HTTPException(404, "Share link not found.")
+    ds = db_get_dataset(share["dataset_id"])
+    if not ds or ds["user_id"] != user["id"]:
+        raise HTTPException(403, "Not your share link.")
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM shares WHERE share_id = %s", (share_id,))
+        conn.commit()
+    cache_delete(f"share:{share_id}")
+    log.info(f"Share {share_id} deleted by user {user['id']}")
+    return {"ok": True}
+
 
 @app.get("/api/shares/{share_id}")
 def get_share(share_id: str):

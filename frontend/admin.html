@@ -132,13 +132,6 @@
     }
     .header-nav-link:hover { border-color: var(--border2); color: var(--text2); background: var(--surface2); }
     .header-nav-link.hidden { display: none; }
-    .header-nav-link#selfHostedNavLink {
-      color: var(--primary); border-color: rgba(79,70,229,0.3);
-      background: var(--primary-light);
-    }
-    .header-nav-link#selfHostedNavLink:hover {
-      background: #e0e7ff; border-color: var(--primary); color: var(--primary-dark);
-    }
 
     /* ── Layout ── */
     .layout {
@@ -712,6 +705,16 @@
 
     .share-hint { font-size: 12px; color: var(--muted); margin-top: 10px; line-height: 1.5; }
 
+    .revoke-link {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 12px; font-weight: 600; color: var(--error);
+      background: none; border: none; cursor: pointer;
+      padding: 0; margin-top: 10px;
+      opacity: 0.7; transition: opacity 0.15s;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .revoke-link:hover { opacity: 1; }
+
     /* ── Toast ── */
     .toast {
       position: fixed;
@@ -886,7 +889,7 @@
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M3 20c0-4.4 4-8 9-8s9 3.6 9 8"/></svg>
         —
       </div>
-      <a href="/download.html" class="header-nav-link" id="selfHostedNavLink">
+      <a href="/download.html" class="header-nav-link hidden" id="selfHostedNavLink">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         Self-Hosted
       </a>
@@ -1105,6 +1108,10 @@
               </button>
             </div>
             <p class="share-hint">Send this link to guests so they can upload a selfie and find their photos instantly.</p>
+            <button class="revoke-link" id="revokeShareBtn">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+              Revoke link
+            </button>
           </div>
         </div>
       </div>
@@ -1193,7 +1200,10 @@
       if (!r.ok) { window.location.replace('/login.html'); return; }
       const user = await r.json();
       document.getElementById('userTag').innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M3 20c0-4.4 4-8 9-8s9 3.6 9 8"/></svg>${user.name || user.email}`;
-      // Self-Hosted link is always visible — download page handles the eligibility wall
+      // Show the Self-Hosted nav link only for plans that include self-hosted access
+      if (SELF_HOSTED_PLANS.includes(user.plan)) {
+        document.getElementById('selfHostedNavLink').classList.remove('hidden');
+      }
     } catch {
       window.location.replace('/login.html');
     }
@@ -1583,13 +1593,37 @@
   function selectDataset(id, status) {
     selectedDatasetId = id;
     document.getElementById('shareBtn').disabled = (status !== 'ready');
-    // Just update visual selection — no need to re-fetch the list
     document.querySelectorAll('.dataset-item').forEach(el => el.classList.remove('selected'));
     const target = document.querySelector(`.dataset-item[data-id="${id}"]`);
     if (target) target.classList.add('selected');
+
+    // Show existing share link if one exists, otherwise hide the box
+    hideShareBox();
+    if (status === 'ready') {
+      const fd = new FormData();
+      fd.append('dataset_id', id);
+      fetch(`${API}/api/shares`, { method: 'POST', body: fd, credentials: 'include' })
+        .then(r => r.json())
+        .then(d => { if (d.share_id) showShareBox(d.share_id); })
+        .catch(() => {});
+    }
   }
 
   // ── Share ──────────────────────────────────────────────────────────────────
+  let currentShareId = null;
+
+  function showShareBox(share_id) {
+    currentShareId = share_id;
+    const shareUrl = `${window.location.origin}/share.html?id=${share_id}`;
+    document.getElementById('shareUrl').textContent = shareUrl;
+    document.getElementById('shareBox').classList.add('visible');
+  }
+
+  function hideShareBox() {
+    currentShareId = null;
+    document.getElementById('shareBox').classList.remove('visible');
+  }
+
   document.getElementById('shareBtn').addEventListener('click', async () => {
     if (!selectedDatasetId) return;
     const fd = new FormData();
@@ -1598,10 +1632,8 @@
       const r = await fetch(`${API}/api/shares`, { method: 'POST', body: fd, credentials: 'include' });
       const d = await r.json();
       if (!r.ok) throw new Error(d.detail);
-      const shareUrl = `${window.location.origin}/share.html?id=${d.share_id}`;
-      document.getElementById('shareUrl').textContent = shareUrl;
-      document.getElementById('shareBox').classList.add('visible');
-      toast('Share link generated!');
+      showShareBox(d.share_id);
+      toast('Share link ready!');
     } catch(e) {
       toast(`Error: ${e.message}`);
     }
@@ -1610,6 +1642,20 @@
   document.getElementById('copyBtn').addEventListener('click', () => {
     const url = document.getElementById('shareUrl').textContent;
     navigator.clipboard.writeText(url).then(() => toast('Copied to clipboard!'));
+  });
+
+  document.getElementById('revokeShareBtn').addEventListener('click', async () => {
+    if (!currentShareId) return;
+    if (!confirm('Revoke this share link?\n\nAnyone with the current link will lose access. You can generate a new one at any time.')) return;
+    try {
+      const r = await fetch(`${API}/api/shares/${currentShareId}`, { method: 'DELETE', credentials: 'include' });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || 'Failed to revoke link.');
+      hideShareBox();
+      toast('Share link revoked.');
+    } catch(e) {
+      toast(`Error: ${e.message}`);
+    }
   });
 
   // ── Delete dataset ─────────────────────────────────────────────────────────
@@ -1621,7 +1667,7 @@
       if (selectedDatasetId === id) {
         selectedDatasetId = null;
         document.getElementById('shareBtn').disabled = true;
-        document.getElementById('shareBox').classList.remove('visible');
+        hideShareBox();
       }
       toast(`"${name}" deleted.`);
       loadDatasets();
