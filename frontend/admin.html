@@ -1852,17 +1852,18 @@
       (currentPlan === 'free' ? ' &nbsp;·&nbsp; 4K auto-compression' : '') +
       (cfg.isProPhoto ? ' &nbsp;·&nbsp; Commercial use <svg style="display:inline;vertical-align:-2px" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : '');
 
-    // Style upgrade button
+    // Style upgrade button — always visible, always links to download page
+    upBtn.style.display = '';
+    upBtn.href = '/download.html';
     if (cfg.isProPhoto) {
       upBtn.className = 'plan-upgrade-btn gold';
-      upBtn.style.display = 'none'; upBtn.href = '#';
-      upBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg> Manage plan`;
+      upBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg> Self-Hosted`;
     } else if (currentPlan !== 'free') {
-      upBtn.style.display = 'none'; upBtn.href = '#';
+      upBtn.className = 'plan-upgrade-btn';
       upBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg> Self-Hosted & Upgrade';
     } else {
-      upBtn.style.display = 'none'; upBtn.href = '#';
-      upBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg> Upgrade plan';
+      upBtn.className = 'plan-upgrade-btn';
+      upBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg> Self-Hosted';
     }
 
     // Show/hide limit wall for upload form
