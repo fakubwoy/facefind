@@ -731,13 +731,25 @@
       me = await r.json();
     } catch { window.location.href = `/login.html?next=/pricing.html`; return; }
 
-    const currentPlan = me.plan || 'free';
-    const isUpgrade = planRank(plan) > planRank(currentPlan);
+    const currentPlan     = me.plan || 'free';
+    const currentInterval = me.plan_interval || 'monthly';
+    const isUpgrade   = planRank(plan) > planRank(currentPlan);
     const isDowngrade = planRank(plan) < planRank(currentPlan);
 
-    // ── Downgrade: show confirmation modal instead of checkout ────────────────
+    // Same plan tier, interval switch
+    const isSamePlanSwitch = plan === currentPlan && billing !== currentInterval;
+    const isAnnualToMonthly = isSamePlanSwitch && currentInterval === 'annual' && billing === 'monthly';
+    const isMonthlyToAnnual = isSamePlanSwitch && currentInterval === 'monthly' && billing === 'annual';
+
+    // Annual→monthly: schedule the switch at end of the current annual cycle (no refund)
+    if (isAnnualToMonthly) {
+      showDowngradeModal(currentPlan, plan, me, 'monthly');
+      return;
+    }
+
+    // ── Downgrade (lower tier): show confirmation modal ───────────────────────
     if (isDowngrade) {
-      showDowngradeModal(currentPlan, plan, me);
+      showDowngradeModal(currentPlan, plan, me, billing);
       return;
     }
 
@@ -859,7 +871,11 @@
     });
   }
 
-  async function showDowngradeModal(currentPlan, targetPlan, me) {
+  async function showDowngradeModal(currentPlan, targetPlan, me, targetInterval) {
+    targetInterval = targetInterval || 'monthly';
+    // Tier downgrades always land on monthly (backend enforces this too)
+    const isTierDowngrade = planRank(targetPlan) < planRank(currentPlan);
+    if (isTierDowngrade) targetInterval = 'monthly';
     let info = await getBillingInfo();
     let modal = document.getElementById('payModal');
     if (!modal) {
@@ -870,42 +886,57 @@
       document.body.appendChild(modal);
     }
     const box = document.getElementById('payModalBox');
-    const targetLabel = PLAN_META[targetPlan]?.label || (targetPlan === 'free' ? 'Free' : targetPlan);
+    const currentInterval = info?.plan_interval || 'monthly';
+    const isIntervalSwitch = targetPlan === currentPlan && targetInterval !== currentInterval;
+    const targetLabel = isIntervalSwitch
+      ? `${PLAN_META[targetPlan]?.label || targetPlan} (${targetInterval === 'annual' ? 'Annual' : 'Monthly'})`
+      : (PLAN_META[targetPlan]?.label || (targetPlan === 'free' ? 'Free' : targetPlan));
     const newLimits = info?.plan_limits?.[targetPlan] || {};
     const daysRemaining = info?.days_remaining ?? null;
-    const interval = info?.plan_interval || 'monthly';
-    const periodLabel = interval === 'annual' ? 'year' : 'month';
+    const periodLabel = currentInterval === 'annual' ? 'year' : 'month';
     const daysText = daysRemaining != null ? `~${daysRemaining} days` : `the rest of your current billing ${periodLabel}`;
-    const over = info?.dataset_count > (newLimits.max_datasets || 0);
+    const over = !isIntervalSwitch && info?.dataset_count > (newLimits.max_datasets || 0);
+
+    const bodyText = isIntervalSwitch
+      ? `• You keep your current <strong>${currentInterval}</strong> billing until renewal on <strong>${daysText}</strong>.<br>
+         • After that your billing switches to <strong>monthly</strong> — no further action needed.<br>
+         • Your plan features stay exactly the same.`
+      : `• You keep <strong>${PLAN_META[currentPlan]?.label || currentPlan}</strong> access for <strong>${daysText}</strong> you've already paid for.<br>
+         • Your plan switches to ${targetLabel} at the end of this billing cycle.<br>
+         • Your data is safe. Over-limit datasets are flagged (not deleted) with a 30-day grace period.`;
 
     box.innerHTML = `
-      <div style="font-family:Fraunces,serif;font-size:20px;font-weight:800;color:#1c1917;margin-bottom:6px;">Switch to ${targetLabel}</div>
-      <div style="font-size:13px;color:#78716c;margin-bottom:20px;">Your plan change is scheduled — no refund, full access until cycle ends.</div>
+      <div style="font-family:Fraunces,serif;font-size:20px;font-weight:800;color:#1c1917;margin-bottom:6px;">
+        ${isIntervalSwitch ? 'Switch to Monthly billing' : `Switch to ${targetLabel}`}
+      </div>
+      <div style="font-size:13px;color:#78716c;margin-bottom:20px;">
+        ${isIntervalSwitch ? 'No refund — your annual access continues until renewal.' : 'Your plan change is scheduled — no refund, full access until cycle ends.'}
+      </div>
       <div style="background:#fffbeb;border:1.5px solid #fde68a;border-radius:12px;padding:14px 16px;margin-bottom:16px;font-size:13px;color:#92400e;line-height:1.6;">
-        <strong>What happens:</strong><br>
-        • You keep <strong>${PLAN_META[currentPlan]?.label || currentPlan}</strong> access for <strong>${daysText}</strong> you've already paid for.<br>
-        • Your plan switches to ${targetLabel} at the end of this billing cycle.<br>
-        • Your data is safe. Over-limit datasets are flagged (not deleted) with a 30-day grace period.
+        <strong>What happens:</strong><br>${bodyText}
       </div>
       ${over ? `<div style="background:#fef2f2;border:1.5px solid #fecaca;border-radius:12px;padding:14px 16px;margin-bottom:16px;font-size:13px;color:#991b1b;line-height:1.6;">
-        <strong>Heads up:</strong> You currently have ${info.dataset_count} datasets. ${targetLabel} allows ${newLimits.max_datasets || 0}. 
+        <strong>Heads up:</strong> You currently have ${info.dataset_count} datasets. ${targetLabel} allows ${newLimits.max_datasets || 0}.
         The excess will be flagged after the switch — you'll have 30 days to manage them.
       </div>` : ''}
       <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;">
         <button onclick="closePayModal();" style="background:#f2efe9;border:none;color:#44403c;font-weight:600;font-size:14px;padding:10px 20px;border-radius:10px;cursor:pointer;">Keep current plan</button>
-        <button id="confirmDowngradeBtn" onclick="confirmDowngrade('${targetPlan}')"
-          style="background:#dc2626;border:none;color:#fff;font-weight:700;font-size:14px;padding:10px 20px;border-radius:10px;cursor:pointer;">Schedule downgrade</button>
+        <button id="confirmDowngradeBtn" onclick="confirmDowngrade('${targetPlan}','${targetInterval}')"
+          style="background:#dc2626;border:none;color:#fff;font-weight:700;font-size:14px;padding:10px 20px;border-radius:10px;cursor:pointer;">
+          ${isIntervalSwitch ? 'Switch to Monthly' : 'Schedule downgrade'}
+        </button>
       </div>`;
   }
 
-  async function confirmDowngrade(targetPlan) {
+  async function confirmDowngrade(targetPlan, targetInterval) {
+    targetInterval = targetInterval || 'monthly';
     const btn = document.getElementById('confirmDowngradeBtn');
     if (btn) { btn.disabled = true; btn.textContent = 'Scheduling…'; }
     try {
       const r = await fetch('/api/billing/schedule-downgrade', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan: targetPlan }),
+        body: JSON.stringify({ plan: targetPlan, interval: targetInterval }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.detail || 'Failed.');
@@ -1063,14 +1094,23 @@
             } else if (isSamePlan && !isSameInterval) {
               // Same plan tier, different interval — offer a switch
               if (badge) badge.style.display = 'none';
+              const isAnnualToMonthly = userInterval === 'annual' && billing === 'monthly';
               const switchLabel = billing === 'annual' ? 'Switch to Annual' : 'Switch to Monthly';
               el.innerHTML = switchLabel + ' ' + ARROW_SVG;
               el.style.opacity = '1';
               el.style.cursor = 'pointer';
-              el.style.background = isPhotoPlan ? 'var(--gold,#d97706)' : 'var(--primary,#4f46e5)';
-              el.style.color = '#fff';
-              el.style.border = 'none';
               el.style.boxShadow = '';
+              if (isAnnualToMonthly) {
+                // Schedules at end of cycle — muted style to signal no payment
+                el.style.background = 'transparent';
+                el.style.color = isPhotoPlan ? 'var(--gold-dark,#b45309)' : 'var(--primary,#4f46e5)';
+                el.style.border = isPhotoPlan ? '1.5px solid rgba(217,119,6,0.4)' : '1.5px solid rgba(79,70,229,0.35)';
+              } else {
+                // Monthly→annual: charges upfront — solid CTA style
+                el.style.background = isPhotoPlan ? 'var(--gold,#d97706)' : 'var(--primary,#4f46e5)';
+                el.style.color = '#fff';
+                el.style.border = 'none';
+              }
               el.onclick = (e) => { e.preventDefault(); startCheckout(plan); };
 
             } else if (planRank(plan) < planRank(userPlan)) {
@@ -1126,6 +1166,7 @@
                 el.innerHTML = `Cancels ${dAt} — <span style="text-decoration:underline">Undo</span>`;
                 el.style.color = '#dc2626';
                 el.style.border = '1.5px solid rgba(220,38,38,0.35)';
+                el.style.background = 'transparent';
                 el.onclick = (e) => { e.preventDefault(); undoCancellation(); };
               });
             };
@@ -1134,6 +1175,38 @@
             applyUndo();
             const freeStrip = document.getElementById('freeStripCta');
             if (freeStrip) freeStrip.style.display = 'none';
+          }
+
+          // Pending interval switch (annual→monthly scheduled): show "Switches to Monthly — Undo"
+          // on the monthly tab card only.
+          const pendingIntervalSwitch = info.scheduled_downgrade === userPlan &&
+                                        info.scheduled_downgrade_interval === 'monthly' &&
+                                        userInterval === 'annual';
+          if (pendingIntervalSwitch) {
+            const dAt = info.scheduled_downgrade_at
+              ? new Date(info.scheduled_downgrade_at * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+              : '';
+            const applyIntervalUndo = () => {
+              PLAN_CTAS.forEach(({ id, plan }) => {
+                if (plan !== userPlan) return;
+                const el = document.getElementById(id);
+                if (!el) return;
+                if (billing === 'monthly') {
+                  // On monthly tab: show pending switch + undo
+                  el.innerHTML = `Switches ${dAt} — <span style="text-decoration:underline">Undo</span>`;
+                  el.style.color = '#b45309';
+                  el.style.border = '1.5px solid rgba(217,119,6,0.4)';
+                  el.style.background = 'transparent';
+                  el.onclick = (e) => { e.preventDefault(); undoCancellation(); };
+                } else if (billing === 'annual') {
+                  // On annual tab: show current plan badge as normal (already scheduled to switch away)
+                  // renderCTAs already handles this correctly — nothing extra needed
+                }
+              });
+            };
+            const _prevInterval = window.setBilling;
+            window.setBilling = function(m) { _prevInterval(m); applyIntervalUndo(); };
+            applyIntervalUndo();
           }
 
           // Renewal badge — only visible when the toggle matches the user's interval

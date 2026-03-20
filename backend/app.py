@@ -138,6 +138,10 @@ def init_db():
             cur.execute("""
                 ALTER TABLE users ADD COLUMN IF NOT EXISTS scheduled_downgrade_at DOUBLE PRECISION DEFAULT NULL;
             """)
+            # Migration: track target interval for scheduled interval switches
+            cur.execute("""
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS scheduled_downgrade_interval TEXT DEFAULT NULL;
+            """)
             cur.execute("""
                 ALTER TABLE users ADD COLUMN IF NOT EXISTS loyalty_discount_used BOOLEAN DEFAULT FALSE;
             """)
@@ -1284,11 +1288,12 @@ def me(request: Request):
         "email": user["email"],
         "name":  user["name"],
         "plan":  user.get("plan") or "free",
-        "plan_interval":           user.get("plan_interval") or "monthly",
-        "credits_paise":           user.get("credits_paise") or 0,
-        "scheduled_downgrade":     user.get("scheduled_downgrade"),
-        "scheduled_downgrade_at":  user.get("scheduled_downgrade_at"),
-        "plan_cycle_start":        user.get("plan_cycle_start"),
+        "plan_interval":                user.get("plan_interval") or "monthly",
+        "credits_paise":                user.get("credits_paise") or 0,
+        "scheduled_downgrade":          user.get("scheduled_downgrade"),
+        "scheduled_downgrade_at":       user.get("scheduled_downgrade_at"),
+        "scheduled_downgrade_interval": user.get("scheduled_downgrade_interval"),
+        "plan_cycle_start":             user.get("plan_cycle_start"),
     }
 
 # ── Dataset endpoints ─────────────────────────────────────────────────────────
@@ -1933,17 +1938,28 @@ async def create_order(request: Request):
         raise HTTPException(400, "interval must be 'monthly' or 'annual'.")
 
     current_plan = user.get("plan", "free") or "free"
-    if plan == current_plan:
-        raise HTTPException(400, "You are already on this plan.")
+    current_interval = user.get("plan_interval") or "monthly"
 
-    is_upgrade = plan_rank(plan) > plan_rank(current_plan)
+    # Block if literally nothing is changing
+    if plan == current_plan and target_interval == current_interval:
+        raise HTTPException(400, "You are already on this plan and billing interval.")
+
+    # An interval switch on the same plan tier is treated as an upgrade flow:
+    # monthly→annual  : charge the annual price minus proration credit on monthly
+    # annual→monthly  : NOT handled here — goes through schedule-downgrade-interval
+    #                   because the user has already paid for the full year
+    if plan == current_plan and target_interval == "monthly" and current_interval == "annual":
+        raise HTTPException(400, "To switch from annual to monthly, use the downgrade flow — your annual access continues until renewal.")
+
+    is_upgrade = plan_rank(plan) > plan_rank(current_plan) or (
+        plan == current_plan and target_interval == "annual" and current_interval == "monthly"
+    )
 
     if not RAZORPAY_KEY_ID or not RAZORPAY_KEY_SECRET:
         raise HTTPException(503, "Payment gateway not configured. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in Railway environment variables.")
 
     cycle_start = user.get("plan_cycle_start")
     credits_paise = user.get("credits_paise") or 0
-    current_interval = user.get("plan_interval") or "monthly"
 
     # ── Loyalty discount (one-time, 20% off for loyal paid users upgrading) ──
     loyalty_discount = 0
@@ -2292,29 +2308,30 @@ def billing_info(request: Request):
         renewal_at = cycle_start + period_days * 86400
 
     return {
-        "plan":                   current_plan,
-        "plan_interval":          current_interval,
-        "plan_cycle_start":       cycle_start,
-        "renewal_at":             renewal_at,
-        "days_remaining":         days_remaining,
-        "credits_paise":          credits,
-        "scheduled_downgrade":    user.get("scheduled_downgrade"),
-        "scheduled_downgrade_at": user.get("scheduled_downgrade_at"),
-        "loyalty_eligible":       apply_loyalty_discount(user, "photo_pro") > 0,
-        "upgrade_costs":          upgrade_costs,
-        "dataset_count":          dataset_count,
-        "plan_limits":            PLAN_LIMITS,
+        "plan":                          current_plan,
+        "plan_interval":                 current_interval,
+        "plan_cycle_start":              cycle_start,
+        "renewal_at":                    renewal_at,
+        "days_remaining":                days_remaining,
+        "credits_paise":                 credits,
+        "scheduled_downgrade":           user.get("scheduled_downgrade"),
+        "scheduled_downgrade_at":        user.get("scheduled_downgrade_at"),
+        "scheduled_downgrade_interval":  user.get("scheduled_downgrade_interval"),
+        "loyalty_eligible":              apply_loyalty_discount(user, "photo_pro") > 0,
+        "upgrade_costs":                 upgrade_costs,
+        "dataset_count":                 dataset_count,
+        "plan_limits":                   PLAN_LIMITS,
     }
 
 
 @app.post("/api/billing/schedule-downgrade")
 async def schedule_downgrade(request: Request):
     """
-    Schedule a downgrade to a lower plan at end of the current billing cycle.
-    - Validates the target plan is lower than current
+    Schedule a downgrade to a lower plan OR an interval switch (annual→monthly)
+    at end of the current billing cycle.
+    - Validates the target plan is lower than current, OR same plan with annual→monthly switch
     - Warns if user has datasets/images over new plan's limits
     - Does NOT charge or refund anything — access continues until cycle end
-    - Cancels any existing scheduled downgrade if target is 'free'
     """
     user = require_auth(request)
     try:
@@ -2322,26 +2339,46 @@ async def schedule_downgrade(request: Request):
     except Exception:
         raise HTTPException(400, "Invalid JSON body.")
 
-    target = (body.get("plan") or "").strip()
-    valid_targets = list(PLAN_LIMITS.keys())
+    target          = (body.get("plan") or "").strip()
+    target_interval = (body.get("interval") or "monthly").strip()
+    valid_targets   = list(PLAN_LIMITS.keys())
     if target not in valid_targets:
         raise HTTPException(400, f"Unknown plan: {target}")
+    if target_interval not in ("monthly", "annual"):
+        raise HTTPException(400, "interval must be 'monthly' or 'annual'.")
 
-    current_plan = user.get("plan", "free") or "free"
+    current_plan     = user.get("plan", "free") or "free"
+    current_interval = user.get("plan_interval") or "monthly"
+
     if current_plan == "free":
         raise HTTPException(400, "You are already on the free plan.")
-    if plan_rank(target) >= plan_rank(current_plan):
+
+    # Allow: lower plan tier (any interval), OR same plan annual→monthly switch
+    is_tier_downgrade    = plan_rank(target) < plan_rank(current_plan)
+    is_interval_switch   = (target == current_plan and
+                            current_interval == "annual" and
+                            target_interval == "monthly")
+
+    if not is_tier_downgrade and not is_interval_switch:
+        if target == current_plan and target_interval == current_interval:
+            raise HTTPException(400, "No change — you are already on this plan and interval.")
+        if target == current_plan and target_interval == "annual":
+            raise HTTPException(400, "To switch to annual billing, use the upgrade flow.")
         raise HTTPException(400, "Use the upgrade flow to move to a higher plan.")
 
-    # Calculate when the downgrade fires (end of current billing cycle)
-    cycle_start = user.get("plan_cycle_start") or time.time()
-    current_interval = user.get("plan_interval") or "monthly"
-    period_days = get_billing_period_days(current_interval)
-    elapsed_seconds = time.time() - cycle_start
-    seconds_remaining = max(period_days * 86400 - elapsed_seconds, 0)
-    downgrade_at = time.time() + seconds_remaining
+    # Tier downgrades always land on monthly — the user hasn't paid for annual on
+    # the lower tier and no charge happens in this flow.
+    if is_tier_downgrade:
+        target_interval = "monthly"
 
-    # Dataset over-limit warning
+    # Calculate when the change fires (end of current billing cycle)
+    cycle_start      = user.get("plan_cycle_start") or time.time()
+    period_days      = get_billing_period_days(current_interval)
+    elapsed_seconds  = time.time() - cycle_start
+    seconds_remaining = max(period_days * 86400 - elapsed_seconds, 0)
+    downgrade_at     = time.time() + seconds_remaining
+
+    # Dataset over-limit warning (only relevant for tier downgrades)
     datasets = db_list_datasets(user["id"])
     new_limits = PLAN_LIMITS[target]
     over_datasets = max(len(datasets) - new_limits["max_datasets"], 0)
@@ -2353,22 +2390,37 @@ async def schedule_downgrade(request: Request):
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                UPDATE users SET scheduled_downgrade=%s, scheduled_downgrade_at=%s
+                UPDATE users SET
+                    scheduled_downgrade=%s,
+                    scheduled_downgrade_at=%s,
+                    scheduled_downgrade_interval=%s
                 WHERE id=%s
-            """, (target, downgrade_at, user["id"]))
+            """, (target, downgrade_at, target_interval, user["id"]))
         conn.commit()
     cache_delete(f"session:{request.cookies.get('ff_token', '')}")
 
-    log.info(f"Downgrade scheduled: user={user['id']} {current_plan}→{target} at={downgrade_at}")
+    if is_interval_switch:
+        msg = (f"Your billing will switch to monthly on "
+               f"{__import__('datetime').datetime.utcfromtimestamp(downgrade_at).strftime('%d %b %Y')}. "
+               f"You keep annual access until then.")
+    else:
+        msg = (f"Your plan will change to {target.replace('_',' ').title()} on "
+               f"{__import__('datetime').datetime.utcfromtimestamp(downgrade_at).strftime('%d %b %Y')}. "
+               f"You keep full access until then.")
+
+    log.info(f"Downgrade/interval-switch scheduled: user={user['id']} "
+             f"{current_plan}({current_interval})→{target}({target_interval}) at={downgrade_at}")
     return {
-        "ok":               True,
-        "current_plan":     current_plan,
-        "target_plan":      target,
-        "downgrade_at":     downgrade_at,
-        "days_remaining":   round(seconds_remaining / 86400, 1),
-        "over_datasets":    over_datasets,
-        "over_images_datasets": over_images_datasets,
-        "message":          f"Your plan will change to {target.replace('_',' ').title()} on {__import__('datetime').datetime.utcfromtimestamp(downgrade_at).strftime('%d %b %Y')}. You keep full access until then.",
+        "ok":                    True,
+        "current_plan":          current_plan,
+        "current_interval":      current_interval,
+        "target_plan":           target,
+        "target_interval":       target_interval,
+        "downgrade_at":          downgrade_at,
+        "days_remaining":        round(seconds_remaining / 86400, 1),
+        "over_datasets":         over_datasets,
+        "over_images_datasets":  over_images_datasets,
+        "message":               msg,
     }
 
 
@@ -2381,7 +2433,10 @@ def cancel_downgrade(request: Request):
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                UPDATE users SET scheduled_downgrade=NULL, scheduled_downgrade_at=NULL
+                UPDATE users SET
+                    scheduled_downgrade=NULL,
+                    scheduled_downgrade_at=NULL,
+                    scheduled_downgrade_interval=NULL
                 WHERE id=%s
             """, (user["id"],))
         conn.commit()
@@ -2418,7 +2473,10 @@ async def cancel_subscription(request: Request):
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                UPDATE users SET scheduled_downgrade='free', scheduled_downgrade_at=%s
+                UPDATE users SET
+                    scheduled_downgrade='free',
+                    scheduled_downgrade_at=%s,
+                    scheduled_downgrade_interval='monthly'
                 WHERE id=%s
             """, (cancels_at, user["id"]))
         conn.commit()
@@ -2451,7 +2509,9 @@ async def apply_downgrade(request: Request):
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT id, email, plan, plan_interval, scheduled_downgrade, scheduled_downgrade_at, plan_cycle_start
+                SELECT id, email, plan, plan_interval,
+                       scheduled_downgrade, scheduled_downgrade_at,
+                       scheduled_downgrade_interval, plan_cycle_start
                 FROM users
                 WHERE scheduled_downgrade IS NOT NULL
                   AND scheduled_downgrade_at <= %s
@@ -2463,18 +2523,22 @@ async def apply_downgrade(request: Request):
         user_id      = row["id"]
         old_plan     = row["plan"]
         new_plan     = row["scheduled_downgrade"]
+        # If no target interval stored (legacy rows), default to monthly for tier
+        # downgrades and preserve current interval for same-plan switches.
+        new_interval = row.get("scheduled_downgrade_interval") or "monthly"
         try:
             with get_db() as conn:
                 with conn.cursor() as cur:
                     cur.execute("""
                         UPDATE users SET
                             plan=%s,
-                            plan_interval='monthly',
-                            plan_cycle_start=NULL,
+                            plan_interval=%s,
+                            plan_cycle_start=CASE WHEN %s = 'free' THEN NULL ELSE %s END,
                             scheduled_downgrade=NULL,
-                            scheduled_downgrade_at=NULL
+                            scheduled_downgrade_at=NULL,
+                            scheduled_downgrade_interval=NULL
                         WHERE id=%s
-                    """, (new_plan, user_id))
+                    """, (new_plan, new_interval, new_plan, time.time(), user_id))
                     # Revoke license key if new plan doesn't support self-hosted
                     # or reissue at the correct tier
                     cur.execute(
@@ -2486,7 +2550,7 @@ async def apply_downgrade(request: Request):
             # Issue new license key at new plan tier if eligible
             if SELF_HOSTED_PLAN_LIMITS.get(new_plan):
                 try:
-                    generate_license_key(user_id, new_plan, "monthly")
+                    generate_license_key(user_id, new_plan, new_interval)
                 except Exception as e:
                     log.warning(f"Could not reissue key for {user_id} on {new_plan}: {e}")
 
@@ -2502,16 +2566,23 @@ async def apply_downgrade(request: Request):
                         "personal_pro": "Personal Pro", "personal_max": "Personal Max",
                         "photo_starter": "Studio Starter", "photo_pro": "Studio Pro",
                     }
+                    interval_label = "Annual" if new_interval == "annual" else "Monthly"
+                    is_just_interval = (new_plan == old_plan)
+                    if is_just_interval:
+                        change_desc = f"switched to <strong style=\"color:#1c1917\">{interval_label} billing</strong>"
+                        subject_suffix = f"billing switched to {interval_label}"
+                    else:
+                        change_desc = f"changed to <strong style=\"color:#1c1917\">{plan_labels.get(new_plan, new_plan)} ({interval_label})</strong>"
+                        subject_suffix = f"plan changed to {plan_labels.get(new_plan, new_plan)}"
                     html = f"""
                     <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:480px;margin:0 auto;background:#f9f7f4;padding:32px 24px">
                       <div style="text-align:center;margin-bottom:24px">
                         <span style="font-size:28px;font-weight:800;color:#4f46e5;letter-spacing:-1px">FaceFind</span>
                       </div>
                       <div style="background:#fff;border-radius:16px;padding:36px;box-shadow:0 4px 16px rgba(0,0,0,0.07)">
-                        <h2 style="margin:0 0 8px;font-size:20px;color:#1c1917">Plan change applied</h2>
+                        <h2 style="margin:0 0 8px;font-size:20px;color:#1c1917">Billing update applied</h2>
                         <p style="font-size:14px;color:#78716c;margin:0 0 20px">
-                          Hi {u['name']}, your plan has been changed to
-                          <strong style="color:#1c1917">{plan_labels.get(new_plan, new_plan)}</strong> today.
+                          Hi {u['name']}, your plan has been {change_desc} today.
                         </p>
                         <p style="font-size:13px;color:#78716c;margin:0 0 24px">
                           Your datasets are safe. If any collections exceed your new plan's limits,
@@ -2524,12 +2595,12 @@ async def apply_downgrade(request: Request):
                       </div>
                     </div>
                     """
-                    send_email(u["email"], f"FaceFind — plan changed to {plan_labels.get(new_plan, new_plan)}", html)
+                    send_email(u["email"], f"FaceFind — {subject_suffix}", html)
             except Exception as e:
                 log.warning(f"Downgrade notification email failed for {user_id}: {e}")
 
-            applied.append({"user_id": user_id, "from": old_plan, "to": new_plan})
-            log.info(f"Downgrade applied: user={user_id} {old_plan}→{new_plan}")
+            applied.append({"user_id": user_id, "from": f"{old_plan}", "to": f"{new_plan}({new_interval})"})
+            log.info(f"Downgrade applied: user={user_id} {old_plan}→{new_plan} interval={new_interval}")
         except Exception as e:
             log.error(f"Failed to apply downgrade for {user_id}: {e}")
 
