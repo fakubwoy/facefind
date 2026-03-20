@@ -45,11 +45,12 @@
     .hero-sub { font-size:17px; color:var(--muted); max-width:480px; margin:0 auto 44px; line-height:1.65; }
 
     /* BILLING TOGGLE */
-    .billing-row { display:flex; align-items:center; justify-content:center; gap:14px; margin-bottom:48px; }
-    .billing-pill { display:flex; align-items:center; background:var(--surface); border:1px solid var(--border); border-radius:999px; padding:4px; box-shadow:var(--shadow-sm); }
+    .billing-row { display:flex; align-items:center; justify-content:center; margin-bottom:48px; }
+    .billing-pill { display:flex; align-items:center; background:var(--surface); border:1px solid var(--border); border-radius:999px; padding:4px; box-shadow:var(--shadow-sm); position:relative; }
     .bill-btn { font-family:'Plus Jakarta Sans',sans-serif; font-size:13px; font-weight:600; color:var(--muted); background:none; border:none; cursor:pointer; padding:7px 18px; border-radius:999px; transition:color 0.2s,background 0.2s; }
     .bill-btn.active { color:var(--primary); background:var(--primary-light); }
-    .save-tag { font-size:11px; font-weight:700; color:var(--success); background:var(--success-light); padding:4px 11px; border-radius:999px; }
+    .save-tag { font-size:11px; font-weight:700; color:var(--success); background:var(--success-light); padding:4px 10px; border-radius:999px; position:absolute; left:calc(100% + 14px); top:50%; transform:translateY(-50%); white-space:nowrap; pointer-events:none; display:flex; align-items:center; gap:5px; }
+    .save-tag::before { content:'←'; font-size:10px; }
 
     /* FREE BANNER */
     .free-banner { max-width:1120px; margin:0 auto 28px; padding:0 28px; }
@@ -101,7 +102,7 @@
     .pip-gold { background:var(--gold); }
 
     .card-name { font-family:'Fraunces',serif; font-size:22px; font-weight:800; color:var(--text); letter-spacing:-0.4px; margin-bottom:5px; }
-    .card-tagline { font-size:13px; color:var(--muted); line-height:1.5; margin-bottom:22px; }
+    .card-tagline { font-size:13px; color:var(--muted); line-height:1.5; margin-bottom:22px; min-height:40px; }
     .card-price { display:flex; align-items:flex-end; gap:3px; margin-bottom:4px; }
     .p-sym { font-size:18px; font-weight:700; color:var(--text); padding-bottom:6px; }
     .p-num { font-family:'Fraunces',serif; font-size:48px; font-weight:900; color:var(--text); letter-spacing:-2px; line-height:1; }
@@ -324,8 +325,8 @@
     <div class="billing-pill">
       <button class="bill-btn active" id="btnMonthly" onclick="setBilling('monthly')">Monthly</button>
       <button class="bill-btn"        id="btnAnnual"  onclick="setBilling('annual')">Annual</button>
+      <span class="save-tag">Save up to 30%</span>
     </div>
-    <span class="save-tag">Save up to 30%</span>
   </div>
 </div>
 
@@ -453,6 +454,7 @@
 
       <!-- Studio Starter -->
       <div class="plan-card card-gold fade-up d1">
+        <span class="card-pip" style="visibility:hidden;">placeholder</span>
         <div class="card-name">Studio Starter</div>
         <div class="card-tagline">Starting out, or running a handful of events per month.</div>
         <div class="card-price"><span class="p-sym">&#x20B9;</span><span class="p-num" id="ph1-num">599</span><span class="p-cad" id="ph1-cad">/month</span></div>
@@ -1017,24 +1019,11 @@
           '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M3 20c0-4.4 4-8 9-8s9 3.6 9 8"/></svg>' +
           (user.name || user.email || '');
 
-        // Free strip CTA
+        // Free strip CTA — always just goes to dashboard for logged-in users
         const freeStripCta = document.getElementById('freeStripCta');
         if (freeStripCta) {
-          if (userPlan === 'free') {
-            freeStripCta.href = '/admin.html';
-            freeStripCta.innerHTML = 'Go to dashboard ' + ARROW_SVG;
-          } else {
-            // Paid user — show cancel subscription link instead
-            freeStripCta.removeAttribute('href');
-            freeStripCta.style.cursor = 'pointer';
-            freeStripCta.style.color = 'var(--muted)';
-            freeStripCta.style.background = 'transparent';
-            freeStripCta.style.border = 'none';
-            freeStripCta.style.textDecoration = 'underline';
-            freeStripCta.style.fontSize = '13px';
-            freeStripCta.innerHTML = 'Cancel subscription';
-            freeStripCta.onclick = (e) => { e.preventDefault(); handleCancelSubscription(); };
-          }
+          freeStripCta.href = '/admin.html';
+          freeStripCta.innerHTML = 'Go to dashboard ' + ARROW_SVG;
         }
 
         // Update plan CTA labels
@@ -1047,6 +1036,12 @@
             el.style.opacity = '0.55';
             el.style.cursor = 'default';
             el.onclick = (e) => e.preventDefault();
+            // Inject cancel link below the current plan button
+            const cancelWrap = document.createElement('div');
+            cancelWrap.id = 'cancelSubWrap';
+            cancelWrap.style.cssText = 'text-align:center;margin-top:10px;';
+            cancelWrap.innerHTML = `<button onclick="handleCancelSubscription()" style="background:none;border:none;font-size:12px;color:var(--muted,#78716c);cursor:pointer;text-decoration:underline;padding:0;">Cancel subscription</button>`;
+            el.parentNode && el.parentNode.insertBefore(cancelWrap, el.nextSibling);
           } else if (planRank(plan) < planRank(userPlan)) {
             el.innerHTML = 'Downgrade ' + ARROW_SVG;
             el.style.opacity = '0.7';
@@ -1061,15 +1056,16 @@
 
           // If cancellation is already scheduled, update free strip to show undo option
           if (info.scheduled_downgrade === 'free') {
-            const freeStrip = document.getElementById('freeStripCta');
-            if (freeStrip) {
+            const cancelWrap = document.getElementById('cancelSubWrap');
+            if (cancelWrap) {
               const dAt = info.scheduled_downgrade_at
                 ? new Date(info.scheduled_downgrade_at * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
                 : '';
-              freeStrip.innerHTML = `Cancels ${dAt} — <span style="text-decoration:underline;cursor:pointer;" onclick="undoCancellation()">Undo</span>`;
-              freeStrip.style.color = '#dc2626';
-              freeStrip.onclick = null;
+              cancelWrap.innerHTML = `<span style="font-size:12px;color:#dc2626;font-weight:600;">Cancels ${dAt} — <button onclick="undoCancellation()" style="background:none;border:none;color:#dc2626;font-size:12px;font-weight:700;cursor:pointer;padding:0;text-decoration:underline;">Undo</button></span>`;
             }
+            // Also remove the free strip undo block if it exists (cleanup)
+            const freeStrip = document.getElementById('freeStripCta');
+            if (freeStrip) freeStrip.style.display = 'none';
           }
 
           PLAN_CTAS.forEach(({ id, plan }) => {
