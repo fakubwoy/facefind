@@ -89,51 +89,66 @@
 
     .header-right { display: flex; align-items: center; gap: 12px; }
 
-    .user-tag {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text2);
-      background: var(--bg);
-      border: 1px solid var(--border);
-      padding: 6px 14px;
-      border-radius: 100px;
-      display: flex;
-      align-items: center;
-      gap: 7px;
-    }
-
     .header-nav-link {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--muted);
-      text-decoration: none;
-      padding: 7px 14px;
-      border-radius: var(--radius-sm);
-      border: 1.5px solid var(--border);
-      background: none;
-      transition: all 0.2s;
-      display: flex;
-      align-items: center;
-      gap: 6px;
+      font-size: 13px; font-weight: 600; color: var(--muted);
+      text-decoration: none; padding: 7px 14px;
+      border-radius: var(--radius-sm); border: 1.5px solid var(--border);
+      background: none; transition: all 0.2s;
+      display: flex; align-items: center; gap: 6px;
     }
     .header-nav-link:hover { border-color: var(--border2); color: var(--text2); background: var(--surface2); }
+    .logout-btn { display: none; }
 
-    .logout-btn {
-      background: none;
-      border: 1.5px solid var(--border);
-      color: var(--muted);
+    /* ── Profile avatar + dropdown ── */
+    .profile-wrap { position: relative; }
+    .profile-btn {
+      width: 36px; height: 36px; border-radius: 50%;
+      border: 2px solid transparent;
+      background: var(--primary); color: #fff;
+      font-size: 13px; font-weight: 700;
       font-family: 'Plus Jakarta Sans', sans-serif;
-      font-size: 13px;
-      font-weight: 600;
-      padding: 7px 16px;
-      border-radius: var(--radius-sm);
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      transition: all 0.2s;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: box-shadow 0.2s, border-color 0.2s;
+      letter-spacing: 0.3px; flex-shrink: 0;
     }
-    .logout-btn:hover { border-color: var(--error); color: var(--error); background: rgba(220,38,38,0.05); }
+    .profile-btn:hover { box-shadow: 0 0 0 3px rgba(79,70,229,0.18); }
+    .profile-btn.open  { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,0.18); }
+    .profile-dropdown {
+      display: none; position: absolute;
+      top: calc(100% + 10px); right: 0; width: 220px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.10), 0 2px 6px rgba(0,0,0,0.06);
+      z-index: 999; overflow: hidden;
+      animation: pdDropIn 0.15s ease;
+    }
+    @keyframes pdDropIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
+    .profile-dropdown.open { display: block; }
+    .pd-user {
+      padding: 14px 16px 12px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .pd-avatar {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: var(--primary); color: #fff;
+      font-size: 13px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; letter-spacing: 0.3px;
+    }
+    .pd-info { min-width: 0; }
+    .pd-name  { font-size: 13px; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pd-email { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+    .pd-item {
+      display: flex; align-items: center; gap: 9px;
+      padding: 10px 16px; font-size: 13px; font-weight: 600; color: var(--text2);
+      text-decoration: none; background: none; border: none; width: 100%;
+      text-align: left; cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif;
+      transition: background 0.15s, color 0.15s;
+    }
+    .pd-item:hover { background: var(--bg); color: var(--text); }
+    .pd-item.danger { color: #dc2626; }
+    .pd-item.danger:hover { background: rgba(220,38,38,0.06); color: #dc2626; }
+    .pd-sep { height: 1px; background: var(--border); margin: 2px 0; }
 
     /* ── Page layout ──────────────────────────────────────────────────────── */
     .layout {
@@ -516,18 +531,35 @@
     <span class="header-badge">Self-Hosted</span>
   </div>
   <div class="header-right">
-    <div class="user-tag" id="userTag">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M3 20c0-4.4 4-8 9-8s9 3.6 9 8"/></svg>
-      —
-    </div>
     <a href="/admin.html" class="header-nav-link">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
       Dashboard
     </a>
-    <button class="logout-btn" onclick="doLogout()">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-      Sign Out
-    </button>
+    <div class="profile-wrap" id="profileWrap">
+      <button class="profile-btn" id="profileBtn" onclick="toggleProfile(event)" aria-label="Account menu">—</button>
+      <div class="profile-dropdown" id="profileDropdown">
+        <div class="pd-user">
+          <div class="pd-avatar" id="pdAvatar">—</div>
+          <div class="pd-info">
+            <div class="pd-name" id="pdName">—</div>
+            <div class="pd-email" id="pdEmail">—</div>
+          </div>
+        </div>
+        <a href="/admin.html" class="pd-item">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+          Dashboard
+        </a>
+        <a href="/pricing.html" class="pd-item">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          Manage plan
+        </a>
+        <div class="pd-sep"></div>
+        <button class="pd-item danger" onclick="doLogout()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          Sign out
+        </button>
+      </div>
+    </div>
   </div>
 </header>
 
@@ -767,9 +799,7 @@
       const r = await fetch('/api/auth/me', { credentials: 'include' });
       if (!r.ok) { window.location.href = '/login.html?next=/download.html'; return; }
       const u = await r.json();
-      document.getElementById('userTag').innerHTML =
-        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M3 20c0-4.4 4-8 9-8s9 3.6 9 8"/></svg>' +
-        escHtml(u.name || u.email);
+      setProfileUser(u);
     } catch { window.location.href = '/login.html?next=/download.html'; return; }
 
     await loadInfo();
@@ -956,6 +986,50 @@
       }, 2000);
     } catch { toast('Could not copy to clipboard.', 'err'); }
   }
+
+  // ── Profile avatar helpers ──────────────────────────────────────────────
+  function getInitials(name, email) {
+    if (name && name.trim()) {
+      const parts = name.trim().split(/\s+/);
+      return parts.length >= 2
+        ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+        : parts[0].slice(0, 2).toUpperCase();
+    }
+    return (email || '?')[0].toUpperCase();
+  }
+  function avatarColor(str) {
+    const colors = ['#4f46e5','#0891b2','#059669','#d97706','#dc2626','#7c3aed','#db2777'];
+    let h = 0;
+    for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+    return colors[h % colors.length];
+  }
+  function setProfileUser(user) {
+    const initials = getInitials(user.name, user.email);
+    const color    = avatarColor(user.email || user.name || '');
+    const displayName = user.name || user.email || '—';
+    const btn = document.getElementById('profileBtn');
+    if (btn) { btn.textContent = initials; btn.style.background = color; }
+    const av = document.getElementById('pdAvatar');
+    if (av) { av.textContent = initials; av.style.background = color; }
+    const pdName = document.getElementById('pdName');
+    if (pdName) pdName.textContent = displayName;
+    const pdEmail = document.getElementById('pdEmail');
+    if (pdEmail) pdEmail.textContent = user.email || '';
+  }
+  function toggleProfile(e) {
+    e.stopPropagation();
+    const btn  = document.getElementById('profileBtn');
+    const drop = document.getElementById('profileDropdown');
+    const open = drop.classList.toggle('open');
+    btn.classList.toggle('open', open);
+  }
+  document.addEventListener('click', function(e) {
+    const wrap = document.getElementById('profileWrap');
+    if (wrap && !wrap.contains(e.target)) {
+      document.getElementById('profileDropdown')?.classList.remove('open');
+      document.getElementById('profileBtn')?.classList.remove('open');
+    }
+  });
 
   async function doLogout() {
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
