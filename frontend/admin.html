@@ -2021,10 +2021,7 @@
           extras.push(`<span style="font-size:11px;color:var(--muted);">${label}</span>`);
         }
 
-        // Cancel subscription button — hide if already cancelling or interval-switching
-        if (currentPlan !== 'free' && !bi.scheduled_downgrade) {
-          extras.push(`<button onclick="cancelSubscription()" style="background:none;border:1.5px solid var(--border);font-size:11px;color:var(--muted);cursor:pointer;padding:4px 12px;border-radius:6px;font-family:inherit;font-weight:600;transition:border-color 0.2s,color 0.2s;" onmouseover="this.style.borderColor='#dc2626';this.style.color='#dc2626';" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)';">Cancel subscription</button>`);
-        }
+
 
         let extraEl = document.getElementById('planExtras');
         if (!extraEl) {
