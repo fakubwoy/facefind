@@ -1759,8 +1759,7 @@
           ${g.type ? `<span>${typeIcon(g.type)} ${g.type.charAt(0).toUpperCase() + g.type.slice(1)}</span> &nbsp;·&nbsp; ` : ''}
           ${g.date ? `<span>${escHtml(g.date)}</span> &nbsp;·&nbsp; ` : ''}
           <strong>${g.dataset_count || 0}</strong> collection${(g.dataset_count || 0) !== 1 ? 's' : ''} &nbsp;·&nbsp;
-          <strong>${(g.total_images || 0).toLocaleString('en-IN')}</strong> photos &nbsp;·&nbsp;
-          ${g.total_images ? `<strong>${(g.face_count || 0).toLocaleString('en-IN')}</strong> faces indexed` : 'No photos yet'}
+          <strong>${(g.total_images || 0).toLocaleString('en-IN')}</strong> photos
         </div>
         <div class="group-card-actions">
           <span class="btn-sm btn-sm-primary">Open</span>
