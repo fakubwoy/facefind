@@ -1714,6 +1714,8 @@ async def upload_zip(
         "status": "compressing", "total": 0, "processed": 0,
         "face_count": 0, "error": None, "created_at": time.time(),
     }
+    
+    db_upsert_dataset(ds)
     # Assign to group if provided
     if group_id:
         g = db_get_group(group_id)
@@ -1736,21 +1738,33 @@ async def upload_zip(
 async def use_gdrive_folder(
     request: Request,
     background_tasks: BackgroundTasks,
-    folder_url: str = Form(...),
-    name: str = Form(default=""),
 ):
     user = require_auth(request)
+    
+    # FIX 1: Properly read JSON from the frontend instead of Form data
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body.")
+
+    folder_url = body.get("folder_url", "").strip()
+    name = body.get("name", "").strip()
+    group_id = body.get("group_id", "").strip()
+
+    if not folder_url:
+        raise HTTPException(400, "Google Drive folder URL is required.")
+
     folder_id = extract_gdrive_folder_id(folder_url)
     if not folder_id:
-        raise HTTPException(400, "Could not extract a folder ID from the provided URL. Please paste the full Google Drive folder link.")
-    # ── Pre-flight: check folder is publicly accessible ──────────────────────
+        raise HTTPException(400, "Could not extract a folder ID from the provided URL.")
+        
     access = check_gdrive_folder_accessible(folder_id)
     if not access["accessible"]:
         raise HTTPException(400, f"Google Drive folder is not accessible: {access['reason']}")
 
     dataset_id  = str(uuid.uuid4())[:8]
     dataset_dir = DATASETS_DIR / dataset_id
-    dataset_dir.mkdir()
+    dataset_dir.mkdir(exist_ok=True)
 
     ds = {
         "id": dataset_id, "user_id": user["id"],
@@ -1759,7 +1773,18 @@ async def use_gdrive_folder(
         "status": "downloading", "total": 0, "processed": 0,
         "face_count": 0, "error": None, "created_at": time.time(),
     }
+    
+    # FIX 2: Upsert the dataset BEFORE assigning it to an event group
     db_upsert_dataset(ds)
+
+    if group_id:
+        g = db_get_group(group_id)
+        if g and g["user_id"] == user["id"]:
+            with get_db() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("UPDATE datasets SET group_id=%s WHERE id=%s", (group_id, dataset_id))
+                conn.commit()
+
     background_tasks.add_task(download_gdrive_folder, folder_id, dataset_dir, dataset_id)
     return {"dataset_id": dataset_id, "status": "downloading"}
 
