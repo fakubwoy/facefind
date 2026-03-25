@@ -1709,8 +1709,17 @@
     } catch {}
 
     // Convert array to object
+// Convert array to object
     groups = {};
     groupsArr.forEach(g => { groups[g.id] = g; });
+
+    // Calculate total_images for each group using dataset cache
+    Object.values(groups).forEach(g => g.total_images = 0);
+    Object.values(allDatasetsCache).forEach(d => {
+      if (d.group_id && groups[d.group_id]) {
+        groups[d.group_id].total_images += (d.total || d.total_images || 0);
+      }
+    });
 
     // Handle legacy or ungrouped datasets
     const ungrouped = Object.values(allDatasetsCache).filter(d => !d.group_id || !groups[d.group_id]);
@@ -1722,6 +1731,7 @@
         type: 'other',
         dataset_count: ungrouped.length,
         face_count: ungrouped.reduce((sum, d) => sum + (d.face_count || 0), 0),
+        total_images: ungrouped.reduce((sum, d) => sum + (d.total || d.total_images || 0), 0),
         is_ungrouped: true
       };
     }
@@ -1749,6 +1759,7 @@
           ${g.type ? `<span>${typeIcon(g.type)} ${g.type.charAt(0).toUpperCase() + g.type.slice(1)}</span> &nbsp;·&nbsp; ` : ''}
           ${g.date ? `<span>${escHtml(g.date)}</span> &nbsp;·&nbsp; ` : ''}
           <strong>${g.dataset_count || 0}</strong> collection${(g.dataset_count || 0) !== 1 ? 's' : ''} &nbsp;·&nbsp;
+          <strong>${(g.total_images || 0).toLocaleString('en-IN')}</strong> photos &nbsp;·&nbsp;
           ${g.face_count ? `<strong>${g.face_count.toLocaleString('en-IN')}</strong> faces indexed` : 'No photos yet'}
         </div>
         <div class="group-card-actions">
