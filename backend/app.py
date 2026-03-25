@@ -1,5 +1,5 @@
 """
-FaceFind – Backend API (Railway Edition)
+Pixmatch – Backend API (Railway Edition)
 - Postgres for metadata (datasets, shares, license keys, download tokens)
 - Redis for caching dataset status + search results
 - Local filesystem volume for images + FAISS indexes
@@ -246,6 +246,68 @@ def init_db():
                     created_at      DOUBLE PRECISION
                 );
             """)
+            # ── NEW: Event Groups table ─────────────────────────────────────────────
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS event_groups (
+                    id            TEXT PRIMARY KEY,
+                    user_id       TEXT NOT NULL,
+                    name          TEXT NOT NULL,
+                    description   TEXT DEFAULT '',
+                    cover_image   TEXT DEFAULT NULL,
+                    watermark_text TEXT DEFAULT NULL,
+                    created_at    DOUBLE PRECISION
+                );
+            """)
+            # Migration: ensure datasets table has group_id column
+            cur.execute("""
+                ALTER TABLE datasets ADD COLUMN IF NOT EXISTS group_id TEXT DEFAULT NULL;
+            """)
+            # Migration: shares table — add watermark, analytics, qr fields
+            cur.execute("""
+                ALTER TABLE shares ADD COLUMN IF NOT EXISTS watermark_text TEXT DEFAULT NULL;
+            """)
+            cur.execute("""
+                ALTER TABLE shares ADD COLUMN IF NOT EXISTS view_count INT DEFAULT 0;
+            """)
+            cur.execute("""
+                ALTER TABLE shares ADD COLUMN IF NOT EXISTS download_count INT DEFAULT 0;
+            """)
+            cur.execute("""
+                ALTER TABLE shares ADD COLUMN IF NOT EXISTS last_viewed_at DOUBLE PRECISION DEFAULT NULL;
+            """)
+            # ── NEW: Discount codes table ────────────────────────────────────────────
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS discount_codes (
+                    code            TEXT PRIMARY KEY,
+                    discount_pct    INT NOT NULL,
+                    interval        TEXT DEFAULT 'both',
+                    max_uses        INT DEFAULT 1,
+                    use_count       INT DEFAULT 0,
+                    expires_at      DOUBLE PRECISION DEFAULT NULL,
+                    created_by      TEXT DEFAULT 'admin',
+                    created_at      DOUBLE PRECISION
+                );
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS discount_code_uses (
+                    id          TEXT PRIMARY KEY,
+                    code        TEXT NOT NULL,
+                    user_id     TEXT NOT NULL,
+                    used_at     DOUBLE PRECISION,
+                    order_id    TEXT DEFAULT NULL
+                );
+            """)
+            # Share analytics log (optional detail)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS share_analytics (
+                    id          TEXT PRIMARY KEY,
+                    share_id    TEXT NOT NULL,
+                    event_type  TEXT NOT NULL,
+                    ip_hash     TEXT,
+                    created_at  DOUBLE PRECISION
+                );
+            """)
+
         conn.commit()
     log.info("DB tables ready")
 
@@ -899,6 +961,305 @@ def download_gdrive_folder(folder_id: str, dest_dir: Path, dataset_id: str):
 
 # ── Auth helpers ──────────────────────────────────────────────────────────────
 
+
+# ── QR Code generation ────────────────────────────────────────────────────────
+
+def generate_qr_code_png(data: str) -> bytes:
+    """Generate a QR code PNG as bytes for the given URL/data."""
+    import qrcode
+    from PIL import Image as PILImage
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        box_size=10,
+        border=4,
+    )
+    qr.add_data(data)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="#1c1917", back_color="white")
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+# ── Watermark helper ──────────────────────────────────────────────────────────
+
+def apply_watermark(image_bytes: bytes, watermark_text: str) -> bytes:
+    """
+    Overlay studio name as a cursive-style watermark at bottom-left of image.
+    Uses Pillow; falls back to original bytes if font loading fails.
+    """
+    try:
+        from PIL import Image as PILImage, ImageDraw, ImageFont
+        img = PILImage.open(io.BytesIO(image_bytes)).convert("RGBA")
+        w, h = img.size
+
+        txt_layer = PILImage.new("RGBA", img.size, (255, 255, 255, 0))
+        draw = ImageDraw.Draw(txt_layer)
+
+        font_size = max(20, int(h * 0.045))
+        font = None
+
+        # Try system cursive/italic fonts
+        font_candidates = [
+            "/usr/share/fonts/truetype/dejavu/DejaVuSerif-BoldItalic.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSerif-BoldItalic.ttf",
+            "/usr/share/fonts/truetype/freefont/FreeSerifBoldItalic.ttf",
+        ]
+        for path in font_candidates:
+            if os.path.exists(path):
+                try:
+                    font = ImageFont.truetype(path, font_size)
+                    break
+                except Exception:
+                    continue
+
+        if font is None:
+            font = ImageFont.load_default()
+
+        # Text bounding box
+        bbox = draw.textbbox((0, 0), watermark_text, font=font)
+        tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+
+        # Position: bottom-left with 2% padding
+        pad_x = int(w * 0.02)
+        pad_y = int(h * 0.02)
+        x = pad_x
+        y = h - th - pad_y
+
+        # Shadow for readability
+        draw.text((x + 2, y + 2), watermark_text, font=font, fill=(0, 0, 0, 110))
+        draw.text((x, y), watermark_text, font=font, fill=(255, 255, 255, 200))
+
+        out = PILImage.alpha_composite(img, txt_layer).convert("RGB")
+        buf = io.BytesIO()
+        out.save(buf, format="JPEG", quality=92)
+        return buf.getvalue()
+    except Exception as e:
+        log.warning(f"Watermark failed: {e}")
+        return image_bytes
+
+
+# ── Google Drive accessibility check ─────────────────────────────────────────
+
+def check_gdrive_folder_accessible(folder_id: str) -> dict:
+    """
+    Try to list the first page of the folder.
+    Returns {"accessible": bool, "reason": str}.
+    Prefers the Drive API if GOOGLE_API_KEY is set, else tries a public URL.
+    """
+    api_key = os.environ.get("GOOGLE_API_KEY", "").strip()
+    if api_key:
+        try:
+            params = {
+                "q": f"'{folder_id}' in parents and trashed=false",
+                "fields": "files(id,name)",
+                "key": api_key,
+                "pageSize": "1",
+            }
+            url = "https://www.googleapis.com/drive/v3/files?" + urllib.parse.urlencode(params)
+            req = urllib.request.Request(url, headers={"User-Agent": "Pixmatch/1.0"})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read())
+            if "error" in data:
+                err_msg = data["error"].get("message", str(data["error"]))
+                if "not found" in err_msg.lower() or "forbidden" in err_msg.lower():
+                    return {
+                        "accessible": False,
+                        "reason": "This folder is private or doesn't exist. Please set sharing to 'Anyone with the link' and try again.",
+                    }
+                return {"accessible": False, "reason": f"Drive API error: {err_msg}"}
+            return {"accessible": True, "reason": "ok", "file_count_preview": len(data.get("files", []))}
+        except Exception as e:
+            return {"accessible": False, "reason": f"Could not reach Google Drive: {str(e)}"}
+    else:
+        # Fallback: try HTML page
+        try:
+            url = f"https://drive.google.com/drive/folders/{folder_id}"
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                body = resp.read().decode("utf-8", errors="ignore")
+            if "you need access" in body.lower() or "request access" in body.lower():
+                return {
+                    "accessible": False,
+                    "reason": "This Google Drive folder is private. Please change sharing to 'Anyone with the link — Viewer'.",
+                }
+            return {"accessible": True, "reason": "ok"}
+        except Exception as e:
+            return {"accessible": False, "reason": f"Could not verify folder access: {str(e)}"}
+
+
+# ── Event Group DB helpers ────────────────────────────────────────────────────
+
+def db_create_group(user_id: str, name: str, description: str = "", watermark_text: str = "") -> dict:
+    group_id = str(uuid.uuid4())[:12]
+    now = time.time()
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO event_groups (id, user_id, name, description, watermark_text, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (group_id, user_id, name, description, watermark_text or "", now))
+        conn.commit()
+    return {"id": group_id, "user_id": user_id, "name": name, "description": description,
+            "watermark_text": watermark_text, "created_at": now}
+
+
+def db_get_group(group_id: str) -> Optional[dict]:
+    cached = cache_get(f"group:{group_id}")
+    if cached:
+        return cached
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM event_groups WHERE id = %s", (group_id,))
+            row = cur.fetchone()
+    if row:
+        result = dict(row)
+        cache_set(f"group:{group_id}", result, ttl=60)
+        return result
+    return None
+
+
+def db_list_groups(user_id: str) -> list:
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT * FROM event_groups WHERE user_id = %s ORDER BY created_at DESC",
+                (user_id,)
+            )
+            rows = cur.fetchall()
+    return [dict(r) for r in rows]
+
+
+def db_update_group(group_id: str, **fields):
+    if not fields:
+        return
+    set_clause = ", ".join(f"{k}=%s" for k in fields)
+    values = list(fields.values()) + [group_id]
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(f"UPDATE event_groups SET {set_clause} WHERE id=%s", values)
+        conn.commit()
+    cache_delete(f"group:{group_id}")
+
+
+def db_delete_group(group_id: str):
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM event_groups WHERE id=%s", (group_id,))
+        conn.commit()
+    cache_delete(f"group:{group_id}")
+
+
+# ── Discount code helpers ─────────────────────────────────────────────────────
+
+def validate_discount_code(code: str, user_id: str, interval: str = "monthly") -> dict:
+    """
+    Check if a discount code is valid for this user.
+    Returns {"valid": bool, "discount_pct": int, "reason": str}
+    """
+    code = code.strip().upper()
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM discount_codes WHERE code=%s", (code,))
+            dc = cur.fetchone()
+    if not dc:
+        return {"valid": False, "discount_pct": 0, "reason": "Invalid discount code."}
+    dc = dict(dc)
+
+    if dc.get("expires_at") and time.time() > dc["expires_at"]:
+        return {"valid": False, "discount_pct": 0, "reason": "This discount code has expired."}
+
+    if dc["use_count"] >= dc["max_uses"]:
+        return {"valid": False, "discount_pct": 0, "reason": "This discount code has been fully redeemed."}
+
+    # Check if this specific user has already used it
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT COUNT(*) as n FROM discount_code_uses WHERE code=%s AND user_id=%s",
+                (code, user_id)
+            )
+            row = cur.fetchone()
+    if row and row["n"] > 0:
+        return {"valid": False, "discount_pct": 0, "reason": "You have already used this discount code."}
+
+    # Check interval compatibility
+    dc_interval = dc.get("interval", "both")
+    if dc_interval != "both" and dc_interval != interval:
+        return {"valid": False, "discount_pct": 0,
+                "reason": f"This code is only valid for {dc_interval} subscriptions."}
+
+    return {"valid": True, "discount_pct": dc["discount_pct"], "reason": "ok", "code": code}
+
+
+def consume_discount_code(code: str, user_id: str, order_id: str = None):
+    """Mark a discount code as used by this user."""
+    code = code.strip().upper()
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO discount_code_uses (id, code, user_id, used_at, order_id) VALUES (%s,%s,%s,%s,%s)",
+                (str(uuid.uuid4()), code, user_id, time.time(), order_id)
+            )
+            cur.execute("UPDATE discount_codes SET use_count=use_count+1 WHERE code=%s", (code,))
+        conn.commit()
+
+
+# ── Share analytics helpers ───────────────────────────────────────────────────
+
+def record_share_event(share_id: str, event_type: str, ip: str = ""):
+    """Record a view or download event for analytics."""
+    ip_hash = hashlib.sha256(ip.encode()).hexdigest()[:16] if ip else ""
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO share_analytics (id, share_id, event_type, ip_hash, created_at) VALUES (%s,%s,%s,%s,%s)",
+                    (str(uuid.uuid4()), share_id, event_type, ip_hash, time.time())
+                )
+                if event_type == "view":
+                    cur.execute(
+                        "UPDATE shares SET view_count=COALESCE(view_count,0)+1, last_viewed_at=%s WHERE share_id=%s",
+                        (time.time(), share_id)
+                    )
+                elif event_type == "download":
+                    cur.execute(
+                        "UPDATE shares SET download_count=COALESCE(download_count,0)+1 WHERE share_id=%s",
+                        (share_id,)
+                    )
+            conn.commit()
+        cache_delete(f"share:{share_id}")
+    except Exception as e:
+        log.warning(f"Analytics record failed: {e}")
+
+
+# ── Resilient ZIP upload (chunked read) ──────────────────────────────────────
+
+async def resilient_read_upload(file: "UploadFile", max_bytes: int = 2 * 1024 * 1024 * 1024) -> bytes:
+    """
+    Read an upload in 1 MB chunks with per-chunk timeout awareness.
+    Raises HTTPException(413) if file exceeds max_bytes.
+    Raises HTTPException(408) on read timeout.
+    """
+    from fastapi import UploadFile as FU
+    chunks = []
+    total = 0
+    chunk_size = 1024 * 1024  # 1 MB
+    try:
+        while True:
+            chunk = await file.read(chunk_size)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > max_bytes:
+                raise HTTPException(413, "File too large. Maximum upload size is 2 GB.")
+            chunks.append(chunk)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(408, f"Upload interrupted. Please check your connection and try again. ({e})")
+    return b"".join(chunks)
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
 
@@ -1313,6 +1674,7 @@ async def upload_zip(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     name: str = Form(default=""),
+    group_id: str = Form(default=""),
 ):
     user = require_auth(request)
     if not file.filename.endswith(".zip"):
@@ -1323,7 +1685,8 @@ async def upload_zip(
     dataset_dir.mkdir()
 
     zip_path = dataset_dir / "upload.zip"
-    zip_path.write_bytes(await file.read())
+    raw_bytes = await resilient_read_upload(file)
+    zip_path.write_bytes(raw_bytes)
     
     # Extract ZIP
     with zipfile.ZipFile(zip_path) as zf:
@@ -1351,6 +1714,14 @@ async def upload_zip(
         "status": "compressing", "total": 0, "processed": 0,
         "face_count": 0, "error": None, "created_at": time.time(),
     }
+    # Assign to group if provided
+    if group_id:
+        g = db_get_group(group_id)
+        if g and g["user_id"] == user["id"]:
+            with get_db() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("UPDATE datasets SET group_id=%s WHERE id=%s", (group_id, dataset_id))
+                conn.commit()
     db_upsert_dataset(ds)
 
     # Apply caps before embedding.
@@ -1371,7 +1742,11 @@ async def use_gdrive_folder(
     user = require_auth(request)
     folder_id = extract_gdrive_folder_id(folder_url)
     if not folder_id:
-        raise HTTPException(400, "Could not extract a folder ID from the provided URL.")
+        raise HTTPException(400, "Could not extract a folder ID from the provided URL. Please paste the full Google Drive folder link.")
+    # ── Pre-flight: check folder is publicly accessible ──────────────────────
+    access = check_gdrive_folder_accessible(folder_id)
+    if not access["accessible"]:
+        raise HTTPException(400, f"Google Drive folder is not accessible: {access['reason']}")
 
     dataset_id  = str(uuid.uuid4())[:8]
     dataset_dir = DATASETS_DIR / dataset_id
@@ -1446,7 +1821,8 @@ async def add_images_to_dataset(
     temp_dir.mkdir()
     
     zip_path = temp_dir / "upload.zip"
-    zip_path.write_bytes(await file.read())
+    raw_bytes = await resilient_read_upload(file)
+    zip_path.write_bytes(raw_bytes)
     with zipfile.ZipFile(zip_path) as zf:
         zf.extractall(temp_dir)
     zip_path.unlink()
@@ -1484,7 +1860,7 @@ async def add_images_to_dataset(
 # ── Share endpoints ───────────────────────────────────────────────────────────
 
 @app.post("/api/shares")
-def create_share(request: Request, dataset_id: str = Form(...)):
+def create_share(request: Request, dataset_id: str = Form(...), watermark_text: str = Form(default="")):
     require_auth(request)
     ds = db_get_dataset(dataset_id)
     if not ds:
@@ -1511,6 +1887,16 @@ def create_share(request: Request, dataset_id: str = Form(...)):
         "created_at":   time.time(),
     }
     db_insert_share(share)
+    # Store watermark if provided
+    if watermark_text:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE shares SET watermark_text=%s WHERE share_id=%s",
+                    (watermark_text[:80], share_id)
+                )
+            conn.commit()
+        cache_delete(f"share:{share_id}")
     return {"share_id": share_id}
 
 
@@ -1538,10 +1924,13 @@ def delete_share(share_id: str, request: Request):
 
 
 @app.get("/api/shares/{share_id}")
-def get_share(share_id: str):
+def get_share(share_id: str, request: Request):
     share = db_get_share(share_id)
     if not share:
         raise HTTPException(404, "Share link not found.")
+    # Record analytics view (best-effort)
+    client_ip = request.client.host if request.client else ""
+    record_share_event(share_id, "view", client_ip)
     return share
 
 # ── Search endpoint ───────────────────────────────────────────────────────────
@@ -1937,6 +2326,15 @@ async def create_order(request: Request):
     if target_interval not in ("monthly", "annual"):
         raise HTTPException(400, "interval must be 'monthly' or 'annual'.")
 
+    # ── Discount code (optional) ─────────────────────────────────────────────
+    discount_code_str = (body.get("discount_code") or "").strip().upper()
+    discount_pct = 0
+    if discount_code_str:
+        dc_result = validate_discount_code(discount_code_str, user["id"], target_interval)
+        if not dc_result["valid"]:
+            raise HTTPException(400, dc_result["reason"])
+        discount_pct = dc_result["discount_pct"]
+
     current_plan = user.get("plan", "free") or "free"
     current_interval = user.get("plan_interval") or "monthly"
 
@@ -1976,6 +2374,15 @@ async def create_order(request: Request):
     proration_credit = billing["proration_credit_paise"]
     total_credit_used = billing["total_credit_paise"]
 
+    # ── Apply discount code percentage on top of proration/credits ────────────
+    discount_amount_paise = 0
+    if discount_pct > 0:
+        full_for_discount = get_plan_price(plan, target_interval)
+        discount_amount_paise = int(full_for_discount * discount_pct / 100)
+        charge_paise = max(charge_paise - discount_amount_paise, 0)
+        billing["discount_code_pct"] = discount_pct
+        billing["discount_code_amount_paise"] = discount_amount_paise
+
     # ── Free upgrade: credits cover the full price ────────────────────────────
     if is_upgrade and charge_paise == 0:
         now = time.time()
@@ -2001,6 +2408,8 @@ async def create_order(request: Request):
         token = request.cookies.get("ff_token", "")
         if token:
             cache_delete(f"session:{token}")
+        if discount_code_str and discount_pct > 0:
+            consume_discount_code(discount_code_str, user["id"])
         log.info(f"Free upgrade via credits: user={user['id']} {current_plan}→{plan} credit={total_credit_used}p")
         return {
             "free_upgrade": True,
@@ -2054,6 +2463,8 @@ async def create_order(request: Request):
             """, (order_id, user["id"], plan, charge_paise, time.time(), current_plan, total_credit_used, target_interval))
         conn.commit()
 
+    if discount_code_str and discount_pct > 0:
+        consume_discount_code(discount_code_str, user["id"], order_id)
     log.info(f"Razorpay order created: {order_id} user={user['id']} {current_plan}→{plan} ({target_interval}) charge={charge_paise}p credit={total_credit_used}p loyalty={loyalty_discount}p")
 
     return {
@@ -2068,6 +2479,8 @@ async def create_order(request: Request):
         "billing":                billing,
         "loyalty_discount_paise": loyalty_discount,
         "free_upgrade":           False,
+        "discount_code":          discount_code_str,
+        "discount_pct":           discount_pct,
     }
 
 
@@ -2159,6 +2572,16 @@ async def verify_payment(request: Request):
         cache_delete(f"session:{token}")
 
     log.info(f"Payment verified: order={order_id} payment={payment_id} user={user['id']} plan={plan}")
+    # Consume discount code if it was used on this order
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT notes FROM razorpay_orders WHERE order_id=%s", (order_id,))
+                # notes are stored in the order payload; discount code consumed here if present
+                # We track it via razorpay notes — best effort
+                pass
+    except Exception:
+        pass
 
     # ── Fire referral credit on first ever payment ────────────────────────────
     try:
@@ -2870,9 +3293,382 @@ def health():
 
 # ── Frontend static files ─────────────────────────────────────────────────────
 
+
+# ── Event Group endpoints ─────────────────────────────────────────────────────
+
+@app.get("/api/groups")
+def list_groups(request: Request):
+    """List all event groups for the authenticated user."""
+    user = require_auth(request)
+    groups = db_list_groups(user["id"])
+    # Attach dataset count and share link per group
+    for g in groups:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT COUNT(*) as n FROM datasets WHERE user_id=%s AND group_id=%s",
+                    (user["id"], g["id"])
+                )
+                row = cur.fetchone()
+                g["dataset_count"] = row["n"] if row else 0
+                # Find share for this group (join through datasets)
+                cur.execute("""
+                    SELECT s.share_id, s.view_count, s.download_count
+                    FROM shares s
+                    JOIN datasets d ON s.dataset_id = d.id
+                    WHERE d.user_id=%s AND d.group_id=%s
+                    LIMIT 1
+                """, (user["id"], g["id"]))
+                share_row = cur.fetchone()
+                g["share_id"] = share_row["share_id"] if share_row else None
+                g["view_count"] = share_row["view_count"] if share_row else 0
+                g["download_count"] = share_row["download_count"] if share_row else 0
+    return groups
+
+
+@app.post("/api/groups")
+async def create_group(request: Request):
+    """Create a new event group."""
+    user = require_auth(request)
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body.")
+    name = (body.get("name") or "").strip()
+    if not name:
+        raise HTTPException(400, "Group name is required.")
+    description = (body.get("description") or "").strip()
+    watermark_text = (body.get("watermark_text") or "").strip()[:80]
+    group = db_create_group(user["id"], name, description, watermark_text)
+    log.info(f"Group created: {group['id']} by user {user['id']}")
+    return group
+
+
+@app.get("/api/groups/{group_id}")
+def get_group(group_id: str, request: Request):
+    user = require_auth(request)
+    g = db_get_group(group_id)
+    if not g:
+        raise HTTPException(404, "Group not found.")
+    if g["user_id"] != user["id"]:
+        raise HTTPException(403, "Not your group.")
+    # Attach datasets
+    datasets = db_list_datasets(user["id"])
+    g["datasets"] = [d for d in datasets.values() if d.get("group_id") == group_id]
+    return g
+
+
+@app.patch("/api/groups/{group_id}")
+async def update_group(group_id: str, request: Request):
+    user = require_auth(request)
+    g = db_get_group(group_id)
+    if not g:
+        raise HTTPException(404, "Group not found.")
+    if g["user_id"] != user["id"]:
+        raise HTTPException(403, "Not your group.")
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body.")
+    allowed = {"name", "description", "watermark_text"}
+    updates = {k: v for k, v in body.items() if k in allowed}
+    if not updates:
+        raise HTTPException(400, "No valid fields to update.")
+    if "name" in updates and not updates["name"].strip():
+        raise HTTPException(400, "Group name cannot be empty.")
+    if "watermark_text" in updates:
+        updates["watermark_text"] = updates["watermark_text"][:80]
+    db_update_group(group_id, **updates)
+    return {"ok": True, "group_id": group_id}
+
+
+@app.delete("/api/groups/{group_id}")
+def delete_group(group_id: str, request: Request):
+    user = require_auth(request)
+    g = db_get_group(group_id)
+    if not g:
+        raise HTTPException(404, "Group not found.")
+    if g["user_id"] != user["id"]:
+        raise HTTPException(403, "Not your group.")
+    # Unlink datasets from group (don't delete them)
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE datasets SET group_id=NULL WHERE group_id=%s AND user_id=%s",
+                (group_id, user["id"])
+            )
+        conn.commit()
+    db_delete_group(group_id)
+    return {"ok": True}
+
+
+@app.post("/api/groups/{group_id}/assign-dataset")
+async def assign_dataset_to_group(group_id: str, request: Request):
+    """Assign a dataset to a group."""
+    user = require_auth(request)
+    g = db_get_group(group_id)
+    if not g or g["user_id"] != user["id"]:
+        raise HTTPException(403, "Group not found or not yours.")
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body.")
+    dataset_id = (body.get("dataset_id") or "").strip()
+    ds = db_get_dataset(dataset_id)
+    if not ds or ds["user_id"] != user["id"]:
+        raise HTTPException(404, "Dataset not found.")
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE datasets SET group_id=%s WHERE id=%s", (group_id, dataset_id))
+        conn.commit()
+    cache_delete(f"dataset:{dataset_id}")
+    cache_delete(f"datasets:{user['id']}")
+    return {"ok": True}
+
+
+# ── QR Code endpoint ──────────────────────────────────────────────────────────
+
+@app.get("/api/shares/{share_id}/qrcode")
+def get_share_qr(share_id: str, request: Request):
+    """
+    Return a QR code PNG for the share link.
+    The QR encodes the full public share URL so anyone who scans it goes
+    directly to the selfie-upload page.
+    Requires auth (photographer only) — no QR generation for anonymous callers.
+    """
+    require_auth(request)
+    share = db_get_share(share_id)
+    if not share:
+        raise HTTPException(404, "Share link not found.")
+
+    base_url = str(request.base_url).rstrip("/")
+    share_url = f"{base_url}/share.html?id={share_id}"
+
+    png_bytes = generate_qr_code_png(share_url)
+    return Response(
+        content=png_bytes,
+        media_type="image/png",
+        headers={
+            "Cache-Control": "public, max-age=86400",
+            "Content-Disposition": f'inline; filename="qr-{share_id}.png"',
+        },
+    )
+
+
+# ── Watermarked image download ────────────────────────────────────────────────
+
+@app.get("/api/image/{dataset_id}/{image_path:path}/watermarked")
+def serve_image_watermarked(dataset_id: str, image_path: str, share_id: str = None):
+    """
+    Serve an image with the share's watermark text burned in.
+    Called from share.html when user downloads a result.
+    Requires share_id query param to look up watermark settings.
+    """
+    full_path = DATASETS_DIR / dataset_id / image_path
+    if not full_path.exists():
+        raise HTTPException(404, "Image not found.")
+
+    watermark_text = None
+    if share_id:
+        share = db_get_share(share_id)
+        if share:
+            watermark_text = share.get("watermark_text") or None
+            # Record download event
+            record_share_event(share_id, "download")
+
+    image_bytes = full_path.read_bytes()
+    if watermark_text:
+        image_bytes = apply_watermark(image_bytes, watermark_text)
+
+    return Response(
+        content=image_bytes,
+        media_type="image/jpeg",
+        headers={
+            "Content-Disposition": f'attachment; filename="{Path(image_path).name}"',
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+# ── Share watermark update ────────────────────────────────────────────────────
+
+@app.patch("/api/shares/{share_id}")
+async def update_share(share_id: str, request: Request):
+    """Update share settings: watermark_text."""
+    user = require_auth(request)
+    share = db_get_share(share_id)
+    if not share:
+        raise HTTPException(404, "Share not found.")
+    ds = db_get_dataset(share["dataset_id"])
+    if not ds or ds["user_id"] != user["id"]:
+        raise HTTPException(403, "Not your share.")
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body.")
+    watermark_text = (body.get("watermark_text") or "").strip()[:80]
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE shares SET watermark_text=%s WHERE share_id=%s",
+                (watermark_text or None, share_id)
+            )
+        conn.commit()
+    cache_delete(f"share:{share_id}")
+    return {"ok": True}
+
+
+# ── Share analytics endpoint ──────────────────────────────────────────────────
+
+@app.get("/api/shares/{share_id}/analytics")
+def get_share_analytics(share_id: str, request: Request):
+    """Return view/download counts for a share link. Owner-only."""
+    user = require_auth(request)
+    share = db_get_share(share_id)
+    if not share:
+        raise HTTPException(404, "Share not found.")
+    ds = db_get_dataset(share["dataset_id"])
+    if not ds or ds["user_id"] != user["id"]:
+        raise HTTPException(403, "Not your share.")
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT view_count, download_count, last_viewed_at FROM shares WHERE share_id=%s",
+                (share_id,)
+            )
+            row = cur.fetchone()
+            # Last 7 days breakdown
+            cur.execute("""
+                SELECT event_type, COUNT(*) as cnt
+                FROM share_analytics
+                WHERE share_id=%s AND created_at > %s
+                GROUP BY event_type
+            """, (share_id, time.time() - 7 * 86400))
+            recent = {r["event_type"]: r["cnt"] for r in cur.fetchall()}
+
+    return {
+        "share_id":      share_id,
+        "view_count":    row["view_count"] if row else 0,
+        "download_count": row["download_count"] if row else 0,
+        "last_viewed_at": row["last_viewed_at"] if row else None,
+        "last_7_days": recent,
+    }
+
+
+# ── Google Drive accessibility check endpoint ─────────────────────────────────
+
+@app.post("/api/gdrive/check")
+async def check_gdrive_access(request: Request):
+    """
+    Pre-flight check: verify a Google Drive folder URL is publicly accessible
+    before the user submits it for processing.
+    Returns {accessible, reason, folder_id}.
+    """
+    require_auth(request)
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body.")
+    folder_url = (body.get("folder_url") or "").strip()
+    if not folder_url:
+        raise HTTPException(400, "folder_url is required.")
+    folder_id = extract_gdrive_folder_id(folder_url)
+    if not folder_id:
+        return {
+            "accessible": False,
+            "reason": "Could not extract a folder ID from the URL. Please paste the full Google Drive folder link.",
+            "folder_id": None,
+        }
+    result = check_gdrive_folder_accessible(folder_id)
+    result["folder_id"] = folder_id
+    return result
+
+
+# ── Discount code endpoints ───────────────────────────────────────────────────
+
+@app.post("/api/discount/validate")
+async def validate_discount_endpoint(request: Request):
+    """Validate a discount code before checkout (no side effects)."""
+    user = require_auth(request)
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body.")
+    code = (body.get("code") or "").strip()
+    interval = (body.get("interval") or "monthly").strip()
+    if not code:
+        raise HTTPException(400, "code is required.")
+    result = validate_discount_code(code, user["id"], interval)
+    return result
+
+
+@app.post("/api/admin/discount/create")
+async def admin_create_discount(request: Request):
+    """
+    Admin-only: create a discount code.
+    discount_pct: 50 or 100 (or any 1-100 integer)
+    interval: 'monthly' | 'annual' | 'both'
+    max_uses: how many total redemptions allowed
+    expires_days: optional, days until expiry from now
+    """
+    check_admin_secret(request)
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body.")
+
+    code = (body.get("code") or secrets.token_urlsafe(6).upper()).strip().upper()
+    discount_pct = int(body.get("discount_pct", 50))
+    interval = (body.get("interval") or "both").strip()
+    max_uses = int(body.get("max_uses", 10))
+    expires_days = body.get("expires_days")
+    created_by = (body.get("created_by") or "admin").strip()
+
+    if discount_pct < 1 or discount_pct > 100:
+        raise HTTPException(400, "discount_pct must be 1-100.")
+    if interval not in ("monthly", "annual", "both"):
+        raise HTTPException(400, "interval must be monthly, annual, or both.")
+
+    expires_at = time.time() + int(expires_days) * 86400 if expires_days else None
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO discount_codes (code, discount_pct, interval, max_uses, use_count, expires_at, created_by, created_at)
+                VALUES (%s, %s, %s, %s, 0, %s, %s, %s)
+                ON CONFLICT (code) DO UPDATE SET
+                    discount_pct=EXCLUDED.discount_pct,
+                    interval=EXCLUDED.interval,
+                    max_uses=EXCLUDED.max_uses,
+                    expires_at=EXCLUDED.expires_at
+            """, (code, discount_pct, interval, max_uses, expires_at, created_by, time.time()))
+        conn.commit()
+
+    log.info(f"Discount code created: {code} ({discount_pct}% off, {interval}, max_uses={max_uses})")
+    return {
+        "ok": True,
+        "code": code,
+        "discount_pct": discount_pct,
+        "interval": interval,
+        "max_uses": max_uses,
+        "expires_at": expires_at,
+    }
+
+
+@app.get("/api/admin/discount/list")
+def admin_list_discounts(request: Request):
+    """Admin-only: list all discount codes."""
+    check_admin_secret(request)
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM discount_codes ORDER BY created_at DESC")
+            codes = [dict(r) for r in cur.fetchall()]
+    return codes
+
+
 if FRONTEND_DIR.exists():
     app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app:app", host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))

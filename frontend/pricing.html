@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FaceFind — Pricing</title>
+  <title>GotchaPic — Pricing</title>
   <meta name="description" content="Free, Personal, and Photographer plans for every use case. Start free, upgrade when you need more." />
   <meta name="robots" content="index, follow" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -31,6 +31,7 @@
     nav.scrolled { box-shadow:var(--shadow); }
     .nav-inner { max-width:1120px; margin:0 auto; padding:0 28px; height:68px; display:flex; align-items:center; justify-content:space-between; }
     .logo { font-family:'Fraunces',serif; font-size:22px; font-weight:800; color:var(--primary); text-decoration:none; display:flex; align-items:center; gap:8px; letter-spacing:-0.5px; }
+    .logo span.cursive { font-family: 'Kaushan Script', cursive; font-size: 20px; color: var(--gold); margin-left: -4px; }
     .nav-links { display:flex; align-items:center; gap:2px; }
     .nav-link { font-size:14px; font-weight:500; color:var(--muted); text-decoration:none; padding:8px 14px; border-radius:var(--r-sm); transition:color 0.2s,background 0.2s; }
     .nav-link:hover { color:var(--text); background:rgba(0,0,0,0.04); }
@@ -129,6 +130,98 @@
     .fg2{ background:var(--gold-light); color:var(--gold-dark); }
     .fn { background:var(--surface2); color:var(--border2); }
 
+    /* DISCOUNT CODE SECTION */
+    .discount-section {
+      max-width: 1120px;
+      margin: 40px auto 0;
+      padding: 0 28px;
+    }
+    .discount-card {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--r-lg);
+      padding: 28px 32px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      box-shadow: var(--shadow-sm);
+    }
+    .discount-info {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .discount-icon {
+      width: 48px;
+      height: 48px;
+      background: var(--gold-light);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--gold);
+    }
+    .discount-text h4 {
+      font-family: 'Fraunces', serif;
+      font-size: 18px;
+      font-weight: 800;
+      margin-bottom: 4px;
+      color: var(--text);
+    }
+    .discount-text p {
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .discount-form {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .discount-input {
+      background: var(--bg);
+      border: 1.5px solid var(--border);
+      border-radius: var(--r-sm);
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      font-family: monospace;
+      color: var(--text);
+      outline: none;
+      width: 180px;
+    }
+    .discount-input:focus {
+      border-color: var(--gold);
+      box-shadow: 0 0 0 3px rgba(217,119,6,0.1);
+    }
+    .apply-discount-btn {
+      background: var(--surface2);
+      border: 1.5px solid var(--border);
+      padding: 10px 20px;
+      border-radius: var(--r-sm);
+      font-weight: 700;
+      font-size: 13px;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .apply-discount-btn:hover {
+      border-color: var(--gold);
+      background: var(--gold-light);
+      color: var(--gold-dark);
+    }
+    .discount-feedback {
+      font-size: 12px;
+      font-weight: 500;
+      margin-top: 8px;
+      width: 100%;
+      text-align: right;
+    }
+    .discount-feedback.success { color: var(--success); }
+    .discount-feedback.error { color: var(--error); }
+
     /* COMPARISON TABLE */
     .compare-section { max-width:1120px; margin:64px auto 0; padding:0 28px 80px; }
     .compare-head { text-align:center; margin-bottom:40px; }
@@ -190,9 +283,12 @@
       .cat-tabs-wrap,.free-banner,.cards-area,.compare-section,.faq-section{padding-left:16px;padding-right:16px;}
       .cat-tabs{width:100%;}
       .cat-btn{flex:1;justify-content:center;}
+      .discount-card { flex-direction: column; align-items: flex-start; }
+      .discount-form { width: 100%; }
+      .discount-input { flex: 1; }
     }
 
-    /* ── Admin-style header (shown when logged in) ── */
+    /* Admin-style header (shown when logged in) */
     #adminHeader {
       display: none;
       background: var(--surface);
@@ -228,7 +324,6 @@
       border-radius: 100px;
     }
     #adminHeader .ah-right { display: flex; align-items: center; gap: 12px; }
-    /* ── Profile avatar + dropdown (shared) ── */
     .profile-wrap { position: relative; }
     .profile-btn {
       width: 36px; height: 36px; border-radius: 50%;
@@ -278,7 +373,6 @@
     .pd-item.danger { color: #dc2626; }
     .pd-item.danger:hover { background: rgba(220,38,38,0.06); color: #dc2626; }
     .pd-sep { height: 1px; background: var(--border); margin: 2px 0; }
-    #adminHeader .ah-signout { display: none; }
     #adminHeader .ah-nav-link {
       font-size: 13px; font-weight: 600; color: #78716c;
       text-decoration: none; padding: 7px 14px;
@@ -288,13 +382,6 @@
     }
     #adminHeader .ah-nav-link:hover { border-color: #d4cfc7; color: #44403c; background: #f2efe9; }
     #adminHeader .ah-nav-link.hidden { display: none; }
-    #adminHeader .ah-nav-link#ahSelfHostedLink {
-      color: var(--primary); border-color: rgba(79,70,229,0.3);
-      background: var(--primary-light);
-    }
-    #adminHeader .ah-nav-link#ahSelfHostedLink:hover {
-      background: #e0e7ff; border-color: var(--primary); color: var(--primary-dark);
-    }
   </style>
 </head>
 <body>
@@ -303,15 +390,11 @@
   <div class="ah-left">
     <a href="/admin.html" class="ah-logo">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="10" r="3"/><path d="M9 16c0-1.7 1.3-3 3-3s3 1.3 3 3"/></svg>
-      FaceFind
+      GotchaPic
     </a>
     <span class="ah-badge">Pricing</span>
   </div>
   <div class="ah-right">
-    <a href="/download.html" class="ah-nav-link" id="ahSelfHostedLink">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      Self-Hosted
-    </a>
     <div class="profile-wrap" id="profileWrap">
       <button class="profile-btn" id="profileBtn" onclick="toggleProfile(event)" aria-label="Account menu">—</button>
       <div class="profile-dropdown" id="profileDropdown">
@@ -340,7 +423,7 @@
   <div class="nav-inner">
     <a href="/" class="logo">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="10" r="3"/><path d="M9 16c0-1.7 1.3-3 3-3s3 1.3 3 3"/></svg>
-      FaceFind
+      <span>Gotcha</span><span class="cursive">Pic</span>
     </a>
     <div class="nav-links" id="navLinks">
       <a href="/#how-it-works" class="nav-link">How it works</a>
@@ -358,7 +441,7 @@
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
     Simple pricing
   </div>
-  <h1 class="hero-title">Plans for every shoot.</h1>
+  <h1 class="hero-title">Plans for every event.</h1>
   <p class="hero-sub">Start free — no credit card needed. Upgrade as your events grow.</p>
   <div class="billing-row">
     <div class="billing-pill">
@@ -381,8 +464,8 @@
         <span class="free-tag">Free forever</span>
       </div>
       <div class="free-facts">
-        <span class="free-fact"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>1 active dataset</span>
-        <span class="free-fact"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>100 images max</span>
+        <span class="free-fact"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>1 event gallery</span>
+        <span class="free-fact"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>100 photos max</span>
         <span class="free-fact"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>4K auto-compression</span>
         <span class="free-fact"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>1 share link</span>
         <span class="free-fact"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Delete &amp; recreate any time</span>
@@ -414,7 +497,6 @@
   <div class="cards-area">
     <p class="fade-up" style="text-align:center;font-size:13.5px;color:var(--muted);margin-bottom:32px;margin-top:-20px;">For individuals &amp; families. Personal use only — no commercial resale.</p>
     <div class="plans-grid cols-3">
-
       <!-- Lite -->
       <div class="plan-card fade-up d1">
         <div class="card-name">Lite<span class="current-plan-badge badge-blue" id="badge-p1">✓ Current plan</span></div>
@@ -424,12 +506,12 @@
         <div class="card-div"></div>
         <a href="/login.html" class="card-cta cta-blue" id="p1-cta">Get Lite <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
         <ul class="fl">
-          <li class="fg">Datasets</li>
-          <li class="fr"><span class="fc fy"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span><strong>5 datasets</strong> simultaneously</span></li>
-          <li class="fr"><span class="fc fy"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Up to <strong>1,00,000 images</strong> per dataset</span></li>
+          <li class="fg">Event Galleries</li>
+          <li class="fr"><span class="fc fy"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span><strong>5 galleries</strong> simultaneously</span></li>
+          <li class="fr"><span class="fc fy"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Up to <strong>2,000 photos</strong> per gallery</span></li>
           <li class="fr"><span class="fc fy"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>4K compression + originals stored</span></li>
           <li class="fg">Sharing</li>
-          <li class="fr"><span class="fc fy"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Multiple share links</span></li>
+          <li class="fr"><span class="fc fy"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Multiple share links + QR codes</span></li>
           <li class="fr"><span class="fc fy"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Up to 3 concurrent searches</span></li>
           <li class="fr dim"><span class="fc fn"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span><span>Priority processing</span></li>
           <li class="fg">Support</li>
@@ -447,12 +529,12 @@
         <div class="card-div"></div>
         <a href="/login.html" class="card-cta cta-blue" id="p2-cta">Get Pro <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
         <ul class="fl">
-          <li class="fg">Datasets</li>
-          <li class="fr"><span class="fc fy"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span><strong>15 datasets</strong> simultaneously</span></li>
-          <li class="fr"><span class="fc fy"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Up to <strong>1,00,000 images</strong> per dataset</span></li>
+          <li class="fg">Event Galleries</li>
+          <li class="fr"><span class="fc fy"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span><strong>15 galleries</strong> simultaneously</span></li>
+          <li class="fr"><span class="fc fy"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Up to <strong>10,000 photos</strong> per gallery</span></li>
           <li class="fr"><span class="fc fy"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Full original resolution stored</span></li>
           <li class="fg">Sharing</li>
-          <li class="fr"><span class="fc fy"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Unlimited share links</span></li>
+          <li class="fr"><span class="fc fy"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Unlimited share links + QR codes</span></li>
           <li class="fr"><span class="fc fy"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Up to 10 concurrent searches</span></li>
           <li class="fr"><span class="fc fy"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Priority processing queue</span></li>
           <li class="fg">Support</li>
@@ -469,12 +551,12 @@
         <div class="card-div"></div>
         <a href="/login.html" class="card-cta cta-blue" id="p3-cta">Get Max <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
         <ul class="fl">
-          <li class="fg">Datasets</li>
-          <li class="fr"><span class="fc fy"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span><strong>30 datasets</strong> simultaneously</span></li>
-          <li class="fr"><span class="fc fy"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Up to <strong>30,000 images</strong> per dataset</span></li>
+          <li class="fg">Event Galleries</li>
+          <li class="fr"><span class="fc fy"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span><strong>30 galleries</strong> simultaneously</span></li>
+          <li class="fr"><span class="fc fy"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Up to <strong>30,000 photos</strong> per gallery</span></li>
           <li class="fr"><span class="fc fy"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Full original resolution stored</span></li>
           <li class="fg">Sharing</li>
-          <li class="fr"><span class="fc fy"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Unlimited share links</span></li>
+          <li class="fr"><span class="fc fy"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Unlimited share links + QR codes</span></li>
           <li class="fr"><span class="fc fy"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Unlimited concurrent searches</span></li>
           <li class="fr"><span class="fc fy"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Priority processing queue</span></li>
           <li class="fg">Support</li>
@@ -501,19 +583,17 @@
         <div class="card-div"></div>
         <a href="/login.html" class="card-cta cta-gold" id="ph1-cta">Get Studio Starter <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
         <ul class="fl">
-          <li class="fg">Datasets</li>
-          <li class="fr"><span class="fc fg2"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span><strong>50 datasets</strong> simultaneously</span></li>
-          <li class="fr"><span class="fc fg2"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Up to <strong>1,00,000 images</strong> per dataset</span></li>
+          <li class="fg">Event Galleries</li>
+          <li class="fr"><span class="fc fg2"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span><strong>50 galleries</strong> simultaneously</span></li>
+          <li class="fr"><span class="fc fg2"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Up to <strong>1,00,000 photos</strong> per gallery</span></li>
           <li class="fr"><span class="fc fg2"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Full original resolution — no compression</span></li>
-          <li class="fg">Sharing &amp; processing</li>
-          <li class="fr"><span class="fc fg2"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Unlimited share links</span></li>
-          <li class="fr"><span class="fc fg2"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Unlimited concurrent searches</span></li>
-          <li class="fr"><span class="fc fg2"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Priority GPU-accelerated processing</span></li>
+          <li class="fg">Branding &amp; sharing</li>
+          <li class="fr"><span class="fc fg2"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span><strong>Studio watermark</strong> on downloads</span></li>
+          <li class="fr"><span class="fc fg2"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Unlimited share links + QR codes</span></li>
+          <li class="fr"><span class="fc fg2"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Basic analytics (views, downloads)</span></li>
           <li class="fg">Business</li>
           <li class="fr"><span class="fc fg2"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span><strong>Commercial use licence</strong></span></li>
-          <li class="fr"><span class="fc fg2"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>GST invoice on request</span></li>
           <li class="fr dim"><span class="fc fn"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span><span>Branded share links</span></li>
-          <li class="fr dim"><span class="fc fn"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span><span>Analytics dashboard</span></li>
         </ul>
       </div>
 
@@ -527,23 +607,42 @@
         <div class="card-div"></div>
         <a href="/login.html" class="card-cta cta-gold" id="ph2-cta">Get Studio Pro <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
         <ul class="fl">
-          <li class="fg">Datasets</li>
-          <li class="fr"><span class="fc fg2"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span><strong>Unlimited datasets</strong></span></li>
-          <li class="fr"><span class="fc fg2"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Up to <strong>5,00,000 images</strong> per dataset</span></li>
+          <li class="fg">Event Galleries</li>
+          <li class="fr"><span class="fc fg2"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span><strong>Unlimited galleries</strong></span></li>
+          <li class="fr"><span class="fc fg2"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Up to <strong>5,00,000 photos</strong> per gallery</span></li>
           <li class="fr"><span class="fc fg2"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Full original resolution — no compression</span></li>
-          <li class="fg">Sharing &amp; processing</li>
-          <li class="fr"><span class="fc fg2"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Unlimited share links</span></li>
-          <li class="fr"><span class="fc fg2"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Unlimited concurrent searches</span></li>
-          <li class="fr"><span class="fc fg2"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Top-priority GPU processing</span></li>
+          <li class="fg">Branding &amp; sharing</li>
+          <li class="fr"><span class="fc fg2"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span><strong>Studio watermark + logo</strong> on downloads</span></li>
+          <li class="fr"><span class="fc fg2"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Unlimited share links + QR codes</span></li>
+          <li class="fr"><span class="fc fg2"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Branded share links with your name</span></li>
+          <li class="fr"><span class="fc fg2"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span><strong>Full analytics</strong> (views, downloads, devices)</span></li>
           <li class="fg">Business</li>
           <li class="fr"><span class="fc fg2"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span><strong>Commercial use licence</strong></span></li>
-          <li class="fr"><span class="fc fg2"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Branded share links with your name</span></li>
-          <li class="fr"><span class="fc fg2"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Analytics dashboard</span></li>
           <li class="fr"><span class="fc fg2"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>GST invoice + billing portal</span></li>
           <li class="fr"><span class="fc fg2"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span><span>Priority support — 24hr response</span></li>
         </ul>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- DISCOUNT CODE SECTION -->
+<div class="discount-section fade-up">
+  <div class="discount-card">
+    <div class="discount-info">
+      <div class="discount-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12V8H4v4M12 4v16M4 12h16M4 12l-2 2 2 2M20 12l2 2-2 2"/><path d="M12 12h0"/></svg>
+      </div>
+      <div class="discount-text">
+        <h4>Got a discount code?</h4>
+        <p>Enter it below and get up to 100% off your first month.</p>
+      </div>
+    </div>
+    <div class="discount-form">
+      <input type="text" id="discountCodeInput" class="discount-input" placeholder="e.g., GOTCHAPIC50" autocomplete="off" />
+      <button id="applyDiscountBtn" class="apply-discount-btn">Apply code</button>
+    </div>
+    <div id="discountFeedback" class="discount-feedback"></div>
   </div>
 </div>
 
@@ -567,33 +666,12 @@
         </tr>
       </thead>
       <tbody>
-        <tr class="tg"><td colspan="7">Datasets &amp; Storage</td></tr>
-        <tr><td>Active datasets</td><td>1</td><td>5</td><td>15</td><td>30</td><td>50</td><td>Unlimited</td></tr>
-        <tr><td>Images per dataset</td><td>100</td><td>2,000</td><td>10,000</td><td>30,000</td><td>1,00,000</td><td>5,00,000</td></tr>
-        <tr><td>Image resolution</td><td>4K max</td><td>4K + original</td><td>Original</td><td>Original</td><td>Original</td><td>Original</td></tr>
-        <tr><td>Delete &amp; recreate dataset</td>
-          <td><span class="ck cy"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span></td>
-          <td><span class="ck cy"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span></td>
-          <td><span class="ck cy"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span></td>
-          <td><span class="ck cy"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span></td>
-          <td><span class="ck cgo"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span></td>
-          <td><span class="ck cgo"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span></td>
-        </tr>
-        <tr class="tg"><td colspan="7">Search &amp; Sharing</td></tr>
-        <tr><td>Share links</td><td>1</td><td>Multiple</td><td>Unlimited</td><td>Unlimited</td><td>Unlimited</td><td>Unlimited</td></tr>
-        <tr><td>Concurrent searches</td><td>—</td><td>3</td><td>10</td><td>Unlimited</td><td>Unlimited</td><td>Unlimited</td></tr>
-        <tr><td>Branded share links</td>
-          <td><span class="ck cn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></td>
-          <td><span class="ck cn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></td>
-          <td><span class="ck cn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></td>
-          <td><span class="ck cn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></td>
-          <td><span class="ck cn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></td>
-          <td><span class="ck cgo"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span></td>
-        </tr>
-        <tr class="tg"><td colspan="7">Processing</td></tr>
-        <tr><td>Processing queue</td><td>Low</td><td>Normal</td><td>Priority</td><td>Priority</td><td>High / GPU</td><td>Top / GPU</td></tr>
-        <tr class="tg"><td colspan="7">Business &amp; Support</td></tr>
-        <tr><td>Commercial use licence</td>
+        <tr class="tg"><td colspan="7">Event Galleries &amp; Storage</td></tr>
+        <tr><td>Active galleries</td><td>1</td><td>5</td><td>15</td><td>30</td><td>50</td><td>Unlimited</td></tr>
+        <tr><td>Photos per gallery</td><td>100</td><td>2,000</td><td>10,000</td><td>30,000</td><td>1,00,000</td><td>5,00,000</td></tr>
+        <tr><td>Photo resolution</td><td>4K max</td><td>4K + original</td><td>Original</td><td>Original</td><td>Original</td><td>Original</td></tr>
+        <tr class="tg"><td colspan="7">Branding &amp; Sharing</td></tr>
+        <tr><td>Studio watermark</td>
           <td><span class="ck cn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></td>
           <td><span class="ck cn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></td>
           <td><span class="ck cn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></td>
@@ -601,15 +679,8 @@
           <td><span class="ck cgo"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span></td>
           <td><span class="ck cgo"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span></td>
         </tr>
-        <tr><td>Analytics dashboard</td>
-          <td><span class="ck cn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></td>
-          <td><span class="ck cn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></td>
-          <td><span class="ck cn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></td>
-          <td><span class="ck cn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></td>
-          <td><span class="ck cn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></td>
-          <td><span class="ck cgo"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span></td>
-        </tr>
-        <tr><td>GST invoice</td>
+        <tr>
+          <td>QR codes for share links</td>
           <td><span class="ck cn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></td>
           <td><span class="ck cn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></td>
           <td><span class="ck cn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></td>
@@ -617,7 +688,35 @@
           <td><span class="ck cgo"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span></td>
           <td><span class="ck cgo"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span></td>
         </tr>
-        <tr><td>Support</td><td>Community</td><td>Email</td><td>Email (priority)</td><td>Email (priority)</td><td>Email</td><td>Priority 24hr</td></tr>
+        <tr>
+          <td>Branded share links</td>
+          <td><span class="ck cn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></td>
+          <td><span class="ck cn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></td>
+          <td><span class="ck cn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></td>
+          <td><span class="ck cn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></td>
+          <td><span class="ck cn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></td>
+          <td><span class="ck cgo"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span></td>
+        </tr>
+        <tr class="tg"><td colspan="7">Analytics</tr>
+        <tr>
+          <td>View & download counts</td>
+          <td><span class="ck cn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></td>
+          <td><span class="ck cn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></td>
+          <td><span class="ck cn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></td>
+          <td><span class="ck cn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></td>
+          <td><span class="ck cgo"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span></td>
+          <td><span class="ck cgo"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span></td>
+        </tr>
+        <tr class="tg"><td colspan="7">Business &amp; Support</tr>
+        <tr>
+          <td>Commercial use licence</td>
+          <td><span class="ck cn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></td>
+          <td><span class="ck cn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></td>
+          <td><span class="ck cn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></td>
+          <td><span class="ck cn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></td>
+          <td><span class="ck cgo"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span></td>
+          <td><span class="ck cgo"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span></td>
+        </tr>
       </tbody>
     </table>
   </div>
@@ -631,35 +730,27 @@
   </div>
   <div class="faq-item fade-up">
     <div class="faq-q" onclick="toggleFaq(this)">I already have an account — which plan am I on?<svg class="faq-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div>
-    <div class="faq-body"><div class="faq-inner">All existing accounts have been automatically placed on the <strong>Starter (Free)</strong> plan. Your datasets are safe and untouched. You can keep using FaceFind for free within those limits, or upgrade at any time.</div></div>
+    <div class="faq-body"><div class="faq-inner">All existing accounts have been automatically placed on the <strong>Starter (Free)</strong> plan. Your galleries are safe and untouched. You can keep using GotchaPic for free within those limits, or upgrade at any time.</div></div>
   </div>
   <div class="faq-item fade-up">
-    <div class="faq-q" onclick="toggleFaq(this)">What exactly is 4K compression on the free tier?<svg class="faq-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div>
-    <div class="faq-body"><div class="faq-inner">Only images with a resolution above 4K (3840 × 2160 px) are resized down on upload. Images already at or below 4K are stored exactly as uploaded — no quality change. On all paid plans, originals are stored without any compression.</div></div>
+    <div class="faq-q" onclick="toggleFaq(this)">Can I brand my share links with my studio name?<svg class="faq-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div>
+    <div class="faq-body"><div class="faq-inner">Yes! On all paid Photographer plans, you can add your studio name as a <strong>cursive watermark</strong> on every downloaded photo. Studio Pro also includes branded share links and full analytics. Guests see your work, not ours.</div></div>
   </div>
   <div class="faq-item fade-up">
-    <div class="faq-q" onclick="toggleFaq(this)">Can I delete my dataset and upload a new one on the free plan?<svg class="faq-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div>
-    <div class="faq-body"><div class="faq-inner">Yes — there is no restriction on how often you do this. Delete your current dataset from the dashboard and your upload slot is freed immediately. Upload a fresh one whenever you like. This makes the free plan perfectly workable for one-event-at-a-time use.</div></div>
+    <div class="faq-q" onclick="toggleFaq(this)">Do guests need to log in to see their photos?<svg class="faq-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div>
+    <div class="faq-body"><div class="faq-inner">No. Just share the link, and guests upload a selfie — that's it. No account, no login, no friction. They can instantly download their photos with your watermark.</div></div>
   </div>
   <div class="faq-item fade-up">
     <div class="faq-q" onclick="toggleFaq(this)">What is the difference between Personal and Photographer plans?<svg class="faq-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div>
-    <div class="faq-body"><div class="faq-inner">Personal plans are for non-commercial use — your own family events, reunions, and gatherings. Photographer plans include a <strong>commercial use licence</strong>, meaning you can offer FaceFind-powered photo delivery as part of your paid photography services.</div></div>
+    <div class="faq-body"><div class="faq-inner">Personal plans are for non-commercial use — your own family events, reunions, and gatherings. Photographer plans include a <strong>commercial use licence</strong> and studio branding, meaning you can offer GotchaPic-powered photo delivery as part of your paid photography services.</div></div>
   </div>
   <div class="faq-item fade-up">
     <div class="faq-q" onclick="toggleFaq(this)">Can I switch plans later?<svg class="faq-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div>
     <div class="faq-body"><div class="faq-inner">Yes. Upgrades apply immediately. Downgrades take effect at the start of your next billing cycle so you always get what you paid for.</div></div>
   </div>
   <div class="faq-item fade-up">
-    <div class="faq-q" onclick="toggleFaq(this)">How does annual billing work?<svg class="faq-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div>
-    <div class="faq-body"><div class="faq-inner">Annual billing charges a single upfront payment for 12 months at a discounted rate — roughly 2 months free compared to monthly. Renewals are automatic unless cancelled before the renewal date.</div></div>
-  </div>
-  <div class="faq-item fade-up">
     <div class="faq-q" onclick="toggleFaq(this)">What payment methods are accepted?<svg class="faq-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div>
     <div class="faq-body"><div class="faq-inner">UPI, all major debit and credit cards (Visa, Mastercard, RuPay), net banking, and popular wallets. All payments are in INR. GST invoices are available on Photographer plans.</div></div>
-  </div>
-  <div class="faq-item fade-up">
-    <div class="faq-q" onclick="toggleFaq(this)">What happens to my data if I downgrade?<svg class="faq-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div>
-    <div class="faq-body"><div class="faq-inner">Your data is retained for 30 days after downgrading. Datasets over your new plan's limit are flagged but not deleted until after that grace period. You will always receive a clear warning before any deletion happens.</div></div>
   </div>
 </div>
 
@@ -668,88 +759,122 @@
   <div class="footer-inner">
     <a href="/" class="footer-logo">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="10" r="3"/><path d="M9 16c0-1.7 1.3-3 3-3s3 1.3 3 3"/></svg>
-      FaceFind
+      GotchaPic
     </a>
     <div class="footer-links">
       <a href="/login.html" id="footerSignIn">Sign in</a><a href="/pricing.html">Pricing</a>
       <a href="/#faq">FAQ</a><a href="/#how-it-works">How it works</a>
     </div>
-    <span class="footer-copy">&#169; 2025 FaceFind &#8212; AI face search for events</span>
+    <span class="footer-copy">&#169; 2025 GotchaPic &#8212; AI face search for events</span>
   </div>
 </footer>
 
 <script>
+  // ── Plan data and pricing ───────────────────────────────────────────────────
   const P = { p1:{mo:99,  yr:990},  p2:{mo:199, yr:1990}, p3:{mo:349, yr:3490}, ph1:{mo:599, yr:5990}, ph2:{mo:1499,yr:14990} };
   function inr(n){ return n.toLocaleString('en-IN'); }
-  let billing='monthly';
+  let billing = 'monthly';
+  let activeDiscount = null;
+  let _billingInfo = null;
 
   function applyBilling(){
-    const ann=billing==='annual';
-    document.getElementById('btnMonthly').classList.toggle('active',!ann);
-    document.getElementById('btnAnnual').classList.toggle('active',ann);
+    const ann = billing === 'annual';
+    document.getElementById('btnMonthly').classList.toggle('active', !ann);
+    document.getElementById('btnAnnual').classList.toggle('active', ann);
     Object.entries(P).forEach(([k,v])=>{
-      const ne=document.getElementById(k+'-num'), ce=document.getElementById(k+'-cad'), ee=document.getElementById(k+'-eq');
+      const ne = document.getElementById(k+'-num'), ce = document.getElementById(k+'-cad'), ee = document.getElementById(k+'-eq');
       if(!ne) return;
       if(ann){
-        ne.textContent=inr(v.yr); ce.textContent='/year';
-        ee.innerHTML='₹'+inr(Math.round(v.yr/12))+'/month &middot; Save ₹'+inr((v.mo*12)-v.yr);
+        ne.textContent = inr(v.yr); ce.textContent = '/year';
+        ee.innerHTML = '₹'+inr(Math.round(v.yr/12))+'/month &middot; Save ₹'+inr((v.mo*12)-v.yr);
       } else {
-        ne.textContent=inr(v.mo); ce.textContent='/month'; ee.innerHTML='&nbsp;';
+        ne.textContent = inr(v.mo); ce.textContent = '/month'; ee.innerHTML = '&nbsp;';
       }
-      // table
-      const te=document.getElementById('tbl-'+k);
-      if(te) te.textContent='₹'+inr(ann?v.yr:v.mo)+(ann?'/yr':'/mo');
+      const te = document.getElementById('tbl-'+k);
+      if(te) te.textContent = '₹'+inr(ann?v.yr:v.mo)+(ann?'/yr':'/mo');
     });
   }
-  function setBilling(m){ billing=m; applyBilling(); }
+
+  function setBilling(m){
+    billing = m;
+    applyBilling();
+    // Clear discount when billing changes (codes may be interval-specific)
+    activeDiscount = null;
+    const feedback = document.getElementById('discountFeedback');
+    if(feedback) {
+      feedback.innerHTML = '';
+      feedback.className = 'discount-feedback';
+    }
+    const input = document.getElementById('discountCodeInput');
+    if(input) input.value = '';
+  }
 
   function switchCat(cat){
-    const isp=cat==='personal';
-    document.getElementById('tabPersonal').className='cat-btn'+(isp?' ap':'');
-    document.getElementById('tabPhoto').className='cat-btn'+(isp?'':' aq');
-    document.getElementById('panelPersonal').classList.toggle('active',isp);
-    document.getElementById('panelPhoto').classList.toggle('active',!isp);
-    document.querySelectorAll('.panel.active .fade-up').forEach(el=>{
-      el.classList.remove('visible');
-      requestAnimationFrame(()=>requestAnimationFrame(()=>el.classList.add('visible')));
-    });
+    const isp = cat === 'personal';
+    document.getElementById('tabPersonal').className = 'cat-btn'+(isp?' ap':'');
+    document.getElementById('tabPhoto').className = 'cat-btn'+(isp?'':' aq');
+    document.getElementById('panelPersonal').classList.toggle('active', isp);
+    document.getElementById('panelPhoto').classList.toggle('active', !isp);
   }
 
   function toggleFaq(el){
-    const item=el.closest('.faq-item'), open=item.classList.contains('open');
-    document.querySelectorAll('.faq-item').forEach(i=>i.classList.remove('open'));
+    const item = el.closest('.faq-item'), open = item.classList.contains('open');
+    document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'));
     if(!open) item.classList.add('open');
   }
 
-  const obs=new IntersectionObserver(entries=>{
-    entries.forEach(e=>{ if(e.isIntersecting) e.target.classList.add('visible'); });
-  },{threshold:0.08,rootMargin:'0px 0px -40px 0px'});
-  document.querySelectorAll('.fade-up').forEach(el=>obs.observe(el));
+  // ── Discount Code Logic ──────────────────────────────────────────────────────
+  async function applyDiscount() {
+    const input = document.getElementById('discountCodeInput');
+    const feedback = document.getElementById('discountFeedback');
+    const code = input.value.trim().toUpperCase();
+    
+    if (!code) {
+      feedback.textContent = 'Please enter a discount code.';
+      feedback.className = 'discount-feedback error';
+      return;
+    }
 
-  window.addEventListener('scroll',()=>{
-    document.getElementById('mainNav').classList.toggle('scrolled',window.scrollY>20);
-  },{passive:true});
-</script>
+    feedback.textContent = 'Checking code...';
+    feedback.className = 'discount-feedback';
 
-<script>
-  // ── Auth-aware UI ─────────────────────────────────────────────────────────────
-  // Checks if the user is logged in and adapts the page accordingly:
-  // ── Razorpay checkout ──────────────────────────────────────────────────────
-  const PLAN_META = {
-    'personal_lite':  { label: 'Personal Lite',    monthly: '₹99/mo',    annual: '₹990/yr'    },
-    'personal_pro':   { label: 'Personal Pro',     monthly: '₹199/mo',   annual: '₹1,990/yr'  },
-    'personal_max':   { label: 'Personal Max',     monthly: '₹349/mo',   annual: '₹3,490/yr'  },
-    'photo_starter':  { label: 'Studio Starter',   monthly: '₹599/mo',   annual: '₹5,990/yr'  },
-    'photo_pro':      { label: 'Studio Pro',       monthly: '₹1,499/mo', annual: '₹14,990/yr' },
-  };
-  const PLAN_PRICES = { personal_lite:99, personal_pro:199, personal_max:349, photo_starter:599, photo_pro:1499 };
-  const PLAN_PRICES_ANNUAL = { personal_lite:990, personal_pro:1990, personal_max:3490, photo_starter:5990, photo_pro:14990 };
-  const PLAN_ORDER  = ['free','personal_lite','personal_pro','personal_max','photo_starter','photo_pro'];
-  function planRank(p){ return PLAN_ORDER.indexOf(p); }
-  function inrFmt(paise){ return '₹' + (paise/100).toLocaleString('en-IN'); }
+    try {
+      const r = await fetch('/api/discount/validate', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, interval: billing })
+      });
+      const data = await r.json();
+      
+      if (!r.ok || !data.valid) {
+        feedback.textContent = data.reason || 'Invalid or expired code.';
+        feedback.className = 'discount-feedback error';
+        activeDiscount = null;
+        return;
+      }
+      
+      activeDiscount = { code, discount_pct: data.discount_pct };
+      feedback.textContent = `✓ ${code} applied! ${data.discount_pct}% off your ${billing === 'annual' ? 'annual' : 'monthly'} subscription.`;
+      feedback.className = 'discount-feedback success';
+      
+      // Show success styling on input
+      input.style.borderColor = 'var(--success)';
+      setTimeout(() => { input.style.borderColor = ''; }, 2000);
+      
+    } catch (err) {
+      feedback.textContent = 'Could not validate code. Please try again.';
+      feedback.className = 'discount-feedback error';
+      activeDiscount = null;
+    }
+  }
 
-  let _billingInfo = null;
+  // ── Plan ordering helpers (must match backend) ──────────────────────────────
+  const PLAN_ORDER = ["free", "personal_lite", "personal_pro", "personal_max", "photo_starter", "photo_pro"];
+  function planRank(plan) { return PLAN_ORDER.indexOf(plan); }
+  function inrFmt(paise) { return '₹' + (paise/100).toLocaleString('en-IN'); }
 
+  // ── Razorpay / Upgrade Flow (preserved from original) ───────────────────────
   async function getBillingInfo() {
     if (_billingInfo) return _billingInfo;
     try {
@@ -767,23 +892,18 @@
       me = await r.json();
     } catch { window.location.href = `/login.html?next=/pricing.html`; return; }
 
-    const currentPlan     = me.plan || 'free';
+    const currentPlan = me.plan || 'free';
     const currentInterval = me.plan_interval || 'monthly';
-    const isUpgrade   = planRank(plan) > planRank(currentPlan);
+    const isUpgrade = planRank(plan) > planRank(currentPlan);
     const isDowngrade = planRank(plan) < planRank(currentPlan);
-
-    // Same plan tier, interval switch
     const isSamePlanSwitch = plan === currentPlan && billing !== currentInterval;
     const isAnnualToMonthly = isSamePlanSwitch && currentInterval === 'annual' && billing === 'monthly';
-    const isMonthlyToAnnual = isSamePlanSwitch && currentInterval === 'monthly' && billing === 'annual';
 
-    // Annual→monthly: schedule the switch at end of the current annual cycle (no refund)
     if (isAnnualToMonthly) {
       showDowngradeModal(currentPlan, plan, me, 'monthly');
       return;
     }
 
-    // ── Downgrade (lower tier): show confirmation modal ───────────────────────
     if (isDowngrade) {
       showDowngradeModal(currentPlan, plan, me, billing);
       return;
@@ -793,19 +913,21 @@
 
     let order;
     try {
+      const body = { plan, interval: billing };
+      if (activeDiscount) body.discount_code = activeDiscount.code;
+      
       const r = await fetch('/api/payments/create-order', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan, interval: billing }),
+        body: JSON.stringify(body),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.detail || 'Could not create order.');
       order = d;
     } catch (e) { showPayModal('error', plan, e.message); return; }
 
-    // ── Free upgrade (credits covered the full price) ─────────────────────────
     if (order.free_upgrade) {
-      _billingInfo = null; // invalidate cache
+      _billingInfo = null;
       showPayModal('success_free', plan, null, order);
       return;
     }
@@ -819,14 +941,14 @@
 
     const billing_obj = order.billing || {};
     const options = {
-      key:         order.key_id,
-      amount:      order.amount,
-      currency:    'INR',
-      name:        'FaceFind',
-      description: `${PLAN_META[plan]?.label || plan} (${order.plan_interval === 'annual' ? 'Annual' : 'Monthly'})`,
-      order_id:    order.order_id,
-      prefill:     { name: order.user_name, email: order.user_email },
-      theme:       { color: '#4f46e5' },
+      key: order.key_id,
+      amount: order.amount,
+      currency: 'INR',
+      name: 'GotchaPic',
+      description: `${plan.replace('_', ' ').toUpperCase()} (${order.plan_interval === 'annual' ? 'Annual' : 'Monthly'})`,
+      order_id: order.order_id,
+      prefill: { name: order.user_name, email: order.user_email },
+      theme: { color: '#4f46e5' },
       handler: async function (response) {
         showPayModal('verifying', plan);
         try {
@@ -834,9 +956,9 @@
             method: 'POST', credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              razorpay_order_id:   response.razorpay_order_id,
+              razorpay_order_id: response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature:  response.razorpay_signature,
+              razorpay_signature: response.razorpay_signature,
             }),
           });
           const vd = await vr.json();
@@ -847,7 +969,6 @@
       },
     };
 
-    // Show savings summary before Razorpay modal if there's a meaningful discount
     if (billing_obj.proration_credit_paise > 0 || billing_obj.total_credit_paise > 0) {
       const confirmed = await showUpgradeSummary(plan, billing_obj, order.loyalty_discount_paise);
       if (!confirmed) { closePayModal(); return; }
@@ -860,7 +981,7 @@
     rzp.open();
   }
 
-  function showUpgradeSummary(plan, billing, loyaltyPaise) {
+  async function showUpgradeSummary(plan, billing, loyaltyPaise) {
     return new Promise(resolve => {
       let modal = document.getElementById('payModal');
       if (!modal) {
@@ -871,7 +992,7 @@
         document.body.appendChild(modal);
       }
       const box = document.getElementById('payModalBox');
-      const meta = PLAN_META[plan] || {};
+      const planLabels = { personal_lite: 'Personal Lite', personal_pro: 'Personal Pro', personal_max: 'Personal Max', photo_starter: 'Studio Starter', photo_pro: 'Studio Pro' };
       const fullPaise = billing.full_price_paise;
       const chargePaise = billing.charge_paise;
       const savings = fullPaise - chargePaise;
@@ -883,13 +1004,15 @@
         rows += `<div style="display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px solid #f0ede8"><span style="color:#78716c">Loyalty discount (20% off)</span><span style="color:#059669;font-weight:600">− ${inrFmt(loyaltyPaise)}</span></div>`;
       if (billing.account_credit_paise > 0)
         rows += `<div style="display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px solid #f0ede8"><span style="color:#78716c">Account credits</span><span style="color:#059669;font-weight:600">− ${inrFmt(billing.account_credit_paise)}</span></div>`;
+      if (activeDiscount)
+        rows += `<div style="display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px solid #f0ede8"><span style="color:#78716c">Discount code (${activeDiscount.discount_pct}%)</span><span style="color:#059669;font-weight:600">− ${inrFmt(billing.discount_code_amount_paise || 0)}</span></div>`;
 
       box.innerHTML = `
         <div style="font-family:Fraunces,serif;font-size:20px;font-weight:800;color:#1c1917;margin-bottom:6px;">Upgrade summary</div>
-        <div style="font-size:13px;color:#78716c;margin-bottom:20px;">Switching to ${meta.label}</div>
+        <div style="font-size:13px;color:#78716c;margin-bottom:20px;">Switching to ${planLabels[plan] || plan}</div>
         <div style="background:#f9f7f4;border-radius:12px;padding:16px;margin-bottom:20px;text-align:left;">
           <div style="display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px solid #f0ede8">
-            <span style="color:#78716c">Full plan price</span><span style="color:#1c1917;font-weight:600">${inrFmt(fullPaise)}/mo</span>
+            <span style="color:#78716c">Full plan price</span><span style="color:#1c1917;font-weight:600">${inrFmt(fullPaise)}/${billing === 'annual' ? 'year' : 'month'}</span>
           </div>
           ${rows}
           <div style="display:flex;justify-content:space-between;font-size:15px;padding:10px 0 2px;font-weight:700">
@@ -909,7 +1032,6 @@
 
   async function showDowngradeModal(currentPlan, targetPlan, me, targetInterval) {
     targetInterval = targetInterval || 'monthly';
-    // Tier downgrades always land on monthly (backend enforces this too)
     const isTierDowngrade = planRank(targetPlan) < planRank(currentPlan);
     if (isTierDowngrade) targetInterval = 'monthly';
     let info = await getBillingInfo();
@@ -922,44 +1044,41 @@
       document.body.appendChild(modal);
     }
     const box = document.getElementById('payModalBox');
-    const currentInterval = info?.plan_interval || 'monthly';
-    const isIntervalSwitch = targetPlan === currentPlan && targetInterval !== currentInterval;
-    const targetLabel = isIntervalSwitch
-      ? `${PLAN_META[targetPlan]?.label || targetPlan} (${targetInterval === 'annual' ? 'Annual' : 'Monthly'})`
-      : (PLAN_META[targetPlan]?.label || (targetPlan === 'free' ? 'Free' : targetPlan));
+    const planLabels = { personal_lite: 'Personal Lite', personal_pro: 'Personal Pro', personal_max: 'Personal Max', photo_starter: 'Studio Starter', photo_pro: 'Studio Pro', free: 'Free' };
+    const targetLabel = planLabels[targetPlan] || targetPlan;
     const newLimits = info?.plan_limits?.[targetPlan] || {};
     const daysRemaining = info?.days_remaining ?? null;
     const periodLabel = currentInterval === 'annual' ? 'year' : 'month';
     const daysText = daysRemaining != null ? `~${daysRemaining} days` : `the rest of your current billing ${periodLabel}`;
-    const over = !isIntervalSwitch && info?.dataset_count > (newLimits.max_datasets || 0);
+    const over = !isTierDowngrade && info?.dataset_count > (newLimits.max_datasets || 0);
 
-    const bodyText = isIntervalSwitch
-      ? `• You keep your current <strong>${currentInterval}</strong> billing until renewal on <strong>${daysText}</strong>.<br>
-         • After that your billing switches to <strong>monthly</strong> — no further action needed.<br>
-         • Your plan features stay exactly the same.`
-      : `• You keep <strong>${PLAN_META[currentPlan]?.label || currentPlan}</strong> access for <strong>${daysText}</strong> you've already paid for.<br>
+    const bodyText = isTierDowngrade
+      ? `• You keep <strong>${planLabels[currentPlan] || currentPlan}</strong> access for <strong>${daysText}</strong> you've already paid for.<br>
          • Your plan switches to ${targetLabel} at the end of this billing cycle.<br>
-         • Your data is safe. Over-limit datasets are flagged (not deleted) with a 30-day grace period.`;
+         • Your data is safe. Over-limit galleries are flagged (not deleted) with a 30-day grace period.`
+      : `• You keep your current <strong>${currentInterval}</strong> billing until renewal on <strong>${daysText}</strong>.<br>
+         • After that your billing switches to <strong>monthly</strong> — no further action needed.<br>
+         • Your plan features stay exactly the same.`;
 
     box.innerHTML = `
       <div style="font-family:Fraunces,serif;font-size:20px;font-weight:800;color:#1c1917;margin-bottom:6px;">
-        ${isIntervalSwitch ? 'Switch to Monthly billing' : `Switch to ${targetLabel}`}
+        ${isTierDowngrade ? `Switch to ${targetLabel}` : 'Switch to Monthly billing'}
       </div>
       <div style="font-size:13px;color:#78716c;margin-bottom:20px;">
-        ${isIntervalSwitch ? 'No refund — your annual access continues until renewal.' : 'Your plan change is scheduled — no refund, full access until cycle ends.'}
+        ${isTierDowngrade ? 'Your plan change is scheduled — no refund, full access until cycle ends.' : 'No refund — your annual access continues until renewal.'}
       </div>
       <div style="background:#fffbeb;border:1.5px solid #fde68a;border-radius:12px;padding:14px 16px;margin-bottom:16px;font-size:13px;color:#92400e;line-height:1.6;">
         <strong>What happens:</strong><br>${bodyText}
       </div>
       ${over ? `<div style="background:#fef2f2;border:1.5px solid #fecaca;border-radius:12px;padding:14px 16px;margin-bottom:16px;font-size:13px;color:#991b1b;line-height:1.6;">
-        <strong>Heads up:</strong> You currently have ${info.dataset_count} datasets. ${targetLabel} allows ${newLimits.max_datasets || 0}.
+        <strong>Heads up:</strong> You currently have ${info.dataset_count} galleries. ${targetLabel} allows ${newLimits.max_datasets || 0}.
         The excess will be flagged after the switch — you'll have 30 days to manage them.
       </div>` : ''}
       <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;">
         <button onclick="closePayModal();" style="background:#f2efe9;border:none;color:#44403c;font-weight:600;font-size:14px;padding:10px 20px;border-radius:10px;cursor:pointer;">Keep current plan</button>
         <button id="confirmDowngradeBtn" onclick="confirmDowngrade('${targetPlan}','${targetInterval}')"
           style="background:#dc2626;border:none;color:#fff;font-weight:700;font-size:14px;padding:10px 20px;border-radius:10px;cursor:pointer;">
-          ${isIntervalSwitch ? 'Switch to Monthly' : 'Schedule downgrade'}
+          ${isTierDowngrade ? 'Schedule downgrade' : 'Switch to Monthly'}
         </button>
       </div>`;
   }
@@ -983,7 +1102,7 @@
           <div style="width:56px;height:56px;background:#ecfdf5;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
           </div>
-          <div style="font-family:Fraunces,serif;font-size:20px;font-weight:800;color:#1c1917;margin-bottom:8px;">Downgrade scheduled</div>
+          <div style="font-family:Fraunces,serif;font-size:20px;font-weight:800;color:#1c1917;margin-bottom:8px;">${targetPlan === 'free' ? 'Cancellation scheduled' : 'Downgrade scheduled'}</div>
           <div style="font-size:13px;color:#78716c;line-height:1.6;margin-bottom:20px;">${d.message}</div>
           <button onclick="closePayModal();" style="background:#4f46e5;border:none;color:#fff;font-weight:700;font-size:14px;padding:10px 24px;border-radius:10px;cursor:pointer;">Got it</button>
         </div>`;
@@ -1003,21 +1122,20 @@
       document.body.appendChild(modal);
     }
     const box = document.getElementById('payModalBox');
-    const meta = PLAN_META[plan] || {};
+    const planLabels = { personal_lite: 'Personal Lite', personal_pro: 'Personal Pro', personal_max: 'Personal Max', photo_starter: 'Studio Starter', photo_pro: 'Studio Pro' };
     const SPIN = '<div style="width:48px;height:48px;border:3px solid #e8e3db;border-top-color:#4f46e5;border-radius:50%;animation:payspin .7s linear infinite;margin:0 auto 20px;"></div><style>@keyframes payspin{to{transform:rotate(360deg)}}</style>';
 
     if (state === 'loading') {
       box.innerHTML = SPIN +
         `<div style="font-family:Fraunces,serif;font-size:20px;font-weight:800;color:#1c1917;margin-bottom:8px;">Preparing checkout…</div>
-         <div style="font-size:13px;color:#78716c;">Setting up your ${meta.label || plan} order</div>`;
+         <div style="font-size:13px;color:#78716c;">Setting up your ${planLabels[plan] || plan} order</div>`;
     } else if (state === 'verifying') {
       box.innerHTML = SPIN +
         `<div style="font-family:Fraunces,serif;font-size:20px;font-weight:800;color:#1c1917;margin-bottom:8px;">Confirming payment…</div>
          <div style="font-size:13px;color:#78716c;">Please wait, do not close this page</div>`;
     } else if (state === 'success' || state === 'success_free') {
       const billing_obj = extra?.billing || {};
-      const loyalty = extra?.loyalty_discount_paise || 0;
-      const isFree  = state === 'success_free';
+      const isFree = state === 'success_free';
       const intervalLabel = extra?.plan_interval === 'annual' ? 'Annual' : 'Monthly';
       let savingsNote = '';
       if (isFree) {
@@ -1025,13 +1143,16 @@
       } else if (billing_obj.total_credit_paise > 0) {
         savingsNote = `<div style="font-size:12px;color:#059669;margin-bottom:16px;font-weight:600;">You saved ${inrFmt(billing_obj.total_credit_paise)} on this upgrade</div>`;
       }
+      if (activeDiscount && !isFree) {
+        savingsNote += `<div style="font-size:12px;color:#d97706;margin-bottom:16px;">Discount code ${activeDiscount.code} applied</div>`;
+      }
       box.innerHTML =
         `<div style="width:64px;height:64px;background:#ecfdf5;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">
            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
          </div>
          <div style="font-family:Fraunces,serif;font-size:22px;font-weight:800;color:#1c1917;margin-bottom:8px;">You're all set!</div>
          <div style="font-size:14px;color:#78716c;margin-bottom:12px;line-height:1.6;">
-           Your <strong style="color:#1c1917">${meta.label} (${intervalLabel})</strong> plan is now active.${isFree ? '' : '<br>A confirmation email is on its way.'}
+           Your <strong style="color:#1c1917">${planLabels[plan] || plan} (${intervalLabel})</strong> plan is now active.${isFree ? '' : '<br>A confirmation email is on its way.'}
          </div>
          ${savingsNote}
          <a href="/admin.html" style="display:inline-block;background:#4f46e5;color:#fff;font-weight:700;font-size:14px;padding:12px 28px;border-radius:10px;text-decoration:none;">
@@ -1053,335 +1174,43 @@
     if (m) m.remove();
   }
 
-  // ── Logged-in state: swap nav, update CTA labels ───────────────────────────
-  (function () {
-    const SELF_HOSTED_PLANS = ['personal_lite','personal_pro','personal_max','photo_starter','photo_pro'];
-    const PLAN_CTAS = [
-      { id: 'p1-cta',  label: 'Upgrade to Lite',           plan: 'personal_lite'  },
-      { id: 'p2-cta',  label: 'Upgrade to Pro',            plan: 'personal_pro'   },
-      { id: 'p3-cta',  label: 'Upgrade to Max',            plan: 'personal_max'   },
-      { id: 'ph1-cta', label: 'Upgrade to Studio Starter', plan: 'photo_starter'  },
-      { id: 'ph2-cta', label: 'Upgrade to Studio Pro',     plan: 'photo_pro'      },
-    ];
-    const ARROW_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>';
+  // ── Attach checkout to all plan CTAs ───────────────────────────────────────
+  const PLAN_CTAS = [
+    { id: 'p1-cta', plan: 'personal_lite' },
+    { id: 'p2-cta', plan: 'personal_pro' },
+    { id: 'p3-cta', plan: 'personal_max' },
+    { id: 'ph1-cta', plan: 'photo_starter' },
+    { id: 'ph2-cta', plan: 'photo_pro' },
+  ];
 
-    // Wire checkout on all CTAs regardless of login state
-    PLAN_CTAS.forEach(({ id, plan }) => {
-      const el = document.getElementById(id);
-      if (!el) return;
+  PLAN_CTAS.forEach(({ id, plan }) => {
+    const el = document.getElementById(id);
+    if (el) {
       el.removeAttribute('href');
       el.style.cursor = 'pointer';
       el.onclick = (e) => { e.preventDefault(); startCheckout(plan); };
-    });
-
-    fetch('/api/auth/me', { credentials: 'include' })
-      .then(r => r.ok ? r.json() : null)
-      .catch(() => null)
-      .then(user => {
-        if (!user) return; // not logged in — CTAs already wired above
-
-        const userPlan     = user.plan || 'free';
-        const userInterval = user.plan_interval || 'monthly';
-
-        // Swap nav
-        const pricingNav = document.getElementById('mainNav');
-        if (pricingNav) pricingNav.style.display = 'none';
-        const adminHeader = document.getElementById('adminHeader');
-        if (adminHeader) adminHeader.style.display = 'flex';
-
-        // Profile avatar
-        setProfileUser(user);
-
-        // Free strip CTA — always just goes to dashboard for logged-in users
-        const freeStripCta = document.getElementById('freeStripCta');
-        if (freeStripCta) {
-          freeStripCta.href = '/admin.html';
-          freeStripCta.innerHTML = 'Go to dashboard ' + ARROW_SVG;
-        }
-
-        const badgeMap = { 'p1-cta':'badge-p1','p2-cta':'badge-p2','p3-cta':'badge-p3','ph1-cta':'badge-ph1','ph2-cta':'badge-ph2' };
-
-        // renderCTAs() is called once now and again whenever the billing toggle changes,
-        // so the "Current plan" badge and button state always match the visible interval.
-        function renderCTAs() {
-          PLAN_CTAS.forEach(({ id, label, plan }) => {
-            const el = document.getElementById(id);
-            if (!el) return;
-            const badge = document.getElementById(badgeMap[id]);
-            const isPhotoPlan = plan.startsWith('photo');
-            const isSamePlan = plan === userPlan;
-            const isSameInterval = billing === userInterval;
-
-            if (isSamePlan && isSameInterval) {
-              // Exact match — show "Current plan" badge and "Cancel plan" button
-              if (badge) badge.style.display = 'inline-flex';
-              el.innerHTML = 'Cancel plan';
-              el.style.opacity = '1';
-              el.style.cursor = 'pointer';
-              el.style.background = 'transparent';
-              el.style.color = isPhotoPlan ? 'var(--gold-dark,#b45309)' : 'var(--primary,#4f46e5)';
-              el.style.border = isPhotoPlan ? '1.5px solid rgba(217,119,6,0.4)' : '1.5px solid rgba(79,70,229,0.35)';
-              el.style.boxShadow = 'none';
-              el.onclick = (e) => { e.preventDefault(); handleCancelSubscription(); };
-
-            } else if (isSamePlan && !isSameInterval) {
-              // Same plan tier, different interval — offer a switch
-              if (badge) badge.style.display = 'none';
-              const isAnnualToMonthly = userInterval === 'annual' && billing === 'monthly';
-              const switchLabel = billing === 'annual' ? 'Switch to Annual' : 'Switch to Monthly';
-              el.innerHTML = switchLabel + ' ' + ARROW_SVG;
-              el.style.opacity = '1';
-              el.style.cursor = 'pointer';
-              el.style.boxShadow = '';
-              if (isAnnualToMonthly) {
-                // Schedules at end of cycle — muted style to signal no payment
-                el.style.background = 'transparent';
-                el.style.color = isPhotoPlan ? 'var(--gold-dark,#b45309)' : 'var(--primary,#4f46e5)';
-                el.style.border = isPhotoPlan ? '1.5px solid rgba(217,119,6,0.4)' : '1.5px solid rgba(79,70,229,0.35)';
-              } else {
-                // Monthly→annual: charges upfront — solid CTA style
-                el.style.background = isPhotoPlan ? 'var(--gold,#d97706)' : 'var(--primary,#4f46e5)';
-                el.style.color = '#fff';
-                el.style.border = 'none';
-              }
-              el.onclick = (e) => { e.preventDefault(); startCheckout(plan); };
-
-            } else if (planRank(plan) < planRank(userPlan)) {
-              if (badge) badge.style.display = 'none';
-              el.innerHTML = 'Downgrade ' + ARROW_SVG;
-              el.style.opacity = '0.7';
-              el.style.background = '';
-              el.style.color = '';
-              el.style.border = '';
-              el.style.boxShadow = '';
-              el.onclick = (e) => { e.preventDefault(); startCheckout(plan); };
-
-            } else {
-              if (badge) badge.style.display = 'none';
-              el.innerHTML = label + ' ' + ARROW_SVG;
-              el.style.opacity = '1';
-              el.style.background = '';
-              el.style.color = '';
-              el.style.border = '';
-              el.style.boxShadow = '';
-              el.onclick = (e) => { e.preventDefault(); startCheckout(plan); };
-            }
-          });
-        }
-
-        // Initial render
-        renderCTAs();
-
-        // Re-render CTAs whenever the billing toggle changes so badge/button
-        // always reflects which interval tab is currently visible.
-        const _origSetBilling = window.setBilling;
-        window.setBilling = function(m) {
-          _origSetBilling(m);
-          renderCTAs();
-        };
-
-        // Enhance state once billing info loads — undo state, renewal badge, savings hints
-        const billingPromise = getBillingInfo();
-        billingPromise.then(info => {
-          if (!info) return;
-
-          // Scheduled cancellation: fold "Undo" state into the setBilling wrapper
-          // so it re-applies on every toggle switch.
-          if (info.scheduled_downgrade === 'free') {
-            const dAt = info.scheduled_downgrade_at
-              ? new Date(info.scheduled_downgrade_at * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
-              : '';
-            const applyUndo = () => {
-              PLAN_CTAS.forEach(({ id, plan }) => {
-                if (plan !== userPlan || billing !== userInterval) return;
-                const el = document.getElementById(id);
-                if (!el) return;
-                el.innerHTML = `Cancels ${dAt} — <span style="text-decoration:underline">Undo</span>`;
-                el.style.color = '#dc2626';
-                el.style.border = '1.5px solid rgba(220,38,38,0.35)';
-                el.style.background = 'transparent';
-                el.onclick = (e) => { e.preventDefault(); undoCancellation(); };
-              });
-            };
-            const _prev = window.setBilling;
-            window.setBilling = function(m) { _prev(m); applyUndo(); };
-            applyUndo();
-            const freeStrip = document.getElementById('freeStripCta');
-            if (freeStrip) freeStrip.style.display = 'none';
-          }
-
-          // Pending interval switch (annual→monthly scheduled): show "Switches to Monthly — Undo"
-          // on the monthly tab card only.
-          const pendingIntervalSwitch = info.scheduled_downgrade === userPlan &&
-                                        info.scheduled_downgrade_interval === 'monthly' &&
-                                        userInterval === 'annual';
-          if (pendingIntervalSwitch) {
-            const dAt = info.scheduled_downgrade_at
-              ? new Date(info.scheduled_downgrade_at * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
-              : '';
-            const applyIntervalUndo = () => {
-              PLAN_CTAS.forEach(({ id, plan }) => {
-                if (plan !== userPlan) return;
-                const el = document.getElementById(id);
-                if (!el) return;
-                if (billing === 'monthly') {
-                  // On monthly tab: show pending switch + undo
-                  el.innerHTML = `Switches ${dAt} — <span style="text-decoration:underline">Undo</span>`;
-                  el.style.color = '#b45309';
-                  el.style.border = '1.5px solid rgba(217,119,6,0.4)';
-                  el.style.background = 'transparent';
-                  el.onclick = (e) => { e.preventDefault(); undoCancellation(); };
-                } else if (billing === 'annual') {
-                  // On annual tab: show current plan badge as normal (already scheduled to switch away)
-                  // renderCTAs already handles this correctly — nothing extra needed
-                }
-              });
-            };
-            const _prevInterval = window.setBilling;
-            window.setBilling = function(m) { _prevInterval(m); applyIntervalUndo(); };
-            applyIntervalUndo();
-          }
-
-          // Renewal badge — only visible when the toggle matches the user's interval
-          if (info.renewal_at && info.plan !== 'free') {
-            const renewalDate = new Date(info.renewal_at * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-            const intervalLabel = info.plan_interval === 'annual' ? 'Annual' : 'Monthly';
-            PLAN_CTAS.forEach(({ id, plan }) => {
-              if (plan !== userPlan) return;
-              const el = document.getElementById(id);
-              if (!el || !el.parentNode) return;
-              let badge = el.parentNode.querySelector('.renewal-badge');
-              if (!badge) {
-                badge = document.createElement('div');
-                badge.className = 'renewal-badge';
-                badge.style.cssText = 'font-size:11px;color:#78716c;font-weight:600;margin-top:4px;';
-                badge.textContent = `${intervalLabel} · renews ${renewalDate}`;
-                el.parentNode.insertBefore(badge, el.nextSibling);
-              }
-              const syncBadge = () => { badge.style.display = (billing === userInterval) ? 'block' : 'none'; };
-              syncBadge();
-              const _prev2 = window.setBilling;
-              window.setBilling = function(m) { _prev2(m); syncBadge(); };
-            });
-          }
-
-          // Savings hints on upgrade cards
-          PLAN_CTAS.forEach(({ id, plan }) => {
-            const el = document.getElementById(id);
-            if (!el || plan === userPlan || planRank(plan) <= planRank(userPlan)) return;
-            const costByInterval = info.upgrade_costs?.[plan];
-            if (!costByInterval) return;
-            const cost = costByInterval[billing] || costByInterval['monthly'];
-            if (!cost) return;
-            const savings = cost.full_price_paise - cost.charge_paise;
-            if (savings > 0) {
-              const hint = document.createElement('div');
-              hint.style.cssText = 'font-size:11px;color:#059669;font-weight:700;margin-top:4px;';
-              hint.textContent = `Save ${inrFmt(savings)} with your credits`;
-              el.parentNode && el.parentNode.insertBefore(hint, el.nextSibling);
-            }
-            if (cost.loyalty_eligible) {
-              const hint2 = document.createElement('div');
-              hint2.style.cssText = 'font-size:11px;color:#d97706;font-weight:700;margin-top:2px;';
-              hint2.textContent = '20% loyalty discount available';
-              el.parentNode && el.parentNode.insertBefore(hint2, el.nextSibling);
-            }
-          });
-        });
-
-        // Footer sign-in link
-        const footerSignIn = document.getElementById('footerSignIn');
-        if (footerSignIn) { footerSignIn.href = '/admin.html'; footerSignIn.textContent = 'Dashboard'; }
-      });
-  })();
-
-  async function handleCancelSubscription() {
-    let modal = document.getElementById('payModal');
-    if (!modal) {
-      modal = document.createElement('div');
-      modal.id = 'payModal';
-      modal.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:24px;';
-      modal.innerHTML = '<div id="payModalBox" style="background:#fff;border-radius:20px;padding:36px 32px;max-width:420px;width:100%;text-align:left;box-shadow:0 24px 64px rgba(0,0,0,.18);font-family:Plus Jakarta Sans,sans-serif;"></div>';
-      document.body.appendChild(modal);
     }
-    const info = await getBillingInfo();
-    const interval = info?.plan_interval || 'monthly';
-    const periodLabel = interval === 'annual' ? 'billing year' : 'billing period';
-    const daysLeft = info?.days_remaining != null ? `~${info.days_remaining} days` : `the rest of your ${periodLabel}`;
-    const box = document.getElementById('payModalBox');
-    box.innerHTML = `
-      <div style="font-family:Fraunces,serif;font-size:20px;font-weight:800;color:#1c1917;margin-bottom:6px;">Cancel subscription?</div>
-      <div style="font-size:13px;color:#78716c;margin-bottom:20px;">We're sorry to see you go.</div>
-      <div style="background:#f9f7f4;border-radius:12px;padding:14px 16px;margin-bottom:16px;font-size:13px;color:#44403c;line-height:1.7;">
-        • You keep <strong>full access</strong> for <strong>${daysLeft}</strong> you've already paid for<br>
-        • After that your account moves to the <strong>free plan</strong><br>
-        • Your data is safe — over-limit datasets are flagged, not deleted, with a 30-day grace period<br>
-        • You can <strong>resubscribe any time</strong> and pick up where you left off
-      </div>
-      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;">
-        <button onclick="closePayModal();" style="background:#f2efe9;border:none;color:#44403c;font-weight:600;font-size:14px;padding:10px 20px;border-radius:10px;cursor:pointer;">Keep my plan</button>
-        <button id="confirmCancelBtn" onclick="confirmCancelSubscription()"
-          style="background:#dc2626;border:none;color:#fff;font-weight:700;font-size:14px;padding:10px 20px;border-radius:10px;cursor:pointer;">Yes, cancel</button>
-      </div>`;
-  }
+  });
 
-  async function confirmCancelSubscription() {
-    const btn = document.getElementById('confirmCancelBtn');
-    if (btn) { btn.disabled = true; btn.textContent = 'Cancelling…'; }
-    try {
-      const r = await fetch('/api/billing/cancel-subscription', {
-        method: 'POST', credentials: 'include',
-      });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.detail || 'Failed.');
-      _billingInfo = null;
-      const box = document.getElementById('payModalBox');
-      if (box) box.innerHTML = `
-        <div style="text-align:center;">
-          <div style="width:56px;height:56px;background:#fef2f2;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-          </div>
-          <div style="font-family:Fraunces,serif;font-size:20px;font-weight:800;color:#1c1917;margin-bottom:8px;">Subscription cancelled</div>
-          <div style="font-size:13px;color:#78716c;line-height:1.6;margin-bottom:20px;">${d.message}</div>
-          <button onclick="closePayModal();location.reload();" style="background:#4f46e5;border:none;color:#fff;font-weight:700;font-size:14px;padding:10px 24px;border-radius:10px;cursor:pointer;">Got it</button>
-        </div>`;
-    } catch(e) {
-      if (btn) { btn.disabled = false; btn.textContent = 'Yes, cancel'; }
-      alert('Could not cancel: ' + e.message);
-    }
-  }
-
-  async function undoCancellation() {
-    try {
-      const r = await fetch('/api/billing/cancel-downgrade', { method: 'POST', credentials: 'include' });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.detail || 'Failed.');
-      _billingInfo = null;
-      location.reload();
-    } catch(e) {
-      alert('Could not undo: ' + e.message);
-    }
-  }
-
-  // ── Profile avatar helpers ──────────────────────────────────────────────
+  // ── Profile helpers ─────────────────────────────────────────────────────────
   function getInitials(name, email) {
     if (name && name.trim()) {
       const parts = name.trim().split(/\s+/);
-      return parts.length >= 2
-        ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-        : parts[0].slice(0, 2).toUpperCase();
+      return parts.length >= 2 ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase() : parts[0].slice(0, 2).toUpperCase();
     }
     return (email || '?')[0].toUpperCase();
   }
+  
   function avatarColor(str) {
     const colors = ['#4f46e5','#0891b2','#059669','#d97706','#dc2626','#7c3aed','#db2777'];
     let h = 0;
     for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
     return colors[h % colors.length];
   }
+  
   function setProfileUser(user) {
     const initials = getInitials(user.name, user.email);
-    const color    = avatarColor(user.email || user.name || '');
+    const color = avatarColor(user.email || user.name || '');
     const displayName = user.name || user.email || '—';
     const btn = document.getElementById('profileBtn');
     if (btn) { btn.textContent = initials; btn.style.background = color; }
@@ -1392,13 +1221,15 @@
     const pdEmail = document.getElementById('pdEmail');
     if (pdEmail) pdEmail.textContent = user.email || '';
   }
+  
   function toggleProfile(e) {
     e.stopPropagation();
-    const btn  = document.getElementById('profileBtn');
+    const btn = document.getElementById('profileBtn');
     const drop = document.getElementById('profileDropdown');
     const open = drop.classList.toggle('open');
     btn.classList.toggle('open', open);
   }
+  
   document.addEventListener('click', function(e) {
     const wrap = document.getElementById('profileWrap');
     if (wrap && !wrap.contains(e.target)) {
@@ -1406,9 +1237,49 @@
       document.getElementById('profileBtn')?.classList.remove('open');
     }
   });
-
+  
   function ahSignOut() {
-    fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
-      .finally(() => { window.location.href = '/'; });
+    fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).finally(() => { window.location.href = '/'; });
   }
+
+  // ── Check login state and show correct header ───────────────────────────────
+  (async () => {
+    try {
+      const r = await fetch('/api/auth/me', { credentials: 'include' });
+      if (r.ok) {
+        const user = await r.json();
+        setProfileUser(user);
+        document.getElementById('mainNav').style.display = 'none';
+        document.getElementById('adminHeader').style.display = 'flex';
+        const freeStripCta = document.getElementById('freeStripCta');
+        if (freeStripCta) {
+          freeStripCta.href = '/admin.html';
+          freeStripCta.innerHTML = 'Go to dashboard <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>';
+        }
+        const footerSignIn = document.getElementById('footerSignIn');
+        if (footerSignIn) {
+          footerSignIn.href = '/admin.html';
+          footerSignIn.textContent = 'Dashboard';
+        }
+      }
+    } catch(e) {}
+  })();
+
+  // ── Intersection Observer for animations ────────────────────────────────────
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+  document.querySelectorAll('.fade-up').forEach(el => obs.observe(el));
+
+  window.addEventListener('scroll', () => {
+    document.getElementById('mainNav')?.classList.toggle('scrolled', window.scrollY > 20);
+  }, { passive: true });
+
+  // ── Event listeners ─────────────────────────────────────────────────────────
+  document.getElementById('applyDiscountBtn').addEventListener('click', applyDiscount);
+  document.getElementById('discountCodeInput').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') applyDiscount();
+  });
 </script>
+</body>
+</html>

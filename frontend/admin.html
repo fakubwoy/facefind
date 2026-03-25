@@ -3,24 +3,25 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FaceFind — Dashboard</title>
+  <title>GotchaPic — Studio Dashboard</title>
   <meta name="robots" content="noindex, nofollow" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,700;9..144,800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,700;9..144,800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Great+Vibes&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg: #f9f7f4;
+      --bg: #faf8f5;
       --surface: #ffffff;
       --surface2: #f2efe9;
       --border: #e8e3db;
       --border2: #d4cfc7;
-      --primary: #4f46e5;
-      --primary-dark: #3730a3;
-      --primary-light: #eef2ff;
-      /* keep accent name for JS compatibility */
-      --accent: #4f46e5;
+      --primary: #b5835a;
+      --primary-dark: #8f5f3a;
+      --primary-light: #fdf4ec;
+      --accent: #b5835a;
+      --gold: #c9963e;
+      --rose: #c47b7b;
       --text: #1c1917;
       --text2: #44403c;
       --muted: #78716c;
@@ -69,10 +70,17 @@
       letter-spacing: -0.5px;
       display: flex;
       align-items: center;
-      gap: 4px;
+      gap: 6px;
+      text-decoration: none;
     }
 
-    .logo-dot { display: none; }
+    .logo-icon {
+      width: 30px; height: 30px;
+      background: linear-gradient(135deg, var(--primary), var(--gold));
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      color: white;
+    }
 
     .header-badge {
       font-size: 11px;
@@ -86,13 +94,13 @@
 
     .header-right { display: flex; align-items: center; gap: 12px; }
 
-    /* ── Profile avatar + dropdown ── */
+    /* ── Profile ── */
     .profile-wrap { position: relative; }
     .profile-btn {
       width: 36px; height: 36px;
       border-radius: 50%;
       border: 2px solid transparent;
-      background: var(--primary);
+      background: linear-gradient(135deg, var(--primary), var(--gold));
       color: #fff;
       font-size: 13px;
       font-weight: 700;
@@ -103,8 +111,8 @@
       letter-spacing: 0.3px;
       flex-shrink: 0;
     }
-    .profile-btn:hover { box-shadow: 0 0 0 3px rgba(79,70,229,0.18); }
-    .profile-btn.open  { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,0.18); }
+    .profile-btn:hover { box-shadow: 0 0 0 3px rgba(181,131,90,0.25); }
+    .profile-btn.open  { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(181,131,90,0.25); }
     .profile-dropdown {
       display: none;
       position: absolute;
@@ -128,10 +136,10 @@
     }
     .pd-avatar {
       width: 36px; height: 36px; border-radius: 50%;
-      background: var(--primary); color: #fff;
+      background: linear-gradient(135deg, var(--primary), var(--gold)); color: #fff;
       font-size: 13px; font-weight: 700;
       display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0; letter-spacing: 0.3px;
+      flex-shrink: 0;
     }
     .pd-info { min-width: 0; }
     .pd-name  { font-size: 13px; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -149,7 +157,6 @@
     .pd-item.danger { color: #dc2626; }
     .pd-item.danger:hover { background: rgba(220,38,38,0.06); color: #dc2626; }
     .pd-sep { height: 1px; background: var(--border); margin: 2px 0; }
-    .logout-btn { display: none; }
 
     .header-nav-link {
       font-size: 13px;
@@ -166,36 +173,56 @@
       gap: 6px;
     }
     .header-nav-link:hover { border-color: var(--border2); color: var(--text2); background: var(--surface2); }
-    .header-nav-link.hidden { display: none; }
-    .header-nav-link#selfHostedNavLink { color: #7c3aed; border-color: rgba(124,58,237,0.3); background: rgba(124,58,237,0.06); }
-    .header-nav-link#selfHostedNavLink:hover { background: rgba(124,58,237,0.12); border-color: #7c3aed; color: #6d28d9; }
+    #selfHostedNavLink { color: var(--primary); border-color: rgba(181,131,90,0.3); background: var(--primary-light); }
+    #selfHostedNavLink:hover { background: rgba(181,131,90,0.12); border-color: var(--primary); }
 
     /* ── Layout ── */
     .layout {
-      max-width: 1140px;
+      max-width: 1200px;
       margin: 0 auto;
       padding: 32px;
     }
 
-    /* ── Welcome section ── */
-    .welcome {
-      margin-bottom: 32px;
-    }
-
+    /* ── Welcome ── */
+    .welcome { margin-bottom: 28px; }
     .welcome h1 {
       font-family: 'Fraunces', serif;
-      font-size: 30px;
+      font-size: 28px;
       font-weight: 800;
       color: var(--text);
-      letter-spacing: -1px;
+      letter-spacing: -0.8px;
       margin-bottom: 6px;
     }
+    .welcome p { font-size: 15px; color: var(--muted); line-height: 1.6; }
 
-    .welcome p {
-      font-size: 15px;
-      color: var(--muted);
-      line-height: 1.6;
+    /* ── Nav Tabs (top-level sections) ── */
+    .section-nav {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 28px;
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 0;
     }
+    .section-tab {
+      padding: 10px 18px 12px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--muted);
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      cursor: pointer;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .section-tab:hover { color: var(--text); }
+    .section-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+    .section-panel { display: none; }
+    .section-panel.active { display: block; }
 
     /* ── Main grid ── */
     .grid {
@@ -204,7 +231,6 @@
       gap: 24px;
       align-items: start;
     }
-
     @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
 
     /* ── Cards ── */
@@ -216,6 +242,7 @@
       padding: 28px;
       transition: box-shadow 0.2s;
     }
+    .card + .card { margin-top: 20px; }
 
     .card-title {
       display: flex;
@@ -226,29 +253,23 @@
       color: var(--text);
       margin-bottom: 22px;
     }
-
     .card-title-icon {
-      width: 34px;
-      height: 34px;
+      width: 34px; height: 34px;
       background: var(--primary-light);
       border-radius: 9px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: flex; align-items: center; justify-content: center;
       color: var(--primary);
       flex-shrink: 0;
     }
 
-    /* ── Tabs ── */
+    /* ── Tabs (inner) ── */
     .tabs {
       display: flex;
       background: var(--bg);
       border-radius: 10px;
       padding: 4px;
       margin-bottom: 22px;
-      gap: 0;
     }
-
     .tab-btn {
       flex: 1;
       background: none;
@@ -261,15 +282,10 @@
       border-radius: 7px;
       cursor: pointer;
       transition: all 0.2s;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 7px;
+      display: flex; align-items: center; justify-content: center; gap: 7px;
     }
-
     .tab-btn:hover { color: var(--text); }
     .tab-btn.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
-
     .tab-panel { display: none; }
     .tab-panel.active { display: block; }
 
@@ -284,12 +300,10 @@
       transition: all 0.25s;
       background: var(--bg);
     }
-
     .drop-zone:hover, .drop-zone.dragover {
       border-color: var(--primary);
       background: var(--primary-light);
     }
-
     .drop-zone input[type="file"] {
       position: absolute;
       inset: 0;
@@ -298,25 +312,15 @@
       width: 100%;
       height: 100%;
     }
-
     .drop-icon {
-      width: 56px;
-      height: 56px;
+      width: 56px; height: 56px;
       background: var(--primary-light);
       border-radius: 16px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: flex; align-items: center; justify-content: center;
       color: var(--primary);
       margin: 0 auto 16px;
     }
-
-    .drop-label {
-      font-size: 14px;
-      color: var(--muted);
-      line-height: 1.7;
-    }
-
+    .drop-label { font-size: 14px; color: var(--muted); line-height: 1.7; }
     .drop-label strong { color: var(--text); font-weight: 700; }
     .drop-hint { font-size: 12px; color: var(--muted); margin-top: 6px; opacity: 0.7; }
 
@@ -324,12 +328,11 @@
     #zipSelectedInfo {
       display: none;
       background: var(--primary-light);
-      border: 1.5px solid rgba(79,70,229,0.2);
+      border: 1.5px solid rgba(181,131,90,0.25);
       border-radius: var(--radius-sm);
       padding: 12px 16px;
       margin-bottom: 16px;
     }
-
     #zipSelectedInfo .file-info-label {
       font-size: 11px;
       font-weight: 700;
@@ -338,13 +341,11 @@
       text-transform: uppercase;
       margin-bottom: 4px;
     }
-
     #zipFileName { font-size: 14px; color: var(--text); font-weight: 600; }
     #zipFileSize { font-size: 12px; color: var(--muted); margin-top: 2px; }
 
     /* ── Fields ── */
     .field { margin-top: 16px; }
-
     .field label {
       display: block;
       font-size: 13px;
@@ -352,8 +353,7 @@
       color: var(--text2);
       margin-bottom: 7px;
     }
-
-    .field input[type="text"] {
+    .field input[type="text"], .field select {
       width: 100%;
       background: var(--bg);
       border: 1.5px solid var(--border);
@@ -366,13 +366,12 @@
       outline: none;
       transition: border-color 0.2s, box-shadow 0.2s;
     }
-
-    .field input[type="text"]:focus {
+    .field input[type="text"]:focus, .field select:focus {
       border-color: var(--primary);
-      box-shadow: 0 0 0 3px rgba(79,70,229,0.1);
+      box-shadow: 0 0 0 3px rgba(181,131,90,0.12);
     }
-
     .field input[type="text"]::placeholder { color: var(--muted); opacity: 0.6; }
+    .field-hint { font-size: 12px; color: var(--muted); margin-top: 5px; line-height: 1.5; }
 
     .field-checkbox {
       display: flex;
@@ -381,18 +380,37 @@
       margin-top: 14px;
       cursor: pointer;
     }
-
     .field-checkbox input[type="checkbox"] {
-      width: 16px;
-      height: 16px;
+      width: 16px; height: 16px;
       accent-color: var(--primary);
       margin-top: 2px;
       flex-shrink: 0;
       cursor: pointer;
     }
-
     .field-checkbox-label { font-size: 13px; color: var(--text2); font-weight: 500; line-height: 1.5; }
     .field-checkbox-hint { font-size: 12px; color: var(--muted); margin-top: 3px; }
+
+    /* Watermark preview */
+    .watermark-preview {
+      margin-top: 12px;
+      padding: 14px 16px;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      border-radius: var(--radius-sm);
+      position: relative;
+      min-height: 60px;
+      display: none;
+    }
+    .watermark-preview.visible { display: block; }
+    .watermark-text-preview {
+      font-family: 'Great Vibes', cursive;
+      font-size: 20px;
+      color: rgba(255,255,255,0.85);
+      position: absolute;
+      bottom: 10px;
+      left: 14px;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+    }
+    .watermark-preview-label { font-size: 10px; color: rgba(255,255,255,0.4); text-align: right; padding-top: 4px; }
 
     /* ── Buttons ── */
     .btn {
@@ -409,22 +427,17 @@
       border-radius: var(--radius-sm);
       transition: all 0.2s;
     }
-
     .btn-primary {
-      background: var(--primary);
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
       color: white;
       width: 100%;
       margin-top: 18px;
     }
-
     .btn-primary:hover:not(:disabled) {
-      background: var(--primary-dark);
       transform: translateY(-1px);
-      box-shadow: 0 6px 20px rgba(79,70,229,0.3);
+      box-shadow: 0 6px 20px rgba(181,131,90,0.4);
     }
-
     .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; transform: none; box-shadow: none; }
-
     .btn-secondary {
       background: var(--bg);
       color: var(--text2);
@@ -432,9 +445,7 @@
       width: 100%;
       margin-top: 10px;
     }
-
     .btn-secondary:hover { border-color: var(--primary); color: var(--primary); }
-
     .btn-reset {
       background: none;
       border: 1.5px solid var(--border);
@@ -463,47 +474,24 @@
       align-items: center;
       justify-content: center;
       flex-direction: column;
-      background: var(--bg);
     }
-
     .progress-panel.visible { display: flex; animation: fadeIn 0.3s ease; }
-
     .progress-panel-fill {
       position: absolute;
-      inset: 0;
-      background: linear-gradient(90deg, rgba(79,70,229,0.05) 0%, rgba(79,70,229,0.02) 100%);
-      width: 0%;
-      transition: width 0.6s ease;
-      pointer-events: none;
+      top: 0; left: 0; height: 3px;
+      background: linear-gradient(90deg, var(--primary), var(--gold));
+      border-radius: 3px 3px 0 0;
+      transition: width 0.5s ease;
+      width: 0;
     }
-
-    .ring-wrap {
-      position: relative;
-      width: 80px;
-      height: 80px;
-      margin: 0 auto 20px;
-      flex-shrink: 0;
-    }
-
-    .ring-wrap svg { transform: rotate(-90deg); width: 80px; height: 80px; }
-    .ring-track { fill: none; stroke: var(--border); stroke-width: 4; }
-    .ring-progress { fill: none; stroke: var(--accent); stroke-width: 4; stroke-linecap: round; stroke-dasharray: 220; stroke-dashoffset: 220; transition: stroke-dashoffset 0.6s ease; }
-
-    .ring-pct {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 15px;
-      font-weight: 800;
-      color: var(--primary);
-      font-family: 'Fraunces', serif;
-    }
-
-    .progress-panel-phase { font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--primary); margin-bottom: 8px; }
-    .progress-panel-detail { font-size: 13px; color: var(--muted); line-height: 1.6; }
-    .progress-panel-eta { margin-top: 10px; font-size: 12px; color: var(--muted); opacity: 0.8; }
+    .ring-wrap { position: relative; width: 80px; height: 80px; margin: 0 auto 16px; }
+    .ring-wrap svg { width: 80px; height: 80px; transform: rotate(-90deg); }
+    .ring-track { fill: none; stroke: var(--border); stroke-width: 6; }
+    .ring-progress { fill: none; stroke: var(--primary); stroke-width: 6; stroke-linecap: round; stroke-dasharray: 220; stroke-dashoffset: 220; transition: stroke-dashoffset 0.5s ease; }
+    .ring-pct { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 16px; font-weight: 800; color: var(--text); }
+    .progress-panel-phase { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+    .progress-panel-detail { font-size: 13px; color: var(--muted); min-height: 20px; }
+    .progress-panel-eta { font-size: 12px; color: var(--muted); margin-top: 8px; min-height: 18px; }
     .progress-panel-eta span { color: var(--text2); font-weight: 600; }
 
     /* ── Success state ── */
@@ -515,21 +503,15 @@
       text-align: center;
       background: rgba(5,150,105,0.04);
     }
-
     .upload-success.visible { display: block; animation: fadeIn 0.3s ease; }
-
     .success-icon {
-      width: 52px;
-      height: 52px;
+      width: 52px; height: 52px;
       background: rgba(5,150,105,0.1);
       border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: flex; align-items: center; justify-content: center;
       color: var(--success);
       margin: 0 auto 14px;
     }
-
     .success-title { font-size: 16px; font-weight: 700; color: var(--success); margin-bottom: 6px; }
     .success-meta { font-size: 13px; color: var(--muted); line-height: 1.6; }
     .success-meta strong { color: var(--text); }
@@ -543,26 +525,17 @@
       transition: all 0.2s;
       background: var(--bg);
     }
-
-    .drive-zone:focus-within {
-      border-color: var(--primary);
-      background: var(--primary-light);
-    }
-
+    .drive-zone:focus-within { border-color: var(--primary); background: var(--primary-light); }
     .drive-icon {
       width: 48px; height: 48px;
       background: var(--primary-light);
       border-radius: 14px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: flex; align-items: center; justify-content: center;
       color: var(--primary);
       margin: 0 auto 14px;
     }
-
     .drive-label { font-size: 13px; color: var(--muted); margin-bottom: 14px; line-height: 1.6; }
     .drive-label strong { color: var(--text); font-weight: 700; }
-
     .drive-input {
       width: 100%;
       background: var(--surface);
@@ -576,10 +549,23 @@
       outline: none;
       transition: border-color 0.2s, box-shadow 0.2s;
     }
-
-    .drive-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,0.1); }
-    .drive-hint { font-size: 11px; color: var(--muted); margin-top: 8px; opacity: 0.7; line-height: 1.5; text-align: left; }
+    .drive-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(181,131,90,0.12); }
+    .drive-hint { font-size: 11px; color: var(--muted); margin-top: 8px; opacity: 0.8; line-height: 1.5; text-align: left; }
     .drive-hint code { color: var(--primary); font-family: monospace; font-size: 11px; background: var(--primary-light); padding: 1px 5px; border-radius: 4px; }
+
+    /* Drive access warning */
+    .drive-access-warn {
+      display: none;
+      margin-top: 10px;
+      padding: 10px 14px;
+      background: #fffbeb;
+      border: 1.5px solid #fde68a;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      color: #b45309;
+      font-weight: 600;
+    }
+    .drive-access-warn.show { display: flex; align-items: flex-start; gap: 8px; }
 
     /* ── Badges ── */
     .badge {
@@ -591,24 +577,83 @@
       font-weight: 700;
       border-radius: 100px;
     }
-
     .badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; }
-
-    .badge-queued      { background: rgba(217,119,6,0.1);   color: var(--warn);    }
+    .badge-queued     { background: rgba(217,119,6,0.1);  color: var(--warn); }
     .badge-queued::before { background: var(--warn); }
-    .badge-processing  { background: rgba(79,70,229,0.1);   color: var(--primary); }
+    .badge-processing { background: rgba(181,131,90,0.1); color: var(--primary); }
     .badge-processing::before { background: var(--primary); }
-    .badge-ready       { background: rgba(5,150,105,0.1);   color: var(--success); }
+    .badge-ready      { background: rgba(5,150,105,0.1);  color: var(--success); }
     .badge-ready::before { background: var(--success); }
-    .badge-error       { background: rgba(220,38,38,0.1);   color: var(--error);   }
+    .badge-error      { background: rgba(220,38,38,0.1);  color: var(--error); }
     .badge-error::before { background: var(--error); }
-    .badge-downloading  { background: rgba(147,112,219,0.1); color: #7c3aed; }
+    .badge-downloading { background: rgba(124,58,237,0.1); color: #7c3aed; }
     .badge-downloading::before { background: #7c3aed; }
-    .badge-compressing  { background: rgba(217,119,6,0.1);  color: var(--warn); }
+    .badge-compressing { background: rgba(217,119,6,0.1); color: var(--warn); }
     .badge-compressing::before { background: var(--warn); }
 
-    /* ── Dataset list ── */
-    .dataset-list { display: flex; flex-direction: column; gap: 10px; }
+    /* ── Event Groups list ── */
+    .groups-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
+    .group-card {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      cursor: pointer;
+      transition: all 0.25s;
+      position: relative;
+      overflow: hidden;
+    }
+    .group-card:hover {
+      border-color: var(--primary);
+      box-shadow: 0 6px 24px rgba(181,131,90,0.12);
+      transform: translateY(-2px);
+    }
+    .group-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, var(--primary), var(--gold));
+      opacity: 0;
+      transition: opacity 0.25s;
+    }
+    .group-card:hover::before { opacity: 1; }
+
+    .group-card-name {
+      font-family: 'Fraunces', serif;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+    .group-card-meta { font-size: 12px; color: var(--muted); margin-bottom: 14px; line-height: 1.6; }
+    .group-card-meta strong { color: var(--text2); }
+    .group-card-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+    .btn-sm {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+      text-decoration: none;
+    }
+    .btn-sm-primary { background: var(--primary); color: white; }
+    .btn-sm-primary:hover { background: var(--primary-dark); }
+    .btn-sm-outline { background: none; border: 1.5px solid var(--border); color: var(--text2); }
+    .btn-sm-outline:hover { border-color: var(--primary); color: var(--primary); }
+    .btn-sm-danger { background: none; border: 1.5px solid rgba(220,38,38,0.25); color: var(--error); }
+    .btn-sm-danger:hover { background: rgba(220,38,38,0.06); }
 
     .empty {
       text-align: center;
@@ -620,6 +665,8 @@
       line-height: 1.6;
     }
 
+    /* ── Dataset list (inside group detail) ── */
+    .dataset-list { display: flex; flex-direction: column; gap: 10px; }
     .dataset-item {
       padding: 16px;
       border: 1.5px solid var(--border);
@@ -628,29 +675,12 @@
       cursor: pointer;
       transition: all 0.2s;
     }
-
-    .dataset-item:hover { border-color: rgba(79,70,229,0.3); background: var(--primary-light); }
-    .dataset-item.selected { border-color: var(--primary); background: var(--primary-light); box-shadow: 0 0 0 3px rgba(79,70,229,0.1); }
-
+    .dataset-item:hover { border-color: rgba(181,131,90,0.3); background: var(--primary-light); }
+    .dataset-item.selected { border-color: var(--primary); background: var(--primary-light); box-shadow: 0 0 0 3px rgba(181,131,90,0.12); }
     .dataset-name { font-weight: 700; font-size: 14px; color: var(--text); margin-bottom: 8px; }
-
-    .dataset-meta {
-      font-size: 12px;
-      color: var(--muted);
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      align-items: center;
-    }
-
-    .dataset-size {
-      display: inline-flex; align-items: center; gap: 4px;
-      font-size: 11px; font-weight: 600;
-      color: var(--muted);
-    }
-
+    .dataset-meta { font-size: 12px; color: var(--muted); display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .dataset-size { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: var(--muted); }
     .dataset-actions { display: flex; gap: 8px; margin-top: 10px; }
-
     .btn-delete {
       display: inline-flex;
       align-items: center;
@@ -666,9 +696,7 @@
       cursor: pointer;
       transition: all 0.15s;
     }
-
     .btn-delete:hover { background: rgba(220,38,38,0.06); border-color: var(--error); }
-
     .btn-add {
       display: inline-flex;
       align-items: center;
@@ -684,32 +712,27 @@
       cursor: pointer;
       transition: all 0.15s;
     }
-
     .btn-add:hover { background: rgba(5,150,105,0.06); border-color: var(--success); }
 
     /* ── Share box ── */
     .share-box {
       margin-top: 18px;
-      padding: 18px;
-      background: var(--bg);
-      border: 1.5px solid var(--border);
-      border-radius: var(--radius-sm);
+      padding: 20px;
+      background: linear-gradient(135deg, #fdf8f0, #fff9f3);
+      border: 1.5px solid rgba(181,131,90,0.25);
+      border-radius: var(--radius);
       display: none;
     }
-
     .share-box.visible { display: block; animation: fadeIn 0.3s ease; }
-
-    .share-box-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+    .share-box-label { font-size: 11px; font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
 
     .share-url-wrap {
       display: flex;
       align-items: stretch;
-      gap: 0;
       border-radius: var(--radius-sm);
       overflow: hidden;
       border: 1.5px solid var(--border);
     }
-
     .share-url {
       flex: 1;
       background: var(--surface);
@@ -721,7 +744,6 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-
     .copy-btn {
       background: var(--primary);
       color: white;
@@ -737,11 +759,8 @@
       transition: background 0.15s;
       white-space: nowrap;
     }
-
     .copy-btn:hover { background: var(--primary-dark); }
-
     .share-hint { font-size: 12px; color: var(--muted); margin-top: 10px; line-height: 1.5; }
-
     .revoke-link {
       display: inline-flex; align-items: center; gap: 5px;
       font-size: 12px; font-weight: 600; color: var(--error);
@@ -751,6 +770,119 @@
       font-family: 'Plus Jakarta Sans', sans-serif;
     }
     .revoke-link:hover { opacity: 1; }
+
+    /* ── QR Code box ── */
+    .qr-section {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+    .qr-section-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+    .qr-container {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    #qrCanvas {
+      border-radius: 8px;
+      border: 1.5px solid var(--border);
+      background: white;
+      padding: 8px;
+    }
+    .qr-actions { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 120px; }
+    .qr-download-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: none;
+      border: 1.5px solid var(--border);
+      color: var(--text2);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 8px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .qr-download-btn:hover { border-color: var(--primary); color: var(--primary); }
+    .qr-hint { font-size: 11px; color: var(--muted); line-height: 1.5; }
+
+    /* ── Analytics ── */
+    .analytics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 16px;
+    }
+    .stat-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+    .stat-value { font-family: 'Fraunces', serif; font-size: 28px; font-weight: 800; color: var(--text); letter-spacing: -1px; }
+    .stat-sub { font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+    .activity-list { display: flex; flex-direction: column; gap: 1px; }
+    .activity-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      transition: background 0.15s;
+    }
+    .activity-item:hover { background: var(--bg); }
+    .activity-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+      flex-shrink: 0;
+    }
+    .activity-dot.search { background: var(--primary); }
+    .activity-dot.download { background: var(--gold); }
+    .activity-text { flex: 1; font-size: 13px; color: var(--text2); }
+    .activity-time { font-size: 11px; color: var(--muted); white-space: nowrap; }
+
+    /* ── Discount Codes ── */
+    .discount-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .code-card {
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 16px;
+      background: var(--bg);
+    }
+    .code-val {
+      font-family: monospace;
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--primary);
+      letter-spacing: 2px;
+      background: var(--primary-light);
+      padding: 8px 12px;
+      border-radius: 6px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .code-meta { font-size: 12px; color: var(--muted); line-height: 1.7; }
+    .code-meta span { font-weight: 700; color: var(--text2); }
+    .code-copy-btn {
+      background: none; border: none; color: var(--primary); cursor: pointer;
+      padding: 2px 6px; font-size: 11px; font-weight: 700;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      transition: opacity 0.15s;
+    }
+    .code-copy-btn:hover { opacity: 0.7; }
 
     /* ── Toast ── */
     .toast {
@@ -771,9 +903,11 @@
       align-items: center;
       gap: 8px;
       box-shadow: var(--shadow-lg);
+      max-width: 380px;
     }
-
     .toast.show { transform: translateY(0); opacity: 1; }
+    .toast.success { background: var(--success); }
+    .toast.error   { background: var(--error); }
 
     /* ── Modal ── */
     .modal-overlay {
@@ -787,45 +921,34 @@
       justify-content: center;
       padding: 24px;
     }
-
     .modal-overlay.show { display: flex; animation: fadeIn 0.2s ease; }
-
     .modal {
       background: var(--surface);
       border-radius: var(--radius-lg);
-      max-width: 500px;
+      max-width: 520px;
       width: 100%;
       padding: 32px;
       position: relative;
       box-shadow: var(--shadow-lg);
       animation: slideUp 0.3s ease;
+      max-height: 90vh;
+      overflow-y: auto;
     }
-
-    @keyframes slideUp {
-      from { opacity: 0; transform: translateY(16px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-
+    @keyframes slideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
     .modal-close {
       position: absolute;
-      top: 16px;
-      right: 16px;
+      top: 16px; right: 16px;
       background: var(--bg);
       border: 1px solid var(--border);
       color: var(--muted);
-      width: 32px;
-      height: 32px;
+      width: 32px; height: 32px;
       border-radius: 50%;
       cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: flex; align-items: center; justify-content: center;
       font-size: 16px;
       transition: all 0.15s;
     }
-
     .modal-close:hover { background: var(--error); border-color: var(--error); color: white; }
-
     .modal h3 {
       font-family: 'Fraunces', serif;
       font-size: 20px;
@@ -833,34 +956,7 @@
       color: var(--text);
       margin-bottom: 6px;
     }
-
-    #addImagesDatasetName { font-size: 13px; color: var(--muted); margin-bottom: 22px; }
-
-    /* Add images selected info in modal */
-    #addImagesSelectedInfo {
-      display: none;
-      background: var(--primary-light);
-      border: 1.5px solid rgba(79,70,229,0.2);
-      border-radius: var(--radius-sm);
-      padding: 12px 16px;
-      margin-bottom: 16px;
-    }
-
-    #addImagesFileName { font-size: 14px; color: var(--text); font-weight: 600; }
-    #addImagesFileSize { font-size: 12px; color: var(--muted); margin-top: 2px; }
-
-    /* ── Utilities ── */
-    .divider { height: 1px; background: var(--border); margin: 20px 0; }
-
-    @keyframes fadeIn {
-      from { opacity: 0; }
-      to   { opacity: 1; }
-    }
-    @keyframes spinRing {
-      0%   { stroke-dashoffset: 165; }
-      50%  { stroke-dashoffset: 55;  }
-      100% { stroke-dashoffset: 165; }
-    }
+    .modal-sub { font-size: 13px; color: var(--muted); margin-bottom: 22px; }
 
     /* ── Plan banner ── */
     .plan-banner {
@@ -890,17 +986,15 @@
     .plan-banner-limits strong { color: var(--text2); }
     .plan-upgrade-btn {
       display: inline-flex; align-items: center; gap: 6px;
-      background: var(--primary); color: white;
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: white;
       font-family: 'Plus Jakarta Sans', sans-serif;
       font-size: 12px; font-weight: 700;
       padding: 8px 16px; border-radius: var(--radius-sm);
       border: none; cursor: pointer; text-decoration: none;
       transition: all 0.2s; white-space: nowrap; flex-shrink: 0;
     }
-    .plan-upgrade-btn:hover { background: var(--primary-dark); transform: translateY(-1px); }
-    .plan-upgrade-btn.gold  { background: var(--warn); }
-    .plan-upgrade-btn.gold:hover { background: #b45309; }
-    /* limit wall shown when user hits dataset cap on free */
+    .plan-upgrade-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(181,131,90,0.3); }
+    .plan-upgrade-btn.gold { background: linear-gradient(135deg, var(--gold), #b07d2e); }
     .limit-wall {
       display: none;
       border: 2px dashed rgba(217,119,6,0.4);
@@ -912,14 +1006,84 @@
     .limit-wall-icon  { font-size: 28px; margin-bottom: 10px; }
     .limit-wall-title { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
     .limit-wall-desc  { font-size: 13px; color: var(--muted); line-height: 1.6; margin-bottom: 16px; }
+
+    /* ── Utilities ── */
+    .divider { height: 1px; background: var(--border); margin: 20px 0; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes spinRing { 0% { stroke-dashoffset: 165; } 50% { stroke-dashoffset: 55; } 100% { stroke-dashoffset: 165; } }
+
+    /* ── Breadcrumb ── */
+    .breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 20px;
+    }
+    .breadcrumb a { color: var(--primary); text-decoration: none; font-weight: 600; }
+    .breadcrumb a:hover { text-decoration: underline; }
+    .breadcrumb-sep { color: var(--border2); }
+
+    /* Add images selected info in modal */
+    #addImagesSelectedInfo {
+      display: none;
+      background: var(--primary-light);
+      border: 1.5px solid rgba(181,131,90,0.2);
+      border-radius: var(--radius-sm);
+      padding: 12px 16px;
+      margin-bottom: 16px;
+    }
+    #addImagesFileName { font-size: 14px; color: var(--text); font-weight: 600; }
+    #addImagesFileSize { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+    /* Back button */
+    .back-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+      background: none;
+      border: 1.5px solid var(--border);
+      padding: 7px 14px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      transition: all 0.2s;
+      margin-bottom: 20px;
+    }
+    .back-btn:hover { color: var(--text); border-color: var(--border2); }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .section-header h2 {
+      font-family: 'Fraunces', serif;
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--text);
+      letter-spacing: -0.5px;
+    }
   </style>
 </head>
 <body>
   <!-- Header -->
   <header>
     <div class="header-left">
-      <span class="logo"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="10" r="3"/><path d="M9 16c0-1.7 1.3-3 3-3s3 1.3 3 3"/></svg>FaceFind</span>
-      <span class="header-badge">Dashboard</span>
+      <a href="/" class="logo">
+        <div class="logo-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="4"/><path d="M11 7a4 4 0 0 1 4 4"/><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/></svg>
+        </div>
+        GotchaPic
+      </a>
+      <span class="header-badge">Studio Dashboard</span>
     </div>
     <div class="header-right">
       <a href="/download.html" class="header-nav-link" id="selfHostedNavLink">
@@ -953,8 +1117,8 @@
   <div class="layout">
     <!-- Welcome -->
     <div class="welcome">
-      <h1>Your Photo Collections</h1>
-      <p>Upload a collection, index faces, and share a link so guests can find themselves instantly.</p>
+      <h1 id="welcomeHeading">Welcome back ✨</h1>
+      <p>Your studio's photo collections, share links, and client galleries — all in one place.</p>
     </div>
 
     <!-- Plan Banner -->
@@ -964,7 +1128,7 @@
       </div>
       <div class="plan-banner-info">
         <div class="plan-banner-name" id="planName">Starter (Free)</div>
-        <div class="plan-banner-limits" id="planLimits">1 dataset · 100 images max · 4K auto-compression</div>
+        <div class="plan-banner-limits" id="planLimits">1 event · 100 photos max · watermark included</div>
       </div>
       <a href="/pricing.html" class="plan-upgrade-btn" id="planUpgradeBtn">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>
@@ -972,249 +1136,446 @@
       </a>
     </div>
 
-    <div class="grid">
-      <!-- Left: Upload -->
-      <div>
-        <div class="card">
-          <div class="card-title">
-            <div class="card-title-icon">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            </div>
-            Upload a Collection
-          </div>
+    <!-- Section navigation -->
+    <div class="section-nav">
+      <button class="section-tab active" onclick="switchSection('events', this)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        My Events
+      </button>
+      <button class="section-tab" onclick="switchSection('upload', this)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Upload Photos
+      </button>
+      <button class="section-tab" onclick="switchSection('analytics', this)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        Analytics
+      </button>
+      <button class="section-tab" onclick="switchSection('discounts', this)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+        Discount Codes
+      </button>
+    </div>
 
-          <!-- Tabs -->
-          <div class="tabs">
-            <button class="tab-btn active" onclick="switchTab('zip', this)">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-              ZIP File
-            </button>
-            <button class="tab-btn" onclick="switchTab('drive', this)">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-              Google Drive
-            </button>
-          </div>
-
-          <!-- ZIP tab -->
-          <div class="tab-panel active" id="tab-zip">
-            <!-- Drop zone -->
-            <div class="drop-zone" id="dropZone">
-              <input type="file" id="zipFile" accept=".zip" />
-              <div class="drop-icon">
-                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-              </div>
-              <div class="drop-label">
-                <strong>Drop your ZIP file here</strong><br>
-                or click to browse
-              </div>
-              <div class="drop-hint">ZIP should contain folders of images (e.g. person_name/photo.jpg)</div>
-            </div>
-
-
-            <!-- Limit wall (shown when free tier dataset cap reached) -->
-            <div class="limit-wall" id="limitWall">
-              <div class="limit-wall-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="color:var(--warn)"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div>
-              <div class="limit-wall-title">Dataset limit reached</div>
-              <div class="limit-wall-desc">Your current plan allows <strong id="limitWallMax">1 dataset</strong>. Delete your existing dataset first, or upgrade to upload multiple collections simultaneously.</div>
-              <a href="/pricing.html" class="plan-upgrade-btn" style="display:inline-flex;margin:0 auto;">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>
-                See upgrade options
-              </a>
-            </div>
-
-            <!-- Progress panel -->
-            <div class="progress-panel" id="zipProgressPanel">
-              <div class="progress-panel-fill" id="zipProgressFill"></div>
-              <div class="ring-wrap">
-                <svg viewBox="0 0 80 80">
-                  <circle class="ring-track" cx="40" cy="40" r="35"/>
-                  <circle class="ring-progress" id="zipRing" cx="40" cy="40" r="35"/>
-                </svg>
-                <div class="ring-pct" id="zipPct">0%</div>
-              </div>
-              <div class="progress-panel-phase" id="zipPhase">Initialising</div>
-              <div class="progress-panel-detail" id="zipDetail">—</div>
-              <div class="progress-panel-eta" id="zipEtp"></div>
-            </div>
-
-            <!-- Success state -->
-            <div class="upload-success" id="zipSuccess">
-              <div class="success-icon">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-              </div>
-              <div class="success-title">Collection uploaded successfully</div>
-              <div class="success-meta" id="zipSuccessMeta">Face embedding job is running.</div>
-              <button class="btn-reset" onclick="resetZipUpload()">
-                Upload another collection
-              </button>
-            </div>
-
-            <!-- Selected file info -->
-            <div id="zipSelectedInfo">
-              <div class="file-info-label">Selected File</div>
-              <div id="zipFileName"></div>
-              <div id="zipFileSize"></div>
-            </div>
-
-            <div class="field">
-              <label>Collection Name (optional)</label>
-              <input type="text" id="datasetName" placeholder="e.g. Sarah & James Wedding 2024" />
-            </div>
-
-            <button class="btn btn-primary" id="uploadBtn" disabled>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-              Upload &amp; Start Indexing
-            </button>
-          </div>
-
-          <!-- Drive tab -->
-          <div class="tab-panel" id="tab-drive">
-            <div class="drive-zone" id="driveZone">
-              <div class="drive-icon">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-              </div>
-              <div class="drive-label">
-                Paste a <strong>public Google Drive folder</strong> URL below.<br>
-                The folder must be set to "Anyone with the link can view".
-              </div>
-              <input class="drive-input" type="text" id="driveFolderUrl"
-                     placeholder="https://drive.google.com/drive/folders/…" />
-            </div>
-
-            <!-- Drive progress panel -->
-            <div class="progress-panel" id="driveProgressPanel">
-              <div class="progress-panel-fill" id="driveProgressFill"></div>
-              <div class="ring-wrap">
-                <svg viewBox="0 0 80 80">
-                  <circle class="ring-track" cx="40" cy="40" r="35"/>
-                  <circle class="ring-progress" id="driveRing" cx="40" cy="40" r="35"/>
-                </svg>
-                <div class="ring-pct" id="drivePct">0%</div>
-              </div>
-              <div class="progress-panel-phase" id="drivePhase">Connecting</div>
-              <div class="progress-panel-detail" id="driveDetail">—</div>
-              <div class="progress-panel-eta" id="driveEtp"></div>
-            </div>
-
-            <!-- Drive success -->
-            <div class="upload-success" id="driveSuccess">
-              <div class="success-icon">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-              </div>
-              <div class="success-title">Drive folder linked!</div>
-              <div class="success-meta" id="driveSuccessMeta">Downloading &amp; indexing faces in background.</div>
-              <button class="btn-reset" onclick="resetDriveUpload()">Link another folder</button>
-            </div>
-
-            <div class="field" id="driveNameField">
-              <label>Collection Name (optional)</label>
-              <input type="text" id="driveDatasetName" placeholder="e.g. Annual Conference 2024" />
-            </div>
-
-            <button class="btn btn-primary" id="driveBtn">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-              Link Folder &amp; Start Indexing
-            </button>
+    <!-- ── EVENTS SECTION ── -->
+    <div class="section-panel active" id="section-events">
+      <div id="eventsListView">
+        <div class="section-header">
+          <h2>Your Event Groups</h2>
+          <button class="btn btn-primary" style="width:auto;margin-top:0;padding:10px 20px;" onclick="showCreateGroupModal()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            New Event Group
+          </button>
+        </div>
+        <div class="groups-grid" id="groupsGrid">
+          <div class="empty" style="grid-column:1/-1;">
+            <div style="font-size:32px;margin-bottom:12px;">📸</div>
+            <div style="font-weight:700;color:var(--text);font-size:15px;margin-bottom:6px;">No events yet</div>
+            Create your first event group — like "Priya & Rahul Wedding 2025" — then upload photos. Share the link with guests so they can find themselves instantly.
           </div>
         </div>
       </div>
 
-      <!-- Right: Datasets + Share -->
-      <div style="display:flex;flex-direction:column;gap:24px;">
-        <!-- Datasets -->
-        <div class="card">
-          <div class="card-title">
-            <div class="card-title-icon">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-4 0v2M8 7V5a2 2 0 0 0-4 0v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>
+      <!-- Group Detail view (hidden until clicked) -->
+      <div id="groupDetailView" style="display:none;">
+        <button class="back-btn" onclick="showGroupsList()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+          All Events
+        </button>
+        <div class="grid">
+          <!-- Left: collections list -->
+          <div>
+            <div class="card">
+              <div class="card-title">
+                <div class="card-title-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                </div>
+                <span id="groupDetailTitle">Event Photos</span>
+              </div>
+              <div class="dataset-list" id="datasetList">
+                <div class="empty">No photo collections yet. Upload below.</div>
+              </div>
             </div>
-            Your Collections
           </div>
-          <div class="dataset-list" id="datasetList">
-            <div class="empty">No collections yet. Upload one to get started.</div>
+
+          <!-- Right: share + settings -->
+          <div>
+            <div class="card" id="shareCard">
+              <div class="card-title">
+                <div class="card-title-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                </div>
+                Share This Event
+              </div>
+
+              <p style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.6;">Select a ready collection below, then generate a permanent link. Guests visit the link, upload a selfie, and instantly see all their photos — no login needed.</p>
+
+              <!-- Watermark settings -->
+              <div style="background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:16px;margin-bottom:16px;">
+                <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:12px;display:flex;align-items:center;gap:6px;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                  STUDIO BRANDING
+                </div>
+                <label class="field-checkbox">
+                  <input type="checkbox" id="watermarkEnabled" onchange="toggleWatermarkPreview()">
+                  <div>
+                    <div class="field-checkbox-label">Add studio watermark to photos</div>
+                    <div class="field-checkbox-hint">Your studio name in an elegant cursive font at the bottom-left of every photo in results</div>
+                  </div>
+                </label>
+                <div id="watermarkFieldWrap" style="display:none;margin-top:12px;">
+                  <input type="text" id="watermarkText" placeholder="e.g. Lens & Love Studio" 
+                    style="width:100%;background:var(--surface);border:1.5px solid var(--border);color:var(--text);font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;padding:10px 14px;border-radius:var(--radius-sm);outline:none;transition:border-color 0.2s;"
+                    oninput="updateWatermarkPreview()" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='var(--border)'">
+                  <div class="watermark-preview" id="watermarkPreview">
+                    <div class="watermark-preview-label">Preview</div>
+                    <div class="watermark-text-preview" id="watermarkTextPreview">Your Studio Name</div>
+                  </div>
+                </div>
+              </div>
+
+              <button id="shareBtn" class="btn btn-primary" onclick="generateShare()" disabled>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                Generate Share Link
+              </button>
+
+              <!-- Share result -->
+              <div class="share-box" id="shareBox">
+                <div class="share-box-label">✨ Share Link — stays permanent</div>
+                <div class="share-url-wrap">
+                  <div class="share-url" id="shareUrl">—</div>
+                  <button class="copy-btn" onclick="copyShareLink()">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    Copy
+                  </button>
+                </div>
+                <p class="share-hint">No login needed for guests. They simply upload a selfie and find all their photos. The link stays active as long as this event is live.</p>
+
+                <!-- QR Code -->
+                <div class="qr-section">
+                  <div class="qr-section-label">QR Code</div>
+                  <div class="qr-container">
+                    <canvas id="qrCanvas" width="120" height="120"></canvas>
+                    <div class="qr-actions">
+                      <button class="qr-download-btn" onclick="downloadQR()">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        Download QR
+                      </button>
+                      <div class="qr-hint">Print this QR code at the venue — guests scan and instantly find themselves in the photos.</div>
+                    </div>
+                  </div>
+                </div>
+
+                <button class="revoke-link" onclick="revokeShare()">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+                  Disable link
+                </button>
+              </div>
+            </div>
           </div>
         </div>
+      </div>
+    </div>
 
-        <!-- Share -->
-        <div class="card">
-          <div class="card-title">
-            <div class="card-title-icon">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+    <!-- ── UPLOAD SECTION ── -->
+    <div class="section-panel" id="section-upload">
+      <div class="grid">
+        <div>
+          <div class="card">
+            <div class="card-title">
+              <div class="card-title-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              </div>
+              Upload to an Event Group
             </div>
-            Share with Guests
-          </div>
-          <p style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.6">Select a ready collection above, then generate a shareable link. Anyone with the link can find their face in your photos.</p>
-          <button class="btn btn-primary" id="shareBtn" disabled style="margin-top:0">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-            Generate Share Link
-          </button>
 
-          <div class="share-box" id="shareBox">
-            <div class="share-box-label">Your Share Link</div>
-            <div class="share-url-wrap">
-              <div class="share-url" id="shareUrl"></div>
-              <button class="copy-btn" id="copyBtn">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                Copy
+            <!-- Event Group selector -->
+            <div class="field" style="margin-top:0;margin-bottom:18px;">
+              <label>Event Group</label>
+              <select id="uploadTargetGroup" style="background:var(--bg);">
+                <option value="">— Select event group —</option>
+              </select>
+              <div class="field-hint">
+                Or <button onclick="showCreateGroupModal()" style="background:none;border:none;color:var(--primary);font-weight:700;cursor:pointer;font-size:12px;padding:0;font-family:'Plus Jakarta Sans',sans-serif;">create a new event group</button>
+              </div>
+            </div>
+
+            <!-- Tabs -->
+            <div class="tabs">
+              <button class="tab-btn active" onclick="switchTab('zip', this)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                ZIP File
+              </button>
+              <button class="tab-btn" onclick="switchTab('drive', this)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                Google Drive
               </button>
             </div>
-            <p class="share-hint">Send this link to guests so they can upload a selfie and find their photos instantly.</p>
-            <button class="revoke-link" id="revokeShareBtn">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-              Revoke link
-            </button>
+
+            <!-- ZIP tab -->
+            <div class="tab-panel active" id="tab-zip">
+              <!-- Limit wall -->
+              <div class="limit-wall" id="limitWall">
+                <div class="limit-wall-icon">🔒</div>
+                <div class="limit-wall-title">Event limit reached</div>
+                <div class="limit-wall-desc">You've used all <strong id="limitWallMax">1 event</strong> on your current plan. Upgrade to add more events and photos.</div>
+                <a href="/pricing.html" class="btn btn-primary" style="width:auto;display:inline-flex;text-decoration:none;">Upgrade Plan</a>
+              </div>
+
+              <div id="zipSelectedInfo">
+                <div class="file-info-label">📦 File Selected</div>
+                <div id="zipFileName">—</div>
+                <div id="zipFileSize">—</div>
+              </div>
+
+              <div class="drop-zone" id="dropZone">
+                <input type="file" id="zipFile" accept=".zip">
+                <div class="drop-icon">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                </div>
+                <div class="drop-label"><strong>Drop your ZIP here</strong> or click to browse</div>
+                <div class="drop-hint">Wedding albums · Event photos · College fests · Conference shots</div>
+              </div>
+
+              <div class="field">
+                <label>Collection name (optional)</label>
+                <input type="text" id="datasetName" placeholder="e.g. Reception Ceremony, Day 2 Candids">
+              </div>
+
+              <!-- Progress panel -->
+              <div class="progress-panel" id="zipProgressPanel">
+                <div class="progress-panel-fill" id="zipProgressFill"></div>
+                <div class="ring-wrap">
+                  <svg viewBox="0 0 80 80"><circle class="ring-track" cx="40" cy="40" r="35"/><circle class="ring-progress" id="zipRing" cx="40" cy="40" r="35"/></svg>
+                  <div class="ring-pct" id="zipPct">0%</div>
+                </div>
+                <div class="progress-panel-phase" id="zipPhase">Uploading</div>
+                <div class="progress-panel-detail" id="zipDetail">—</div>
+                <div class="progress-panel-eta" id="zipEtp"></div>
+              </div>
+
+              <!-- Success -->
+              <div class="upload-success" id="zipSuccess">
+                <div class="success-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></div>
+                <div class="success-title">Photos indexed! 🎉</div>
+                <div class="success-meta" id="zipSuccessMeta">Collection ready to share.</div>
+                <button class="btn-reset" onclick="resetZipUpload(); switchSection('events', document.querySelector('.section-tab'))">Go to Events</button>
+              </div>
+
+              <button id="uploadBtn" class="btn btn-primary" disabled>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Upload & Start Indexing Faces
+              </button>
+            </div>
+
+            <!-- Google Drive tab -->
+            <div class="tab-panel" id="tab-drive">
+              <div class="drive-zone" id="driveZone">
+                <div class="drive-icon">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                </div>
+                <div class="drive-label">
+                  <strong>Paste a Google Drive folder link</strong><br>
+                  The folder must be shared publicly — <em>"Anyone with the link can view"</em>
+                </div>
+                <input type="text" class="drive-input" id="driveFolderUrl" placeholder="https://drive.google.com/drive/folders/…">
+                <div class="drive-hint">
+                  ⚠️ Important: Set sharing to <code>"Anyone with the link"</code> — Viewer access only. We check accessibility before importing.
+                </div>
+                <!-- Access warning -->
+                <div class="drive-access-warn" id="driveAccessWarn">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:1px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                  <span id="driveAccessWarnText">This folder doesn't appear to be publicly accessible. Please check sharing settings: open the folder → Share → "Anyone with the link" → Viewer.</span>
+                </div>
+              </div>
+
+              <div class="field" id="driveNameField">
+                <label>Collection name (optional)</label>
+                <input type="text" id="driveDatasetName" placeholder="e.g. Sangeet Night, Day 1">
+              </div>
+
+              <div class="progress-panel" id="driveProgressPanel">
+                <div class="progress-panel-fill" id="driveProgressFill"></div>
+                <div class="ring-wrap">
+                  <svg viewBox="0 0 80 80"><circle class="ring-track" cx="40" cy="40" r="35"/><circle class="ring-progress" id="driveRing" cx="40" cy="40" r="35"/></svg>
+                  <div class="ring-pct" id="drivePct">0%</div>
+                </div>
+                <div class="progress-panel-phase" id="drivePhase">Connecting</div>
+                <div class="progress-panel-detail" id="driveDetail">—</div>
+                <div class="progress-panel-eta" id="driveEtp"></div>
+              </div>
+
+              <div class="upload-success" id="driveSuccess">
+                <div class="success-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></div>
+                <div class="success-title">Drive folder indexed! 🎉</div>
+                <div class="success-meta" id="driveSuccessMeta">Photos ready to share with guests.</div>
+                <button class="btn-reset" onclick="resetDriveUpload(); switchSection('events', document.querySelector('.section-tab'))">Go to Events</button>
+              </div>
+
+              <button id="driveBtn" class="btn btn-primary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                Check Access & Start Indexing
+              </button>
+            </div>
           </div>
         </div>
+
+        <div>
+          <div class="card">
+            <div class="card-title">
+              <div class="card-title-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              </div>
+              Upload Tips
+            </div>
+            <div style="font-size:13px;color:var(--muted);line-height:1.8;">
+              <div style="margin-bottom:10px;">📁 <strong style="color:var(--text);">Organize by folder</strong> — subfolders become labels in search results (e.g. "Bride & Groom")</div>
+              <div style="margin-bottom:10px;">🖼️ <strong style="color:var(--text);">Any image format</strong> — JPG, PNG, HEIC all supported</div>
+              <div style="margin-bottom:10px;">⚡ <strong style="color:var(--text);">Slow connection?</strong> — Upload continues in the background. Don't close the tab until the green check appears.</div>
+              <div style="margin-bottom:10px;">🔄 <strong style="color:var(--text);">Add more later</strong> — Click "Add Photos" on any event collection to add more images anytime</div>
+              <div>☁️ <strong style="color:var(--text);">Google Drive?</strong> — Share your folder as "Anyone with the link can view" before pasting. We verify access automatically.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── ANALYTICS SECTION ── -->
+    <div class="section-panel" id="section-analytics">
+      <div style="margin-bottom:20px;">
+        <div class="section-header">
+          <h2>Studio Analytics</h2>
+          <select id="analyticsFilter" style="padding:8px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:600;color:var(--text);background:var(--surface);outline:none;">
+            <option value="all">All Events</option>
+          </select>
+        </div>
+        <div class="analytics-grid" id="analyticsStats">
+          <div class="stat-card">
+            <div class="stat-label">Total Searches</div>
+            <div class="stat-value" id="statSearches">—</div>
+            <div class="stat-sub">face searches by guests</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Photos Viewed</div>
+            <div class="stat-value" id="statViews">—</div>
+            <div class="stat-sub">across all events</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Downloads</div>
+            <div class="stat-value" id="statDownloads">—</div>
+            <div class="stat-sub">photos downloaded</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Active Events</div>
+            <div class="stat-value" id="statEvents">—</div>
+            <div class="stat-sub">with active share links</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          <div class="card-title-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          </div>
+          Recent Activity
+        </div>
+        <div class="activity-list" id="activityList">
+          <div style="text-align:center;padding:30px;color:var(--muted);font-size:13px;">
+            Activity will appear here once guests start searching
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── DISCOUNT CODES SECTION ── -->
+    <div class="section-panel" id="section-discounts">
+      <div class="section-header">
+        <h2>Discount Codes</h2>
+        <button class="btn btn-primary" style="width:auto;margin-top:0;padding:10px 20px;" onclick="showGenerateCodeModal()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Generate Code
+        </button>
+      </div>
+
+      <p style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.6;">
+        Share these codes with wedding planners, event organizers, and college societies you know. Each code works once per user. Great for getting people to try GotchaPic at their next event!
+      </p>
+
+      <div class="discount-grid" id="discountGrid">
+        <div class="empty" style="grid-column:1/-1;">No discount codes yet. Generate some to share with your network.</div>
       </div>
     </div>
   </div>
 
   <!-- Toast -->
   <div class="toast" id="toast">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
     <span id="toastText"></span>
   </div>
 
-  <!-- Add Images Modal -->
-  <div id="addImagesModal" class="modal-overlay">
+  <!-- ── CREATE GROUP MODAL ── -->
+  <div class="modal-overlay" id="createGroupModal">
     <div class="modal">
-      <button onclick="closeAddImagesDialog()" class="modal-close">&times;</button>
+      <button class="modal-close" onclick="closeModal('createGroupModal')">×</button>
+      <h3>New Event Group</h3>
+      <p class="modal-sub">Create a permanent group for your event. The share link stays the same even as you add more photos over time.</p>
+      <div class="field" style="margin-top:0;">
+        <label>Event Name *</label>
+        <input type="text" id="newGroupName" placeholder="e.g. Priya & Rahul Wedding · Dec 2025">
+      </div>
+      <div class="field">
+        <label>Event Type</label>
+        <select id="newGroupType">
+          <option value="wedding">💍 Wedding</option>
+          <option value="engagement">💛 Engagement / Roka</option>
+          <option value="sangeet">🎶 Sangeet / Mehndi</option>
+          <option value="birthday">🎂 Birthday Party</option>
+          <option value="college">🎓 College Fest / Convocation</option>
+          <option value="conference">🎤 Conference / Seminar</option>
+          <option value="corporate">🏢 Corporate Event</option>
+          <option value="other">📸 Other</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Event Date (optional)</label>
+        <input type="text" id="newGroupDate" placeholder="e.g. 15 December 2025">
+      </div>
+      <button class="btn btn-primary" onclick="createGroup()" style="margin-top:24px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Create Event Group
+      </button>
+    </div>
+  </div>
 
+  <!-- ── ADD IMAGES MODAL ── -->
+  <div class="modal-overlay" id="addImagesModal">
+    <div class="modal">
+      <button class="modal-close" onclick="closeAddImagesDialog()">×</button>
       <h3>Add More Photos</h3>
-      <p id="addImagesDatasetName" style="font-size:13px;color:var(--muted);margin-bottom:20px;"></p>
+      <p class="modal-sub" id="addImagesDatasetName">—</p>
 
-      <!-- Drop zone (hidden during upload) -->
       <div id="addImagesUploadForm">
-        <div class="drop-zone" id="addImagesDropZone" style="margin-bottom:16px;">
-          <input type="file" id="addImagesFile" accept=".zip" />
-          <div class="drop-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-          </div>
-          <div class="drop-label">
-            <strong>Drop your ZIP file here</strong><br>or click to browse
-          </div>
-          <div class="drop-hint">New images will be added to the existing collection</div>
-        </div>
-
         <div id="addImagesSelectedInfo">
-          <div class="file-info-label">Selected File</div>
-          <div id="addImagesFileName"></div>
-          <div id="addImagesFileSize"></div>
+          <div id="addImagesFileName">—</div>
+          <div id="addImagesFileSize">—</div>
         </div>
-
-        <button class="btn btn-primary" id="addImagesBtn" disabled style="margin-top:0;">
+        <div class="drop-zone" id="addImagesDropZone" style="padding:32px 20px;">
+          <input type="file" id="addImagesFile" accept=".zip">
+          <div class="drop-icon" style="width:44px;height:44px;border-radius:12px;margin:0 auto 12px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          </div>
+          <div class="drop-label"><strong>Drop ZIP here</strong> or click to browse</div>
+        </div>
+        <button class="btn btn-primary" id="addImagesBtn" disabled onclick="addImagesSubmit()">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
           Add Photos &amp; Re-index
         </button>
       </div>
 
-      <!-- Progress panel (shown during upload + re-indexing) -->
       <div class="progress-panel" id="addProgressPanel">
         <div class="progress-panel-fill" id="addProgressFill"></div>
         <div class="ring-wrap">
-          <svg viewBox="0 0 80 80">
-            <circle class="ring-track" cx="40" cy="40" r="35"/>
-            <circle class="ring-progress" id="addRing" cx="40" cy="40" r="35"/>
-          </svg>
+          <svg viewBox="0 0 80 80"><circle class="ring-track" cx="40" cy="40" r="35"/><circle class="ring-progress" id="addRing" cx="40" cy="40" r="35"/></svg>
           <div class="ring-pct" id="addPct">0%</div>
         </div>
         <div class="progress-panel-phase" id="addPhase">Uploading</div>
@@ -1222,11 +1583,8 @@
         <div class="progress-panel-eta" id="addEtp"></div>
       </div>
 
-      <!-- Success state -->
       <div class="upload-success" id="addSuccess">
-        <div class="success-icon">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-        </div>
+        <div class="success-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></div>
         <div class="success-title">Photos added successfully</div>
         <div class="success-meta" id="addSuccessMeta">Re-indexing complete.</div>
         <button class="btn-reset" onclick="closeAddImagesDialog()">Done</button>
@@ -1234,15 +1592,111 @@
     </div>
   </div>
 
+  <!-- ── GENERATE CODE MODAL ── -->
+  <div class="modal-overlay" id="generateCodeModal">
+    <div class="modal">
+      <button class="modal-close" onclick="closeModal('generateCodeModal')">×</button>
+      <h3>Generate Discount Code</h3>
+      <p class="modal-sub">Create a one-time-use discount code for a specific plan and billing period. Valid once per email address.</p>
+      <div class="field" style="margin-top:0;">
+        <label>Plan</label>
+        <select id="codeTargetPlan">
+          <option value="personal_lite">Personal Lite</option>
+          <option value="personal_pro">Personal Pro</option>
+          <option value="photo_starter">Studio Starter</option>
+          <option value="photo_pro">Studio Pro</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Billing Period</label>
+        <select id="codeBillingPeriod">
+          <option value="monthly">Monthly</option>
+          <option value="annual">Annual</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Discount</label>
+        <select id="codeDiscount">
+          <option value="50">50% off</option>
+          <option value="100">100% off (free)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Label / Note (for your reference)</label>
+        <input type="text" id="codeLabel" placeholder="e.g. Shared with Priya at Wedlock Expo">
+      </div>
+      <button class="btn btn-primary" onclick="generateDiscountCode()" style="margin-top:24px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+        Generate Code
+      </button>
+    </div>
+  </div>
+
 <script>
+  // ── QR generation (simple canvas-based, no external library needed) ─────────
+  function generateQRCanvas(url, canvas) {
+    // Use QRServer API to render QR as image onto canvas
+    const img = new Image();
+    const size = canvas.width;
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, size, size);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, size, size);
+      ctx.drawImage(img, 0, 0, size, size);
+    };
+    img.onerror = () => {
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#f0f0f0';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#888';
+      ctx.font = '11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('QR unavailable', canvas.width/2, canvas.height/2);
+    };
+    img.src = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(url)}&bgcolor=ffffff&color=000000&margin=4`;
+  }
+
+  function downloadQR() {
+    const canvas = document.getElementById('qrCanvas');
+    const url = document.getElementById('shareUrl').textContent;
+    if (!url || url === '—') return;
+    const link = document.createElement('a');
+    link.download = 'gotchapic-qr.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  }
+
+  // ── Watermark helpers ───────────────────────────────────────────────────────
+  function toggleWatermarkPreview() {
+    const enabled = document.getElementById('watermarkEnabled').checked;
+    document.getElementById('watermarkFieldWrap').style.display = enabled ? '' : 'none';
+    if (enabled) updateWatermarkPreview();
+  }
+
+  function updateWatermarkPreview() {
+    const val = document.getElementById('watermarkText').value.trim();
+    const preview = document.getElementById('watermarkPreview');
+    const text = document.getElementById('watermarkTextPreview');
+    if (val) {
+      preview.classList.add('visible');
+      text.textContent = val;
+    } else {
+      preview.classList.remove('visible');
+    }
+  }
+
+  // ── API base ────────────────────────────────────────────────────────────────
   const API = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
     ? 'http://localhost:8000'
     : window.location.origin;
-  let selectedDatasetId = null;
-  let pollingInterval = null;
 
-  // ── Auth guard ─────────────────────────────────────────────────────────────
-  // ── Profile avatar helpers ──────────────────────────────────────────────────
+  let selectedDatasetId = null;
+  let pollingInterval   = null;
+  let currentGroupId    = null;
+
+  // ── Auth ────────────────────────────────────────────────────────────────────
   function getInitials(name, email) {
     if (name && name.trim()) {
       const parts = name.trim().split(/\s+/);
@@ -1252,28 +1706,25 @@
     }
     return (email || '?')[0].toUpperCase();
   }
-  function avatarColor(str) {
-    const colors = ['#4f46e5','#0891b2','#059669','#d97706','#dc2626','#7c3aed','#db2777'];
-    let h = 0;
-    for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
-    return colors[h % colors.length];
-  }
+
   function setProfileUser(user) {
     const initials = getInitials(user.name, user.email);
-    const color    = avatarColor(user.email || user.name || '');
     const displayName = user.name || user.email || '—';
-    // Button
     const btn = document.getElementById('profileBtn');
-    if (btn) { btn.textContent = initials; btn.style.background = color; }
-    // Dropdown avatar
+    if (btn) btn.textContent = initials;
     const av = document.getElementById('pdAvatar');
-    if (av) { av.textContent = initials; av.style.background = color; }
-    // Dropdown info
+    if (av) av.textContent = initials;
     const pdName = document.getElementById('pdName');
     if (pdName) pdName.textContent = displayName;
     const pdEmail = document.getElementById('pdEmail');
     if (pdEmail) pdEmail.textContent = user.email || '';
+    const welcomeEl = document.getElementById('welcomeHeading');
+    if (welcomeEl && user.name) {
+      const firstName = user.name.split(' ')[0];
+      welcomeEl.textContent = `Welcome back, ${firstName} ✨`;
+    }
   }
+
   function toggleProfile(e) {
     e.stopPropagation();
     const btn  = document.getElementById('profileBtn');
@@ -1289,30 +1740,30 @@
     }
   });
 
-  const SELF_HOSTED_PLANS = ['personal_lite','personal_pro','personal_max','photo_starter','photo_pro'];
-
   async function checkAuth() {
     try {
       const r = await fetch(`${API}/api/auth/me`, { credentials: 'include' });
       if (!r.ok) { window.location.replace('/login.html'); return; }
       const user = await r.json();
       setProfileUser(user);
-      // Self-Hosted nav link always visible — download.html handles plan gating internally
     } catch {
       window.location.replace('/login.html');
     }
   }
 
+  async function doLogout() {
+    await fetch(`${API}/api/auth/logout`, { method: 'POST', credentials: 'include' });
+    window.location.replace('/');
+  }
+
   async function cancelSubscription() {
-    if (!confirm('Cancel your subscription?\n\nYou keep full access until the end of your current billing cycle, then move to the free plan. You can undo this any time before then.')) return;
+    if (!confirm('Cancel your subscription?\n\nYou keep full access until the end of your current billing cycle.')) return;
     try {
       const r = await fetch('/api/billing/cancel-subscription', { method: 'POST', credentials: 'include' });
       const d = await r.json();
       if (!r.ok) throw new Error(d.detail || 'Failed.');
       window.location.reload();
-    } catch(e) {
-      alert('Could not cancel subscription: ' + e.message);
-    }
+    } catch(e) { alert('Could not cancel: ' + e.message); }
   }
 
   async function cancelDowngrade() {
@@ -1322,17 +1773,21 @@
       const d = await r.json();
       if (!r.ok) throw new Error(d.detail || 'Failed.');
       window.location.reload();
-    } catch(e) {
-      alert('Could not cancel downgrade: ' + e.message);
-    }
+    } catch(e) { alert('Could not cancel downgrade: ' + e.message); }
   }
 
-  async function doLogout() {
-    await fetch(`${API}/api/auth/logout`, { method: 'POST', credentials: 'include' });
-    window.location.replace('/');
+  // ── Section & Tab switching ─────────────────────────────────────────────────
+  function switchSection(name, btn) {
+    document.querySelectorAll('.section-tab').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.section-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.section-tab').forEach(b => {
+      if (b.getAttribute('onclick') && b.getAttribute('onclick').includes(`'${name}'`)) {
+        b.classList.add('active');
+      }
+    });
+    document.getElementById('section-' + name)?.classList.add('active');
   }
 
-  // ── Tab switching ──────────────────────────────────────────────────────────
   function switchTab(name, btn) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
@@ -1340,7 +1795,369 @@
     document.getElementById('tab-' + name).classList.add('active');
   }
 
-  // ── ZIP: File selection ────────────────────────────────────────────────────
+  // ── Event Groups ────────────────────────────────────────────────────────────
+  let groups = {};
+
+  async function loadGroups() {
+    try {
+      const r = await fetch(`${API}/api/groups`, { credentials: 'include' });
+      if (!r.ok) return;
+      groups = await r.json();
+    } catch {
+      // Fallback: load from datasets and group by group_id field
+      groups = {};
+    }
+    renderGroups();
+    populateGroupSelectors();
+  }
+
+  function renderGroups() {
+    const grid = document.getElementById('groupsGrid');
+    const groupList = Object.values(groups);
+    if (!groupList.length) {
+      grid.innerHTML = `<div class="empty" style="grid-column:1/-1;">
+        <div style="font-size:32px;margin-bottom:12px;">📸</div>
+        <div style="font-weight:700;color:var(--text);font-size:15px;margin-bottom:6px;">No events yet</div>
+        Create your first event group — like "Priya & Rahul Wedding 2025" — then upload photos. Guests can find themselves instantly with just a selfie.
+      </div>`;
+      return;
+    }
+    grid.innerHTML = groupList.map(g => `
+      <div class="group-card" onclick="openGroup('${g.id}')">
+        <div class="group-card-name">${escHtml(g.name)}</div>
+        <div class="group-card-meta">
+          ${g.type ? `<span>${typeEmoji(g.type)} ${escHtml(g.type)}</span> &nbsp;·&nbsp; ` : ''}
+          ${g.date ? `<span>${escHtml(g.date)}</span> &nbsp;·&nbsp; ` : ''}
+          <strong>${g.dataset_count || 0}</strong> collection${(g.dataset_count || 0) !== 1 ? 's' : ''} &nbsp;·&nbsp;
+          ${g.face_count ? `<strong>${g.face_count.toLocaleString('en-IN')}</strong> faces indexed` : 'No photos yet'}
+        </div>
+        <div class="group-card-actions">
+          <span class="btn-sm btn-sm-primary">Open</span>
+          ${g.share_id ? `<span class="btn-sm btn-sm-outline">🔗 Share active</span>` : ''}
+          <span class="btn-sm btn-sm-danger" onclick="event.stopPropagation();deleteGroup('${g.id}')">Delete</span>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function typeEmoji(type) {
+    const map = { wedding:'💍', engagement:'💛', sangeet:'🎶', birthday:'🎂', college:'🎓', conference:'🎤', corporate:'🏢' };
+    return map[type] || '📸';
+  }
+
+  function populateGroupSelectors() {
+    const sel = document.getElementById('uploadTargetGroup');
+    const analyticsFilter = document.getElementById('analyticsFilter');
+    const groupList = Object.values(groups);
+    sel.innerHTML = '<option value="">— Select event group —</option>' +
+      groupList.map(g => `<option value="${g.id}">${escHtml(g.name)}</option>`).join('');
+    analyticsFilter.innerHTML = '<option value="all">All Events</option>' +
+      groupList.map(g => `<option value="${g.id}">${escHtml(g.name)}</option>`).join('');
+  }
+
+  function openGroup(groupId) {
+    currentGroupId = groupId;
+    const g = groups[groupId];
+    document.getElementById('eventsListView').style.display = 'none';
+    document.getElementById('groupDetailView').style.display = '';
+    document.getElementById('groupDetailTitle').textContent = g?.name || 'Event Photos';
+    loadDatasets(groupId);
+    // Check existing share
+    if (g?.share_id) {
+      const shareUrl = `${window.location.origin}/share.html?id=${g.share_id}`;
+      document.getElementById('shareUrl').textContent = shareUrl;
+      document.getElementById('shareBox').classList.add('visible');
+      generateQRCanvas(shareUrl, document.getElementById('qrCanvas'));
+    } else {
+      document.getElementById('shareBox').classList.remove('visible');
+    }
+  }
+
+  function showGroupsList() {
+    currentGroupId = null;
+    selectedDatasetId = null;
+    document.getElementById('groupDetailView').style.display = 'none';
+    document.getElementById('eventsListView').style.display = '';
+    document.getElementById('shareBtn').disabled = true;
+    loadGroups();
+  }
+
+  function showCreateGroupModal() {
+    document.getElementById('newGroupName').value = '';
+    document.getElementById('newGroupDate').value = '';
+    document.getElementById('createGroupModal').classList.add('show');
+    setTimeout(() => document.getElementById('newGroupName').focus(), 100);
+  }
+
+  async function createGroup() {
+    const name = document.getElementById('newGroupName').value.trim();
+    const type = document.getElementById('newGroupType').value;
+    const date = document.getElementById('newGroupDate').value.trim();
+    if (!name) { toast('Please enter an event name', 'error'); return; }
+    try {
+      const fd = new FormData();
+      fd.append('name', name);
+      fd.append('type', type);
+      if (date) fd.append('date', date);
+      const r = await fetch(`${API}/api/groups`, { method: 'POST', body: fd, credentials: 'include' });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || 'Failed');
+      closeModal('createGroupModal');
+      toast('Event group created!', 'success');
+      await loadGroups();
+      openGroup(d.id);
+    } catch(e) {
+      toast('Error: ' + e.message, 'error');
+    }
+  }
+
+  async function deleteGroup(groupId) {
+    if (!confirm('Delete this event group and all its photos?\n\nThis cannot be undone.')) return;
+    try {
+      const r = await fetch(`${API}/api/groups/${groupId}`, { method: 'DELETE', credentials: 'include' });
+      if (!r.ok) throw new Error((await r.json()).detail || 'Failed');
+      toast('Event group deleted');
+      loadGroups();
+    } catch(e) {
+      toast('Error: ' + e.message, 'error');
+    }
+  }
+
+  // ── Datasets (within a group) ───────────────────────────────────────────────
+  async function loadDatasets(groupId) {
+    const gId = groupId || currentGroupId;
+    const list = document.getElementById('datasetList');
+    if (!list) return;
+    try {
+      const url = gId ? `${API}/api/datasets?group_id=${gId}` : `${API}/api/datasets`;
+      const r = await fetch(url, { credentials: 'include' });
+      if (!r.ok) return;
+      const data = await r.json();
+      const datasets = Object.values(data);
+      if (!datasets.length) {
+        list.innerHTML = `<div class="empty">No photos uploaded yet.<br>Go to the <button onclick="switchSection('upload', document.querySelector('.section-tab:nth-child(2)'))" style="background:none;border:none;color:var(--primary);font-weight:700;cursor:pointer;font-size:13px;font-family:'Plus Jakarta Sans',sans-serif;">Upload tab</button> to add photos.</div>`;
+        return;
+      }
+      list.innerHTML = datasets.map(ds => renderDatasetItem(ds)).join('');
+      datasetCount = datasets.length;
+      // Update plan limit wall
+      const cfg = PLAN_CONFIG[currentPlan] || PLAN_CONFIG.free;
+      applyLimitWall(cfg, datasetCount);
+    } catch {}
+  }
+
+  function renderDatasetItem(ds) {
+    const statusBadge = {
+      queued:      '<span class="badge badge-queued">Queued</span>',
+      compressing: '<span class="badge badge-compressing">Compressing</span>',
+      downloading: '<span class="badge badge-downloading">Downloading</span>',
+      processing:  '<span class="badge badge-processing">Indexing…</span>',
+      ready:       '<span class="badge badge-ready">Ready</span>',
+      error:       '<span class="badge badge-error">Error</span>',
+    }[ds.status] || `<span class="badge">${ds.status}</span>`;
+
+    const faceCount = ds.face_count ? `<span class="dataset-size"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="4"/><path d="M11 7a4 4 0 0 1 4 4"/></svg>${ds.face_count.toLocaleString('en-IN')} faces</span>` : '';
+    const imgCount  = ds.total_images ? `<span class="dataset-size"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>${ds.total_images.toLocaleString('en-IN')} photos</span>` : '';
+
+    const selectBtn = ds.status === 'ready'
+      ? `<button class="btn-add" onclick="selectDataset('${ds.id}', this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Select to Share</button>`
+      : '';
+
+    return `<div class="dataset-item ${selectedDatasetId === ds.id ? 'selected' : ''}" id="ds-${ds.id}">
+      <div class="dataset-name">${escHtml(ds.name || ds.id)}</div>
+      <div class="dataset-meta">
+        ${statusBadge} ${faceCount} ${imgCount}
+        ${ds.error ? `<span style="color:var(--error);font-size:11px;">${escHtml(ds.error)}</span>` : ''}
+      </div>
+      <div class="dataset-actions">
+        ${selectBtn}
+        <button class="btn-add" onclick="openAddImages('${ds.id}', '${escHtml(ds.name || ds.id)}')">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add Photos
+        </button>
+        <button class="btn-delete" onclick="deleteDataset('${ds.id}')">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg> Delete
+        </button>
+      </div>
+    </div>`;
+  }
+
+  function selectDataset(id, btn) {
+    selectedDatasetId = id;
+    document.querySelectorAll('.dataset-item').forEach(el => el.classList.remove('selected'));
+    btn.closest('.dataset-item').classList.add('selected');
+    document.getElementById('shareBtn').disabled = false;
+    toast('Collection selected — now generate your share link!');
+  }
+
+  async function deleteDataset(id) {
+    if (!confirm('Delete this photo collection? This cannot be undone.')) return;
+    try {
+      const r = await fetch(`${API}/api/datasets/${id}`, { method: 'DELETE', credentials: 'include' });
+      if (!r.ok) throw new Error((await r.json()).detail || 'Failed');
+      toast('Collection deleted');
+      if (selectedDatasetId === id) {
+        selectedDatasetId = null;
+        document.getElementById('shareBtn').disabled = true;
+      }
+      loadDatasets();
+      loadPlanBanner();
+    } catch(e) { toast('Error: ' + e.message, 'error'); }
+  }
+
+  // ── Share generation ────────────────────────────────────────────────────────
+  async function generateShare() {
+    if (!selectedDatasetId) return;
+    const watermarkEnabled = document.getElementById('watermarkEnabled').checked;
+    const watermarkText = watermarkEnabled ? document.getElementById('watermarkText').value.trim() : null;
+
+    const btn = document.getElementById('shareBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:white;border-radius:50%;animation:spin 0.7s linear infinite"></span> Generating…';
+
+    try {
+      const fd = new FormData();
+      fd.append('dataset_id', selectedDatasetId);
+      if (currentGroupId) fd.append('group_id', currentGroupId);
+      if (watermarkText) fd.append('watermark_text', watermarkText);
+
+      const r = await fetch(`${API}/api/shares`, { method: 'POST', body: fd, credentials: 'include' });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || 'Failed');
+      const shareUrl = `${window.location.origin}/share.html?id=${d.share_id}`;
+      document.getElementById('shareUrl').textContent = shareUrl;
+      document.getElementById('shareBox').classList.add('visible');
+      generateQRCanvas(shareUrl, document.getElementById('qrCanvas'));
+      // Update group share_id in local cache
+      if (currentGroupId && groups[currentGroupId]) groups[currentGroupId].share_id = d.share_id;
+      toast('Share link ready! 🎉', 'success');
+    } catch(e) {
+      toast('Error: ' + e.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg> Generate Share Link`;
+    }
+  }
+
+  function copyShareLink() {
+    const url = document.getElementById('shareUrl').textContent;
+    if (!url || url === '—') return;
+    navigator.clipboard.writeText(url).then(() => toast('Link copied! 📋', 'success')).catch(() => {
+      const el = document.createElement('textarea');
+      el.value = url;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+      toast('Link copied!', 'success');
+    });
+  }
+
+  async function revokeShare() {
+    const url = document.getElementById('shareUrl').textContent;
+    if (!url) return;
+    const shareId = new URL(url).searchParams.get('id');
+    if (!shareId) return;
+    if (!confirm('Disable this share link? Guests who have the link will no longer be able to search.')) return;
+    try {
+      const r = await fetch(`${API}/api/shares/${shareId}`, { method: 'DELETE', credentials: 'include' });
+      if (!r.ok) throw new Error((await r.json()).detail || 'Failed');
+      document.getElementById('shareBox').classList.remove('visible');
+      document.getElementById('shareBtn').disabled = !selectedDatasetId;
+      if (currentGroupId && groups[currentGroupId]) delete groups[currentGroupId].share_id;
+      toast('Share link disabled');
+    } catch(e) { toast('Error: ' + e.message, 'error'); }
+  }
+
+  // ── Google Drive access check ───────────────────────────────────────────────
+  document.getElementById('driveFolderUrl').addEventListener('blur', async function() {
+    const url = this.value.trim();
+    if (!url) return;
+    // Validate URL format
+    if (!url.includes('drive.google.com')) {
+      showDriveWarn('This doesn\'t look like a Google Drive link. Please paste a folder URL from drive.google.com.');
+      return;
+    }
+    // Check if it's a folder URL with public access (heuristic)
+    if (url.includes('/file/') || url.includes('/open?id=')) {
+      showDriveWarn('Please share the entire folder, not a single file. In Google Drive, right-click the folder → Share → "Anyone with the link".');
+      return;
+    }
+    hideDriveWarn();
+  });
+
+  function showDriveWarn(msg) {
+    const el = document.getElementById('driveAccessWarn');
+    document.getElementById('driveAccessWarnText').textContent = msg;
+    el.classList.add('show');
+  }
+  function hideDriveWarn() {
+    document.getElementById('driveAccessWarn').classList.remove('show');
+  }
+
+  // ── Drive upload ────────────────────────────────────────────────────────────
+  const driveBtn = document.getElementById('driveBtn');
+
+  driveBtn.addEventListener('click', async () => {
+    const url  = document.getElementById('driveFolderUrl').value.trim();
+    const name = document.getElementById('driveDatasetName').value.trim();
+    const groupId = document.getElementById('uploadTargetGroup').value;
+    if (!url) { toast('Please paste a Google Drive folder URL', 'error'); return; }
+    if (!url.includes('drive.google.com')) { showDriveWarn('Please enter a valid Google Drive folder URL.'); return; }
+
+    driveBtn.disabled = true;
+    driveBtn.innerHTML = '<span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite"></span> Checking access…';
+    document.getElementById('driveZone').style.display = 'none';
+    document.getElementById('driveNameField').style.display = 'none';
+    document.getElementById('limitWall').classList.remove('show');
+    updateInlineProgress('drive', 'Checking Access', 'Verifying Google Drive folder is publicly accessible…', 5, '');
+
+    const fd = new FormData();
+    fd.append('folder_url', url);
+    if (name) fd.append('name', name);
+    if (groupId) fd.append('group_id', groupId);
+
+    try {
+      const r = await fetch(`${API}/api/datasets/gdrive`, { method: 'POST', body: fd, credentials: 'include' });
+      const d = await r.json();
+      if (!r.ok) {
+        const errMsg = d.detail || 'Failed';
+        if (errMsg.toLowerCase().includes('access') || errMsg.toLowerCase().includes('permission') || errMsg.toLowerCase().includes('not found')) {
+          document.getElementById('driveZone').style.display = '';
+          document.getElementById('driveNameField').style.display = '';
+          document.getElementById('driveProgressPanel').classList.remove('visible');
+          showDriveWarn('This folder is not publicly accessible. Please open the folder in Google Drive → Share → "Anyone with the link" → Viewer, then try again.');
+          driveBtn.disabled = false;
+          driveBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Check Access & Start Indexing`;
+          return;
+        }
+        throw new Error(errMsg);
+      }
+      toast('Drive folder linked! Downloading photos…', 'success');
+      loadDatasets(groupId || currentGroupId);
+      loadPlanBanner();
+      startPolling('drive', d.dataset_id);
+    } catch(e) {
+      toast('Error: ' + e.message, 'error');
+      driveBtn.disabled = false;
+      driveBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Check Access & Start Indexing`;
+      document.getElementById('driveZone').style.display = '';
+      document.getElementById('driveNameField').style.display = '';
+    }
+  });
+
+  function resetDriveUpload() {
+    document.getElementById('driveSuccess').classList.remove('visible');
+    document.getElementById('driveProgressPanel').classList.remove('visible');
+    document.getElementById('driveZone').style.display = '';
+    document.getElementById('driveNameField').style.display = '';
+    document.getElementById('driveFolderUrl').value = '';
+    document.getElementById('driveDatasetName').value = '';
+    hideDriveWarn();
+    driveBtn.disabled = false;
+    driveBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Check Access & Start Indexing`;
+  }
+
+  // ── ZIP upload ──────────────────────────────────────────────────────────────
   const zipFile   = document.getElementById('zipFile');
   const uploadBtn = document.getElementById('uploadBtn');
   const dropZone  = document.getElementById('dropZone');
@@ -1353,9 +2170,7 @@
 
   zipFile.addEventListener('change', () => {
     uploadBtn.disabled = !zipFile.files.length;
-    if (zipFile.files.length) {
-      showZipFileInfo(zipFile.files[0]);
-    }
+    if (zipFile.files.length) showZipFileInfo(zipFile.files[0]);
   });
 
   dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
@@ -1373,56 +2188,58 @@
     }
   });
 
-  // ── ZIP: Upload ────────────────────────────────────────────────────────────
   uploadBtn.addEventListener('click', () => {
     const file = zipFile.files[0];
     if (!file) return;
-
-    const name = document.getElementById('datasetName').value.trim();
+    const name    = document.getElementById('datasetName').value.trim();
+    const groupId = document.getElementById('uploadTargetGroup').value;
     const fd = new FormData();
     fd.append('file', file);
     if (name) fd.append('name', name);
+    if (groupId) fd.append('group_id', groupId);
 
-    // Hide upload UI, hide limit wall, show progress panel immediately
     uploadBtn.disabled = true;
     dropZone.style.display = 'none';
     document.getElementById('zipSelectedInfo').style.display = 'none';
     document.getElementById('limitWall').classList.remove('show');
-    updateInlineProgress('zip', 'Uploading', 'Sending file to server…', 0, '');
+    updateInlineProgress('zip', 'Uploading', 'Sending photos to server…', 0, '');
 
     const xhr = new XMLHttpRequest();
     xhr.withCredentials = true;
 
-    // ── Upload progress (0 → 100% while file transfers) ──────────────────
     xhr.upload.addEventListener('progress', e => {
       if (!e.lengthComputable) return;
-      const pct = Math.round((e.loaded / e.total) * 100);
+      const pct    = Math.round((e.loaded / e.total) * 100);
       const loaded = (e.loaded / 1024 / 1024).toFixed(1);
       const total  = (e.total  / 1024 / 1024).toFixed(1);
       updateInlineProgress('zip', 'Uploading', `${loaded} MB / ${total} MB`, pct, '');
     });
 
-    // ── Server processing starts when upload finishes ─────────────────────
     xhr.upload.addEventListener('load', () => {
-      updateInlineProgress('zip', 'Processing', 'Server is indexing faces…', 100, '');
+      updateInlineProgress('zip', 'Processing', 'Identifying faces in photos…', 100, '');
     });
 
     xhr.addEventListener('load', () => {
       let d;
       try { d = JSON.parse(xhr.responseText); } catch { d = {}; }
       if (xhr.status < 200 || xhr.status >= 300) {
-        toast(`Error: ${d.detail || 'Upload failed'}`);
+        toast(`Error: ${d.detail || 'Upload failed'}`, 'error');
         resetZipUpload();
         loadPlanBanner();
         return;
       }
-      loadDatasets();
+      loadDatasets(groupId || currentGroupId);
       loadPlanBanner();
       startPolling('zip', d.dataset_id);
     });
 
     xhr.addEventListener('error', () => {
-      toast('Upload failed — network error');
+      toast('Upload failed — please check your internet connection and try again', 'error');
+      resetZipUpload();
+    });
+
+    xhr.addEventListener('abort', () => {
+      toast('Upload was cancelled', 'error');
       resetZipUpload();
     });
 
@@ -1433,7 +2250,6 @@
   function resetZipUpload() {
     document.getElementById('zipSuccess').classList.remove('visible');
     document.getElementById('zipProgressPanel').classList.remove('visible');
-    // Reset ring colour in case it was turned red on error
     document.getElementById('zipRing').style.stroke = '';
     document.getElementById('zipPct').style.color   = '';
     dropZone.style.display = '';
@@ -1442,60 +2258,11 @@
     document.getElementById('datasetName').value = '';
     uploadBtn.disabled = true;
     uploadBtn.style.display = '';
-    uploadBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload & Start Indexing';
-    // Re-evaluate plan limits so wall/button state is always correct
+    uploadBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload & Start Indexing Faces`;
     loadPlanBanner();
   }
 
-  // ── Drive ──────────────────────────────────────────────────────────────────
-  const driveBtn = document.getElementById('driveBtn');
-
-  driveBtn.addEventListener('click', async () => {
-    const url  = document.getElementById('driveFolderUrl').value.trim();
-    const name = document.getElementById('driveDatasetName').value.trim();
-    if (!url) { toast('Please paste a Google Drive folder URL'); return; }
-
-    driveBtn.disabled = true;
-    driveBtn.innerHTML = '<span style="display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite"></span> Connecting…';
-    document.getElementById('driveZone').style.display = 'none';
-    document.getElementById('driveNameField').style.display = 'none';
-    document.getElementById('limitWall').classList.remove('show');
-    updateInlineProgress('drive', 'Connecting', 'Linking Google Drive folder…', 0, '');
-
-    const fd = new FormData();
-    fd.append('folder_url', url);
-    if (name) fd.append('name', name);
-
-    try {
-      const r = await fetch(`${API}/api/datasets/gdrive`, { method: 'POST', body: fd, credentials: 'include' });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.detail || 'Failed');
-      toast(`Drive folder linked! Downloading…`);
-      loadDatasets();
-      loadPlanBanner();
-      startPolling('drive', d.dataset_id);
-    } catch(e) {
-      toast(`Error: ${e.message}`);
-      driveBtn.disabled = false;
-      driveBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Link Folder & Start Indexing';
-      document.getElementById('driveZone').style.display = '';
-      document.getElementById('driveNameField').style.display = '';
-    }
-  });
-
-  function resetDriveUpload() {
-    document.getElementById('driveSuccess').classList.remove('visible');
-    document.getElementById('driveProgressPanel').classList.remove('visible');
-    document.getElementById('driveZone').style.display = '';
-    document.getElementById('driveNameField').style.display = '';
-    document.getElementById('driveFolderUrl').value = '';
-    document.getElementById('driveDatasetName').value = '';
-    driveBtn.disabled = false;
-    driveBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Link Folder & Start Indexing';
-  }
-
-  // ── Progress ring helper ───────────────────────────────────────────────────
-  // Indeterminate state — pulsing ring for queued/model-loading phase
+  // ── Progress ring helpers ───────────────────────────────────────────────────
   function updateIndeterminate(which, phase, detail) {
     const panel = document.getElementById(which + 'ProgressPanel');
     if (!panel.classList.contains('visible')) panel.classList.add('visible');
@@ -1510,14 +2277,12 @@
   }
 
   function updateInlineProgress(which, phase, detail, pct, etp) {
-    // Reset any indeterminate animation back to normal determinate state
     const ring = document.getElementById(which + 'Ring');
     ring.style.animation        = '';
     ring.style.strokeDasharray  = '220';
     ring.style.strokeDashoffset = '';
     const panel = document.getElementById(which + 'ProgressPanel');
     if (!panel.classList.contains('visible')) panel.classList.add('visible');
-
     const circumference = 220;
     const offset = circumference - (pct / 100) * circumference;
     document.getElementById(which + 'Ring').style.strokeDashoffset = offset;
@@ -1525,7 +2290,6 @@
     document.getElementById(which + 'Phase').textContent  = phase;
     document.getElementById(which + 'Detail').textContent = detail;
     document.getElementById(which + 'ProgressFill').style.width = pct + '%';
-
     const etpEl = document.getElementById(which + 'Etp');
     etpEl.innerHTML = etp ? `Est. remaining: <span>${etp}</span>` : '';
   }
@@ -1533,7 +2297,7 @@
   function showZipSuccess(filename, id) {
     document.getElementById('zipProgressPanel').classList.remove('visible');
     const meta = document.getElementById('zipSuccessMeta');
-    meta.innerHTML = `<strong>${filename}</strong> — now ready for sharing!`;
+    meta.innerHTML = `<strong>${filename}</strong> is ready to share with guests!`;
     document.getElementById('zipSuccess').classList.add('visible');
     selectedDatasetId = id;
     document.getElementById('shareBtn').disabled = false;
@@ -1546,280 +2310,103 @@
     document.getElementById('shareBtn').disabled = false;
   }
 
-  // ── Polling ────────────────────────────────────────────────────────────────
+  // ── Polling ─────────────────────────────────────────────────────────────────
   function startPolling(which, id) {
-    if (!id) { console.warn('startPolling called with null id — skipped'); return; }
+    if (!id) return;
     if (pollingInterval) clearInterval(pollingInterval);
-
-    // Track last seen values so we only refresh the collections list
-    // when something actually changes — not on every tick.
-    let lastStatus    = null;
-    let lastProcessed = -1;
+    let lastStatus = null, lastProcessed = -1;
 
     const checkStatus = async () => {
       try {
         const r = await fetch(`${API}/api/datasets/${id}/status`, { credentials: 'include' });
         const d = await r.json();
-
-        // While queued or while model is loading (processing but total not set yet),
-        // show an indeterminate pulse rather than a stuck 0% bar.
         const modelLoading = (d.status === 'queued') ||
                              (d.status === 'compressing') ||
                              (d.status === 'processing' && d.total === 0);
-
-        const pct    = modelLoading ? -1  // sentinel → indeterminate
-                     : d.total > 0 ? Math.round((d.processed / d.total) * 100)
-                     : 0;
-        const phase  = d.status === 'downloading'  ? 'Downloading'
-                     : d.status === 'compressing'  ? 'Applying 4K cap'
-                     : d.status === 'queued'        ? 'Loading AI model'
-                     : d.status === 'processing' && d.total === 0 ? 'Loading AI model'
-                     : d.status === 'processing'    ? 'Indexing faces'
-                     : d.status === 'ready'          ? 'Complete'
-                     : d.status === 'error'          ? 'Error'
-                     : 'Queued';
-        const detail = d.status === 'downloading'
-          ? 'Downloading from Google Drive…'
-          : d.status === 'compressing'
-          ? 'Resizing images above 4K — lower quality images are untouched…'
-          : modelLoading
-          ? 'Warming up face recognition model — this takes ~30s on first run…'
+        const pct = modelLoading ? -1
+                  : d.total > 0 ? Math.round((d.processed / d.total) * 100) : 0;
+        const phase = modelLoading ? 'Identifying faces…'
+                    : d.status === 'processing'  ? 'Indexing faces'
+                    : d.status === 'downloading' ? 'Downloading from Drive'
+                    : d.status === 'compressing' ? 'Compressing'
+                    : d.status === 'ready'        ? 'All done!'
+                    : d.status === 'error'         ? 'Error'
+                    : 'Queued';
+        const detail = modelLoading
+          ? 'Loading AI face recognition model…'
           : d.status === 'processing' && d.total > 0
-          ? `${d.processed} / ${d.total} images processed`
+          ? `${d.processed} / ${d.total} photos analysed`
+          : d.status === 'downloading'
+          ? `Downloading photos from Google Drive…`
           : d.status === 'ready'
-          ? `${d.face_count} face embeddings indexed`
+          ? `${d.face_count} faces indexed`
           : d.error || '—';
+        const etp = d.eta_seconds > 0
+          ? (d.eta_seconds > 3600 ? `${Math.round(d.eta_seconds/3600)}h` : d.eta_seconds > 60 ? `${Math.round(d.eta_seconds/60)} min` : `${d.eta_seconds}s`)
+          : '';
+        if (pct === -1) updateIndeterminate(which, phase, detail);
+        else updateInlineProgress(which, phase, detail, pct, etp);
 
-        let etpStr = '';
-        if (!modelLoading && d.eta_seconds > 0) {
-          const m = Math.floor(d.eta_seconds / 60);
-          const s = d.eta_seconds % 60;
-          etpStr = m > 0 ? `${m}m ${s}s` : `${s}s`;
-        }
-
-        if (pct === -1) {
-          updateIndeterminate(which, phase, detail);
-        } else {
-          updateInlineProgress(which, phase, detail, pct, etpStr);
-        }
-
-        // Refresh the collections list only when status or progress changes
-        // — keeps the right panel live without a request every single tick.
-        const statusChanged    = d.status    !== lastStatus;
-        const progressChanged  = d.processed !== lastProcessed;
+        const statusChanged   = d.status    !== lastStatus;
+        const progressChanged = d.processed !== lastProcessed;
         if (statusChanged || progressChanged) {
-          loadDatasets();
+          loadDatasets(currentGroupId);
           lastStatus    = d.status;
           lastProcessed = d.processed;
         }
 
         if (d.status === 'ready') {
-          clearInterval(pollingInterval);
-          pollingInterval = null;
-          updateInlineProgress(which, 'Complete', `${d.face_count} face embeddings indexed`, 100, '');
+          clearInterval(pollingInterval); pollingInterval = null;
+          updateInlineProgress(which, 'All done! ✨', `${d.face_count} faces indexed`, 100, '');
           setTimeout(() => {
-            if (which === 'zip') showZipSuccess(zipFile.files[0]?.name || '', id);
+            if (which === 'zip') showZipSuccess(d.name || d.id, id);
             else showDriveSuccess(id);
-          }, 800);
-          toast(`Collection ready — ${d.face_count} faces indexed!`);
+          }, 600);
+          loadDatasets(currentGroupId);
           loadPlanBanner();
-        }
-
-        if (d.status === 'error') {
-          clearInterval(pollingInterval);
-          pollingInterval = null;
-          updateInlineProgress(which, 'Error', d.error || 'Job failed', pct, '');
+          loadGroups();
+          toast(`Indexing complete — ${d.face_count} faces found! 🎉`, 'success');
+        } else if (d.status === 'error') {
+          clearInterval(pollingInterval); pollingInterval = null;
+          updateInlineProgress(which, 'Error', d.error || 'Something went wrong', pct === -1 ? 0 : pct, '');
           document.getElementById(which + 'Ring').style.stroke = 'var(--error)';
           document.getElementById(which + 'Pct').style.color   = 'var(--error)';
-          toast(`Error: ${d.error || 'Job failed'}`);
-          loadPlanBanner();
+          toast(`Indexing failed: ${d.error || 'Unknown error'}. Please try uploading again.`, 'error');
         }
-      } catch {}
+      } catch (e) {
+        // Network error during polling — retry silently
+      }
     };
 
     checkStatus();
     pollingInterval = setInterval(checkStatus, 2000);
   }
 
-  // ── Dataset list ───────────────────────────────────────────────────────────
-  async function loadDatasets() {
-    try {
-      const r = await fetch(`${API}/api/datasets`, { credentials: 'include' });
-      if (r.status === 401) { window.location.replace('/login.html'); return; }
-      const data = await r.json();
-      const entries = Object.values(data);
-      const list = document.getElementById('datasetList');
-
-      if (!entries.length) {
-        list.innerHTML = '<div class="empty">No collections yet.<br>Upload a ZIP file to get started.</div>';
-        return;
-      }
-
-      list.innerHTML = entries.sort((a,b) => b.created_at - a.created_at).map(ds => {
-        const srcLabel = ds.source === 'gdrive' ? ' · Drive' : '';
-        const addImagesBtn = ds.status === 'ready'
-          ? `<button class="btn-add" onclick="showAddImagesDialog('${ds.id}', '${ds.name.replace(/'/g, "\\'")}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add Photos</button>`
-          : '';
-
-        // Format disk size
-        function fmtSize(bytes) {
-          if (!bytes || bytes === 0) return '';
-          if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
-          if (bytes < 1024 * 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + ' MB';
-          return (bytes / 1024 / 1024 / 1024).toFixed(2) + ' GB';
-        }
-
-        let statusInfo = '';
-        if (ds.status === 'processing' && ds.total > 0) {
-          const pct = Math.round((ds.processed / ds.total) * 100);
-          statusInfo = `<span>${ds.processed} / ${ds.total} (${pct}%)</span>`;
-        } else if (ds.status === 'downloading' && ds.total > 0) {
-          const pct = Math.round((ds.processed / ds.total) * 100);
-          statusInfo = `<span>${ds.processed} / ${ds.total} (${pct}%)</span>`;
-        } else {
-          const faceOrImg = ds.face_count > 0 ? ds.face_count + ' faces' : (ds.total ? ds.total + ' images' : '');
-          statusInfo = faceOrImg ? `<span>${faceOrImg}</span>` : '';
-        }
-
-        const sizeStr = fmtSize(ds.size_bytes);
-        const sizeTag = sizeStr
-          ? `<span class="dataset-size"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><line x1="12" y1="3" x2="12" y2="15"/><polyline points="17 8 12 3 7 8"/></svg>${sizeStr}</span>`
-          : '';
-
-        return `
-          <div class="dataset-item ${ds.id === selectedDatasetId ? 'selected' : ''}"
-               data-id="${ds.id}"
-               onclick="selectDataset('${ds.id}', '${ds.status}')">
-            <div class="dataset-name">${ds.name}${srcLabel}</div>
-            <div class="dataset-meta">
-              <span class="badge badge-${ds.status}">${ds.status}</span>
-              ${statusInfo}
-              ${sizeTag}
-            </div>
-            <div class="dataset-actions" onclick="event.stopPropagation()">
-              ${addImagesBtn}
-              <button class="btn-delete" onclick="deleteDataset('${ds.id}', '${ds.name.replace(/'/g, "\\'")}')">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-                Delete
-              </button>
-            </div>
-          </div>`;
-      }).join('');
-    } catch {}
-  }
-
-  function selectDataset(id, status) {
-    selectedDatasetId = id;
-    document.getElementById('shareBtn').disabled = (status !== 'ready');
-    document.querySelectorAll('.dataset-item').forEach(el => el.classList.remove('selected'));
-    const target = document.querySelector(`.dataset-item[data-id="${id}"]`);
-    if (target) target.classList.add('selected');
-
-    // Show existing share link if one exists, otherwise hide the box
-    hideShareBox();
-    if (status === 'ready') {
-      const fd = new FormData();
-      fd.append('dataset_id', id);
-      fetch(`${API}/api/shares`, { method: 'POST', body: fd, credentials: 'include' })
-        .then(r => r.json())
-        .then(d => { if (d.share_id) showShareBox(d.share_id); })
-        .catch(() => {});
-    }
-  }
-
-  // ── Share ──────────────────────────────────────────────────────────────────
-  let currentShareId = null;
-
-  function showShareBox(share_id) {
-    currentShareId = share_id;
-    const shareUrl = `${window.location.origin}/share.html?id=${share_id}`;
-    document.getElementById('shareUrl').textContent = shareUrl;
-    document.getElementById('shareBox').classList.add('visible');
-  }
-
-  function hideShareBox() {
-    currentShareId = null;
-    document.getElementById('shareBox').classList.remove('visible');
-  }
-
-  document.getElementById('shareBtn').addEventListener('click', async () => {
-    if (!selectedDatasetId) return;
-    const fd = new FormData();
-    fd.append('dataset_id', selectedDatasetId);
-    try {
-      const r = await fetch(`${API}/api/shares`, { method: 'POST', body: fd, credentials: 'include' });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.detail);
-      showShareBox(d.share_id);
-      toast('Share link ready!');
-    } catch(e) {
-      toast(`Error: ${e.message}`);
-    }
-  });
-
-  document.getElementById('copyBtn').addEventListener('click', () => {
-    const url = document.getElementById('shareUrl').textContent;
-    navigator.clipboard.writeText(url).then(() => toast('Copied to clipboard!'));
-  });
-
-  document.getElementById('revokeShareBtn').addEventListener('click', async () => {
-    if (!currentShareId) return;
-    if (!confirm('Revoke this share link?\n\nAnyone with the current link will lose access. You can generate a new one at any time.')) return;
-    try {
-      const r = await fetch(`${API}/api/shares/${currentShareId}`, { method: 'DELETE', credentials: 'include' });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.detail || 'Failed to revoke link.');
-      hideShareBox();
-      toast('Share link revoked.');
-    } catch(e) {
-      toast(`Error: ${e.message}`);
-    }
-  });
-
-  // ── Delete dataset ─────────────────────────────────────────────────────────
-  async function deleteDataset(id, name) {
-    if (!confirm(`Delete "${name}"?\n\nThis will permanently remove all images, embeddings, and share links for this collection.`)) return;
-    try {
-      const r = await fetch(`${API}/api/datasets/${id}`, { method: 'DELETE', credentials: 'include' });
-      if (!r.ok) { const d = await r.json(); throw new Error(d.detail || 'Delete failed'); }
-      if (selectedDatasetId === id) {
-        selectedDatasetId = null;
-        document.getElementById('shareBtn').disabled = true;
-        hideShareBox();
-      }
-      toast(`"${name}" deleted.`);
-      loadDatasets();
-      loadPlanBanner();
-    } catch(e) {
-      toast(`Error: ${e.message}`);
-    }
-  }
-
-  // ── Add Images to Existing Dataset ────────────────────────────────────────
+  // ── Add Images modal ────────────────────────────────────────────────────────
   let currentAddImagesDatasetId = null;
 
-  function showAddImagesDialog(datasetId, datasetName) {
+  function openAddImages(datasetId, name) {
     currentAddImagesDatasetId = datasetId;
-    document.getElementById('addImagesDatasetName').textContent = `Adding to: ${datasetName}`;
-    resetAddImagesForm();
+    document.getElementById('addImagesDatasetName').textContent = `Adding to: ${name}`;
     document.getElementById('addImagesModal').classList.add('show');
+    resetAddImagesForm();
   }
 
   function closeAddImagesDialog() {
     document.getElementById('addImagesModal').classList.remove('show');
-    resetAddImagesForm();
     currentAddImagesDatasetId = null;
+    resetAddImagesForm();
   }
+
+  const addImagesDropZone = document.getElementById('addImagesDropZone');
+  const addImagesFile     = document.getElementById('addImagesFile');
+  const addImagesBtn      = document.getElementById('addImagesBtn');
 
   function showAddImagesFileInfo(file) {
     document.getElementById('addImagesFileName').textContent = file.name;
     document.getElementById('addImagesFileSize').textContent = `${(file.size/1024/1024).toFixed(1)} MB`;
     document.getElementById('addImagesSelectedInfo').style.display = 'block';
   }
-
-  const addImagesFile = document.getElementById('addImagesFile');
-  const addImagesBtn  = document.getElementById('addImagesBtn');
-  const addImagesDropZone = document.getElementById('addImagesDropZone');
 
   addImagesFile.addEventListener('change', () => {
     addImagesBtn.disabled = !addImagesFile.files.length;
@@ -1841,22 +2428,18 @@
     }
   });
 
-  addImagesBtn.addEventListener('click', () => {
+  function addImagesSubmit() {
     const file = addImagesFile.files[0];
     if (!file || !currentAddImagesDatasetId) return;
-
     const targetId = currentAddImagesDatasetId;
     const fd = new FormData();
     fd.append('file', file);
-
-    // Switch modal to progress view
     document.getElementById('addImagesUploadForm').style.display = 'none';
     document.getElementById('addSuccess').classList.remove('visible');
-    updateInlineProgress('add', 'Uploading', 'Sending file to server…', 0, '');
+    updateInlineProgress('add', 'Uploading', 'Sending photos to server…', 0, '');
 
     const xhr = new XMLHttpRequest();
     xhr.withCredentials = true;
-
     xhr.upload.addEventListener('progress', e => {
       if (!e.lengthComputable) return;
       const pct    = Math.round((e.loaded / e.total) * 100);
@@ -1864,33 +2447,28 @@
       const total  = (e.total  / 1024 / 1024).toFixed(1);
       updateInlineProgress('add', 'Uploading', `${loaded} MB / ${total} MB`, pct, '');
     });
-
     xhr.upload.addEventListener('load', () => {
-      updateIndeterminate('add', 'Loading AI model', 'Warming up face recognition model…');
+      updateIndeterminate('add', 'Identifying faces', 'Loading AI model…');
     });
-
     xhr.addEventListener('load', () => {
       let d;
       try { d = JSON.parse(xhr.responseText); } catch { d = {}; }
       if (xhr.status < 200 || xhr.status >= 300) {
-        // Show error, restore form so user can try again
-        toast(`Error: ${d.detail || 'Failed to add images'}`);
+        toast(`Error: ${d.detail || 'Failed to add photos'}`, 'error');
         resetAddImagesForm();
         return;
       }
       selectedDatasetId = targetId;
-      loadDatasets();
+      loadDatasets(currentGroupId);
       startReembeddingPolling(targetId);
     });
-
     xhr.addEventListener('error', () => {
-      toast('Upload failed — network error');
+      toast('Upload failed — check your connection and try again', 'error');
       resetAddImagesForm();
     });
-
     xhr.open('POST', `${API}/api/datasets/${targetId}/add-images`);
     xhr.send(fd);
-  });
+  }
 
   function resetAddImagesForm() {
     document.getElementById('addImagesUploadForm').style.display = '';
@@ -1898,10 +2476,8 @@
     document.getElementById('addSuccess').classList.remove('visible');
     document.getElementById('addImagesFile').value = '';
     document.getElementById('addImagesSelectedInfo').style.display = 'none';
-    document.getElementById('addImagesBtn').disabled = true;
-    document.getElementById('addImagesBtn').innerHTML =
-      '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Add Photos &amp; Re-index';
-    // Reset ring colour in case it was red
+    addImagesBtn.disabled = true;
+    addImagesBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Add Photos &amp; Re-index`;
     document.getElementById('addRing').style.stroke  = '';
     document.getElementById('addPct').style.color    = '';
     document.getElementById('addRing').style.strokeDasharray = '';
@@ -1910,102 +2486,147 @@
 
   let reembeddingPollInterval = null;
   function startReembeddingPolling(datasetId) {
-    if (!datasetId) { console.warn('startReembeddingPolling called with null id — skipped'); return; }
-    // Stop any upload polling that may still be running from the same session
+    if (!datasetId) return;
     if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null; }
     if (reembeddingPollInterval) clearInterval(reembeddingPollInterval);
-
-    let lastStatus    = null;
-    let lastProcessed = -1;
+    let lastStatus = null, lastProcessed = -1;
 
     reembeddingPollInterval = setInterval(async () => {
       try {
         const r = await fetch(`${API}/api/datasets/${datasetId}/status`, { credentials: 'include' });
         const d = await r.json();
-
-        // Drive modal progress panel with same logic as main upload
-        const modelLoading = (d.status === 'queued') ||
-                             (d.status === 'processing' && d.total === 0);
-        const pct = modelLoading ? -1
-                  : d.total > 0  ? Math.round((d.processed / d.total) * 100)
-                  : 0;
-        const phase  = modelLoading            ? 'Loading AI model'
-                     : d.status === 'processing' ? 'Re-indexing faces'
-                     : d.status === 'ready'       ? 'Complete'
-                     : d.status === 'error'        ? 'Error'
-                     : 'Queued';
+        const modelLoading = (d.status === 'queued') || (d.status === 'processing' && d.total === 0);
+        const pct = modelLoading ? -1 : d.total > 0 ? Math.round((d.processed / d.total) * 100) : 0;
+        const phase  = modelLoading ? 'Loading AI model' : d.status === 'processing' ? 'Re-indexing faces' : d.status === 'ready' ? 'Complete' : d.status === 'error' ? 'Error' : 'Queued';
         const detail = modelLoading
-          ? 'Warming up face recognition model…'
+          ? 'Loading face recognition model…'
           : d.status === 'processing' && d.total > 0
-          ? `${d.processed} / ${d.total} images processed`
+          ? `${d.processed} / ${d.total} photos analysed`
           : d.status === 'ready'
           ? `${d.face_count} face embeddings indexed`
           : d.error || '—';
+        if (pct === -1) updateIndeterminate('add', phase, detail);
+        else updateInlineProgress('add', phase, detail, pct, '');
 
-        if (pct === -1) {
-          updateIndeterminate('add', phase, detail);
-        } else {
-          updateInlineProgress('add', phase, detail, pct, '');
-        }
-
-        // Only refresh collections list when something changed
         const statusChanged   = d.status    !== lastStatus;
         const progressChanged = d.processed !== lastProcessed;
-        if (statusChanged || progressChanged) {
-          loadDatasets();
-          lastStatus    = d.status;
-          lastProcessed = d.processed;
-        }
+        if (statusChanged || progressChanged) { loadDatasets(currentGroupId); lastStatus = d.status; lastProcessed = d.processed; }
 
         if (d.status === 'ready') {
-          clearInterval(reembeddingPollInterval);
-          reembeddingPollInterval = null;
-          updateInlineProgress('add', 'Complete', `${d.face_count} faces indexed`, 100, '');
-          // Show success state in modal after short delay
+          clearInterval(reembeddingPollInterval); reembeddingPollInterval = null;
+          updateInlineProgress('add', 'Complete ✨', `${d.face_count} faces indexed`, 100, '');
           setTimeout(() => {
             document.getElementById('addProgressPanel').classList.remove('visible');
-            document.getElementById('addSuccessMeta').textContent =
-              `${d.face_count} face embeddings indexed. Collection is ready to share.`;
+            document.getElementById('addSuccessMeta').textContent = `${d.face_count} faces indexed. Collection updated!`;
             document.getElementById('addSuccess').classList.add('visible');
           }, 800);
-          loadDatasets();
-          toast(`Re-indexing complete! ${d.face_count} faces indexed.`);
+          loadDatasets(currentGroupId);
+          toast(`Re-indexing complete! ${d.face_count} faces found. 🎉`, 'success');
         } else if (d.status === 'error') {
-          clearInterval(reembeddingPollInterval);
-          reembeddingPollInterval = null;
-          updateInlineProgress('add', 'Error', d.error || 'Job failed', pct, '');
+          clearInterval(reembeddingPollInterval); reembeddingPollInterval = null;
+          updateInlineProgress('add', 'Error', d.error || 'Failed', pct === -1 ? 0 : pct, '');
           document.getElementById('addRing').style.stroke = 'var(--error)';
           document.getElementById('addPct').style.color   = 'var(--error)';
-          loadDatasets();
-          toast(`Re-indexing failed: ${d.error || 'Unknown error'}`);
+          toast(`Re-indexing failed: ${d.error || 'Unknown error'}`, 'error');
         }
-      } catch (e) {}
+      } catch {}
     }, 2000);
   }
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
-  function toast(msg) {
-    const t = document.getElementById('toast');
-    document.getElementById('toastText').textContent = msg;
-    t.classList.add('show');
-    setTimeout(() => t.classList.remove('show'), 3000);
+  // ── Analytics ───────────────────────────────────────────────────────────────
+  async function loadAnalytics() {
+    try {
+      const r = await fetch(`${API}/api/analytics/summary`, { credentials: 'include' });
+      if (!r.ok) return;
+      const d = await r.json();
+      document.getElementById('statSearches').textContent  = (d.total_searches  || 0).toLocaleString('en-IN');
+      document.getElementById('statViews').textContent     = (d.total_views     || 0).toLocaleString('en-IN');
+      document.getElementById('statDownloads').textContent = (d.total_downloads || 0).toLocaleString('en-IN');
+      document.getElementById('statEvents').textContent    = (d.active_shares   || 0).toLocaleString('en-IN');
+      // Activity feed
+      const feed = d.recent_activity || [];
+      const list = document.getElementById('activityList');
+      if (!feed.length) return;
+      list.innerHTML = feed.map(item => `
+        <div class="activity-item">
+          <div class="activity-dot ${item.type}"></div>
+          <div class="activity-text">${escHtml(item.message)}</div>
+          <div class="activity-time">${escHtml(item.time_label || '')}</div>
+        </div>
+      `).join('');
+    } catch {}
   }
 
-  // ── CSS animation for spinner ──────────────────────────────────────────────
-  const style = document.createElement('style');
-  style.textContent = '@keyframes spin { to { transform: rotate(360deg); } }';
-  document.head.appendChild(style);
+  // ── Discount Codes ──────────────────────────────────────────────────────────
+  async function loadDiscountCodes() {
+    try {
+      const r = await fetch(`${API}/api/discount-codes`, { credentials: 'include' });
+      if (!r.ok) return;
+      const codes = await r.json();
+      const grid = document.getElementById('discountGrid');
+      if (!codes.length) {
+        grid.innerHTML = `<div class="empty" style="grid-column:1/-1;">No discount codes yet. Generate some to share with your network.</div>`;
+        return;
+      }
+      grid.innerHTML = codes.map(c => `
+        <div class="code-card">
+          <div class="code-val">
+            <span>${escHtml(c.code)}</span>
+            <button class="code-copy-btn" onclick="copyCode('${escHtml(c.code)}')">Copy</button>
+          </div>
+          <div class="code-meta">
+            <div><span>${c.discount_pct}% off</span> · ${escHtml(c.plan_label || c.plan)} · ${escHtml(c.billing_period || 'monthly')}</div>
+            <div>Status: <span>${c.used ? '✅ Used' : '🟢 Active'}</span></div>
+            ${c.label ? `<div>Note: ${escHtml(c.label)}</div>` : ''}
+            ${c.used_at ? `<div>Used: ${escHtml(c.used_at)}</div>` : ''}
+          </div>
+        </div>
+      `).join('');
+    } catch {}
+  }
 
+  function showGenerateCodeModal() {
+    document.getElementById('codeLabel').value = '';
+    document.getElementById('generateCodeModal').classList.add('show');
+  }
 
-  // ── Plan config (mirrors backend tier limits) ──────────────────────────────
-  // Existing users with no plan field are grandfathered into 'free'.
+  async function generateDiscountCode() {
+    const plan     = document.getElementById('codeTargetPlan').value;
+    const period   = document.getElementById('codeBillingPeriod').value;
+    const discount = document.getElementById('codeDiscount').value;
+    const label    = document.getElementById('codeLabel').value.trim();
+    try {
+      const fd = new FormData();
+      fd.append('plan', plan);
+      fd.append('billing_period', period);
+      fd.append('discount_pct', discount);
+      if (label) fd.append('label', label);
+      const r = await fetch(`${API}/api/discount-codes`, { method: 'POST', body: fd, credentials: 'include' });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || 'Failed');
+      closeModal('generateCodeModal');
+      toast(`Code generated: ${d.code}`, 'success');
+      loadDiscountCodes();
+      copyCode(d.code);
+    } catch(e) {
+      toast('Error: ' + e.message, 'error');
+    }
+  }
+
+  function copyCode(code) {
+    navigator.clipboard.writeText(code).then(() => toast(`Code "${code}" copied!`, 'success')).catch(() => {
+      toast(`Code: ${code} — copy manually`, '');
+    });
+  }
+
+  // ── Plan Banner ─────────────────────────────────────────────────────────────
   const PLAN_CONFIG = {
-    free:          { label: 'Starter (Free)',          maxDatasets: 1,    maxImages: 100,    iconClass: 'free', isProPhoto: false },
-    personal_lite: { label: 'Personal Lite',           maxDatasets: 5,    maxImages: 2000,   iconClass: 'paid', isProPhoto: false },
-    personal_pro:  { label: 'Personal Pro',            maxDatasets: 15,   maxImages: 10000,  iconClass: 'paid', isProPhoto: false },
-    personal_max:  { label: 'Personal Max',            maxDatasets: 30,   maxImages: 30000,  iconClass: 'paid', isProPhoto: false },
-    photo_starter: { label: 'Studio Starter',          maxDatasets: 50,   maxImages: 100000, iconClass: 'pro',  isProPhoto: true  },
-    photo_pro:     { label: 'Studio Pro',              maxDatasets: 9999, maxImages: 500000, iconClass: 'pro',  isProPhoto: true  },
+    free:          { label: 'Starter (Free)',   maxDatasets: 1,    maxImages: 100,    iconClass: 'free', isProPhoto: false },
+    personal_lite: { label: 'Snapshot',         maxDatasets: 5,    maxImages: 2000,   iconClass: 'paid', isProPhoto: false },
+    personal_pro:  { label: 'Storyteller',      maxDatasets: 15,   maxImages: 10000,  iconClass: 'paid', isProPhoto: false },
+    personal_max:  { label: 'Storyteller Max',  maxDatasets: 30,   maxImages: 30000,  iconClass: 'paid', isProPhoto: false },
+    photo_starter: { label: 'Studio Starter',   maxDatasets: 50,   maxImages: 100000, iconClass: 'pro',  isProPhoto: true  },
+    photo_pro:     { label: 'Studio Pro',       maxDatasets: 9999, maxImages: 500000, iconClass: 'pro',  isProPhoto: true  },
   };
 
   let currentPlan = 'free';
@@ -2016,13 +2637,11 @@
       const r = await fetch(`${API}/api/auth/me`, { credentials: 'include' });
       if (!r.ok) return;
       const user = await r.json();
-      // Backwards-compat: existing users have no plan → 'free'
       currentPlan = user.plan || 'free';
     } catch { currentPlan = 'free'; }
 
     const cfg = PLAN_CONFIG[currentPlan] || PLAN_CONFIG.free;
 
-    // Count current datasets for usage display
     try {
       const r2 = await fetch(`${API}/api/datasets`, { credentials: 'include' });
       if (r2.ok) {
@@ -2040,13 +2659,12 @@
     icon.className  = 'plan-banner-icon ' + cfg.iconClass;
     name.textContent = cfg.label;
 
-    const maxDS = cfg.maxDatasets >= 9999 ? 'Unlimited' : cfg.maxDatasets;
-    const maxImg = cfg.maxImages >= 9999 ? 'Unlimited' : cfg.maxImages.toLocaleString('en-IN');
-    limits.innerHTML = `<strong>${datasetCount} / ${maxDS}</strong> datasets used &nbsp;·&nbsp; Up to <strong>${maxImg} images</strong> per dataset` +
-      (currentPlan === 'free' ? ' &nbsp;·&nbsp; 4K auto-compression' : '') +
-      (cfg.isProPhoto ? ' &nbsp;·&nbsp; Commercial use <svg style="display:inline;vertical-align:-2px" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : '');
+    const maxDS  = cfg.maxDatasets >= 9999 ? 'Unlimited' : cfg.maxDatasets;
+    const maxImg = cfg.maxImages >= 9999  ? 'Unlimited' : cfg.maxImages.toLocaleString('en-IN');
+    limits.innerHTML = `<strong>${datasetCount} / ${maxDS}</strong> events used &nbsp;·&nbsp; Up to <strong>${maxImg} photos</strong>` +
+      (currentPlan === 'free' ? ' &nbsp;·&nbsp; Watermark included' : '') +
+      (cfg.isProPhoto ? ' &nbsp;·&nbsp; Custom branding <svg style="display:inline;vertical-align:-2px" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : '');
 
-    // Style upgrade button
     if (cfg.isProPhoto) {
       upBtn.className = 'plan-upgrade-btn gold';
       upBtn.href = '/pricing.html';
@@ -2059,68 +2677,37 @@
       upBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg> Upgrade plan';
     }
 
-    // ── Show credits / scheduled downgrade info ───────────────────────────────
     try {
       const bi = await fetch('/api/billing/info', { credentials: 'include' }).then(r => r.ok ? r.json() : null);
       if (bi) {
         const extras = [];
         const planInterval = bi.plan_interval || 'monthly';
         const intervalLabel = planInterval === 'annual' ? 'Annual' : 'Monthly';
-
-        // Credits balance
         if ((bi.credits_paise || 0) > 0) {
-          extras.push(`<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:#059669;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:6px;padding:2px 8px;">
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-            ₹${(bi.credits_paise/100).toLocaleString('en-IN')} credit</span>`);
+          extras.push(`<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:#059669;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:6px;padding:2px 8px;">₹${(bi.credits_paise/100).toLocaleString('en-IN')} credit</span>`);
         }
-
-        // Interval label badge (Monthly / Annual)
         if (currentPlan !== 'free') {
           extras.push(`<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--muted);background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:2px 8px;">${intervalLabel}</span>`);
         }
-
-        // Scheduled state — three distinct cases:
-        const isIntervalSwitch = bi.scheduled_downgrade === currentPlan &&
-                                 bi.scheduled_downgrade_interval === 'monthly' &&
-                                 planInterval === 'annual';
-
+        const isIntervalSwitch = bi.scheduled_downgrade === currentPlan && bi.scheduled_downgrade_interval === 'monthly' && planInterval === 'annual';
         if (bi.scheduled_downgrade === 'free') {
-          // Full cancellation
           const dAt = bi.scheduled_downgrade_at ? new Date(bi.scheduled_downgrade_at * 1000).toLocaleDateString('en-IN',{day:'numeric',month:'short'}) : '';
-          extras.push(`<span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#dc2626;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:2px 8px;">
-            Cancels ${dAt}
-            <button onclick="cancelDowngrade()" style="background:none;border:none;color:#dc2626;font-size:11px;font-weight:700;cursor:pointer;padding:0;text-decoration:underline;">Undo</button>
-          </span>`);
+          extras.push(`<span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#dc2626;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:2px 8px;">Cancels ${dAt} <button onclick="cancelDowngrade()" style="background:none;border:none;color:#dc2626;font-size:11px;font-weight:700;cursor:pointer;padding:0;text-decoration:underline;">Undo</button></span>`);
         } else if (isIntervalSwitch) {
-          // Annual → Monthly interval switch scheduled
           const dAt = bi.scheduled_downgrade_at ? new Date(bi.scheduled_downgrade_at * 1000).toLocaleDateString('en-IN',{day:'numeric',month:'short'}) : '';
-          extras.push(`<span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#b45309;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:2px 8px;">
-            Switches to Monthly ${dAt}
-            <button onclick="cancelDowngrade()" style="background:none;border:none;color:#b45309;font-size:11px;font-weight:700;cursor:pointer;padding:0;text-decoration:underline;">Undo</button>
-          </span>`);
+          extras.push(`<span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#b45309;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:2px 8px;">Switches to Monthly ${dAt} <button onclick="cancelDowngrade()" style="background:none;border:none;color:#b45309;font-size:11px;font-weight:700;cursor:pointer;padding:0;text-decoration:underline;">Undo</button></span>`);
         } else if (bi.scheduled_downgrade) {
-          // Tier downgrade scheduled
           const dAt = bi.scheduled_downgrade_at ? new Date(bi.scheduled_downgrade_at * 1000).toLocaleDateString('en-IN',{day:'numeric',month:'short'}) : '';
-          extras.push(`<span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#b45309;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:2px 8px;">
-            Downgrading ${dAt}
-            <button onclick="cancelDowngrade()" style="background:none;border:none;color:#b45309;font-size:11px;font-weight:700;cursor:pointer;padding:0;text-decoration:underline;">Cancel</button>
-          </span>`);
+          extras.push(`<span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#b45309;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:2px 8px;">Downgrading ${dAt} <button onclick="cancelDowngrade()" style="background:none;border:none;color:#b45309;font-size:11px;font-weight:700;cursor:pointer;padding:0;text-decoration:underline;">Cancel</button></span>`);
         }
-
-        // Days / renewal remaining
         if (bi.days_remaining != null && currentPlan !== 'free') {
-          const renewalDate = bi.renewal_at
-            ? new Date(bi.renewal_at * 1000).toLocaleDateString('en-IN', {day:'numeric', month:'short', year:'numeric'})
-            : null;
+          const renewalDate = bi.renewal_at ? new Date(bi.renewal_at * 1000).toLocaleDateString('en-IN', {day:'numeric', month:'short', year:'numeric'}) : null;
           const label = renewalDate ? `Renews ${renewalDate}` : `${bi.days_remaining}d remaining`;
           extras.push(`<span style="font-size:11px;color:var(--muted);">${label}</span>`);
         }
-
-        // Cancel subscription button — hide if already cancelling or interval-switching
         if (currentPlan !== 'free' && !bi.scheduled_downgrade) {
-          extras.push(`<button onclick="cancelSubscription()" style="background:none;border:1.5px solid var(--border);font-size:11px;color:var(--muted);cursor:pointer;padding:4px 12px;border-radius:6px;font-family:inherit;font-weight:600;transition:border-color 0.2s,color 0.2s;" onmouseover="this.style.borderColor='#dc2626';this.style.color='#dc2626';" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)';">Cancel subscription</button>`);
+          extras.push(`<button onclick="cancelSubscription()" style="background:none;border:1.5px solid var(--border);font-size:11px;color:var(--muted);cursor:pointer;padding:4px 12px;border-radius:6px;font-family:inherit;font-weight:600;transition:border-color 0.2s,color 0.2s;" onmouseover="this.style.borderColor='#dc2626';this.style.color='#dc2626';" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)';">Cancel plan</button>`);
         }
-
         let extraEl = document.getElementById('planExtras');
         if (!extraEl) {
           extraEl = document.createElement('div');
@@ -2131,41 +2718,72 @@
         extraEl.innerHTML = extras.length ? extras.join('') : '';
       }
     } catch {}
-
-    // Show/hide limit wall for upload form
     applyLimitWall(cfg, datasetCount);
   }
 
   function applyLimitWall(cfg, count) {
-    const wall      = document.getElementById('limitWall');
-    const drop      = document.getElementById('dropZone');
-    const upBtn2    = document.getElementById('uploadBtn');
-    const maxDS     = cfg.maxDatasets;
-    // Never show the limit wall while an upload or embedding is actively running
+    const wall   = document.getElementById('limitWall');
+    const drop   = document.getElementById('dropZone');
+    const upBtn2 = document.getElementById('uploadBtn');
+    const maxDS  = cfg.maxDatasets;
     const uploadActive = document.getElementById('zipProgressPanel').classList.contains('visible')
                       || document.getElementById('driveProgressPanel').classList.contains('visible');
     if (count >= maxDS && !uploadActive) {
       wall.classList.add('show');
       drop.style.display   = 'none';
       upBtn2.style.display = 'none';
-      const maxLabel = maxDS >= 9999 ? 'unlimited datasets' : maxDS + (maxDS === 1 ? ' dataset' : ' datasets');
+      const maxLabel = maxDS >= 9999 ? 'unlimited events' : maxDS + (maxDS === 1 ? ' event' : ' events');
       document.getElementById('limitWallMax').textContent = maxLabel;
     } else {
       wall.classList.remove('show');
-      if (!uploadActive) {
-        drop.style.display   = '';
-        upBtn2.style.display = '';
-      }
+      if (!uploadActive) { drop.style.display = ''; upBtn2.style.display = ''; }
     }
   }
 
-  // ── Init ───────────────────────────────────────────────────────────────────
+  // ── Modal helpers ───────────────────────────────────────────────────────────
+  function closeModal(id) {
+    document.getElementById(id)?.classList.remove('show');
+  }
+  document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', function(e) {
+      if (e.target === this) this.classList.remove('show');
+    });
+  });
+
+  // ── Toast ───────────────────────────────────────────────────────────────────
+  let toastTimer = null;
+  function toast(msg, type) {
+    const t = document.getElementById('toast');
+    document.getElementById('toastText').textContent = msg;
+    t.className = 'toast show' + (type ? ' ' + type : '');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
+  }
+
+  // ── Utility ─────────────────────────────────────────────────────────────────
+  function escHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  const style = document.createElement('style');
+  style.textContent = '@keyframes spin { to { transform: rotate(360deg); } }';
+  document.head.appendChild(style);
+
+  // ── Init ────────────────────────────────────────────────────────────────────
   checkAuth();
-  loadDatasets();
+  loadGroups();
   loadPlanBanner();
-  // Background refresh — skips while active polling is running to avoid
-  // doubling requests. Slowed to 10s; polling handles live updates at 2s.
-  setInterval(() => { if (!pollingInterval && !reembeddingPollInterval) loadDatasets(); }, 10000);
+  loadAnalytics();
+  loadDiscountCodes();
+
+  // Background refresh
+  setInterval(() => {
+    if (!pollingInterval && !reembeddingPollInterval) {
+      if (currentGroupId) loadDatasets(currentGroupId);
+      else loadGroups();
+    }
+  }, 12000);
 </script>
 </body>
 </html>
