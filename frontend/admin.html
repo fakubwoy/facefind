@@ -1807,11 +1807,15 @@
     const date = document.getElementById('newGroupDate').value.trim();
     if (!name) { toast('Please enter an event name', 'error'); return; }
     try {
-      const fd = new FormData();
-      fd.append('name', name);
-      fd.append('type', type);
-      if (date) fd.append('date', date);
-      const r = await fetch(`${API}/api/groups`, { method: 'POST', body: fd, credentials: 'include' });
+      const payload = { name, type };
+      if (date) payload.date = date;
+      
+      const r = await fetch(`${API}/api/groups`, { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload), 
+        credentials: 'include' 
+      });
       const d = await r.json();
       if (!r.ok) throw new Error(d.detail || 'Failed');
       closeModal('createGroupModal');
@@ -1936,12 +1940,16 @@
     btn.innerHTML = '<span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:white;border-radius:50%;animation:spin 0.7s linear infinite"></span> Generating…';
 
     try {
-      const fd = new FormData();
-      fd.append('dataset_id', selectedDatasetId);
-      if (currentGroupId && currentGroupId !== '__ungrouped__') fd.append('group_id', currentGroupId);
-      if (watermarkText) fd.append('watermark_text', watermarkText);
+      const payload = { dataset_id: selectedDatasetId };
+      if (currentGroupId && currentGroupId !== '__ungrouped__') payload.group_id = currentGroupId;
+      if (watermarkText) payload.watermark_text = watermarkText;
 
-      const r = await fetch(`${API}/api/shares`, { method: 'POST', body: fd, credentials: 'include' });
+      const r = await fetch(`${API}/api/shares`, { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload), 
+        credentials: 'include' 
+      });
       const d = await r.json();
       if (!r.ok) throw new Error(d.detail || 'Failed');
       const shareUrl = `${BASE_URL}/share.html?id=${d.share_id}`;
@@ -2029,13 +2037,17 @@
     document.getElementById('limitWall').classList.remove('show');
     updateInlineProgress('drive', 'Checking Access', 'Verifying Google Drive folder is publicly accessible…', 5, '');
 
-    const fd = new FormData();
-    fd.append('folder_url', url);
-    if (name) fd.append('name', name);
-    if (groupId) fd.append('group_id', groupId);
+    const payload = { folder_url: url };
+    if (name) payload.name = name;
+    if (groupId) payload.group_id = groupId;
 
     try {
-      const r = await fetch(`${API}/api/datasets/gdrive`, { method: 'POST', body: fd, credentials: 'include' });
+      const r = await fetch(`${API}/api/datasets/gdrive`, { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload), 
+        credentials: 'include' 
+      });
       const d = await r.json();
       if (!r.ok) {
         const errMsg = d.detail || 'Failed';
