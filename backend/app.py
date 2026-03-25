@@ -1885,25 +1885,54 @@ async def add_images_to_dataset(
 # ── Share endpoints ───────────────────────────────────────────────────────────
 
 @app.post("/api/shares")
-def create_share(request: Request, dataset_id: str = Form(...), watermark_text: str = Form(default="")):
-    require_auth(request)
+async def create_share(request: Request):
+    user = require_auth(request)
+    
+    # 1. Safely parse the payload (Handles both JSON and Form Data)
+    try:
+        if request.headers.get("content-type", "").startswith("application/json"):
+            body = await request.json()
+        else:
+            form = await request.form()
+            body = dict(form)
+    except Exception:
+        raise HTTPException(400, "Invalid request body. Expected JSON.")
+
+    # 2. Extract fields (works regardless of what the frontend sent)
+    dataset_id = body.get("dataset_id")
+    group_id = body.get("group_id")
+    watermark_text = body.get("watermark_text", "")
+
+    # 3. If the frontend tried to share a 'Group', find a ready dataset inside it
+    if group_id and not dataset_id:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id FROM datasets WHERE group_id=%s AND status='ready' LIMIT 1", (group_id,))
+                row = cur.fetchone()
+        if not row:
+            raise HTTPException(400, "This group has no ready datasets yet. Wait for processing to finish before sharing.")
+        dataset_id = row["id"]
+
+    # 4. Ensure we have a valid ID before proceeding
+    if not dataset_id:
+        raise HTTPException(422, "dataset_id or group_id is required.")
+
     ds = db_get_dataset(dataset_id)
     if not ds:
         raise HTTPException(404, "Dataset not found.")
     if ds["status"] != "ready":
         raise HTTPException(400, "Dataset is not ready yet.")
 
-    # Return existing share link if one already exists for this dataset
+    # 5. Check if share already exists
     with get_db() as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                "SELECT share_id FROM shares WHERE dataset_id = %s LIMIT 1",
-                (dataset_id,)
-            )
+            cur.execute("SELECT share_id FROM shares WHERE dataset_id = %s LIMIT 1", (dataset_id,))
             existing = cur.fetchone()
+            
     if existing:
         return {"share_id": existing["share_id"]}
 
+    # 6. Create new share
     share_id = str(uuid.uuid4())[:12]
     share = {
         "share_id":     share_id,
@@ -1912,7 +1941,8 @@ def create_share(request: Request, dataset_id: str = Form(...), watermark_text: 
         "created_at":   time.time(),
     }
     db_insert_share(share)
-    # Store watermark if provided
+    
+    # 7. Apply watermark if provided
     if watermark_text:
         with get_db() as conn:
             with conn.cursor() as cur:
@@ -1922,6 +1952,7 @@ def create_share(request: Request, dataset_id: str = Form(...), watermark_text: 
                 )
             conn.commit()
         cache_delete(f"share:{share_id}")
+        
     return {"share_id": share_id}
 
 
