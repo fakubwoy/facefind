@@ -1760,7 +1760,7 @@
           ${g.date ? `<span>${escHtml(g.date)}</span> &nbsp;·&nbsp; ` : ''}
           <strong>${g.dataset_count || 0}</strong> collection${(g.dataset_count || 0) !== 1 ? 's' : ''} &nbsp;·&nbsp;
           <strong>${(g.total_images || 0).toLocaleString('en-IN')}</strong> photos &nbsp;·&nbsp;
-          ${g.face_count ? `<strong>${g.face_count.toLocaleString('en-IN')}</strong> faces indexed` : 'No photos yet'}
+          ${g.total_images ? `<strong>${(g.face_count || 0).toLocaleString('en-IN')}</strong> faces indexed` : 'No photos yet'}
         </div>
         <div class="group-card-actions">
           <span class="btn-sm btn-sm-primary">Open</span>
@@ -1893,7 +1893,8 @@
     }[ds.status] || `<span class="badge">${ds.status}</span>`;
 
     const faceCount = ds.face_count ? `<span class="dataset-size"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="4"/><path d="M11 7a4 4 0 0 1 4 4"/></svg>${ds.face_count.toLocaleString('en-IN')} faces</span>` : '';
-    const imgCount  = ds.total_images ? `<span class="dataset-size"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>${ds.total_images.toLocaleString('en-IN')} photos</span>` : '';
+ const totalImgs = ds.total || ds.total_images || 0;
+    const imgCount  = totalImgs ? `<span class="dataset-size"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>${totalImgs.toLocaleString('en-IN')} photos</span>` : '';
 
     const selectBtn = ds.status === 'ready'
       ? `<button class="btn-add" onclick="selectDataset('${ds.id}', this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Select to Share</button>`
@@ -1902,7 +1903,7 @@
     return `<div class="dataset-item ${selectedDatasetId === ds.id ? 'selected' : ''}" id="ds-${ds.id}">
       <div class="dataset-name">${escHtml(ds.name || ds.id)}</div>
       <div class="dataset-meta">
-        ${statusBadge} ${faceCount} ${imgCount}
+        ${statusBadge} ${imgCount} ${faceCount}
         ${ds.error ? `<span style="color:var(--error);font-size:11px;">${escHtml(ds.error)}</span>` : ''}
       </div>
       <div class="dataset-actions">
