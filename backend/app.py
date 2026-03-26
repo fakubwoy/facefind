@@ -49,25 +49,6 @@ EXECUTABLE_PATH = Path(os.environ.get("EXECUTABLE_PATH", "/data/releases/facefin
 for d in [DATASETS_DIR, EMBEDDINGS_DIR, UPLOADS_DIR, THUMBS_DIR]:
     d.mkdir(parents=True, exist_ok=True)
 
-# ── Cursive watermark font (Great Vibes) ──────────────────────────────────────
-WATERMARK_FONT_PATH = DATA_DIR / "fonts" / "GreatVibes-Regular.ttf"
-WATERMARK_FONT_URL  = "https://github.com/google/fonts/raw/main/ofl/greatvibes/GreatVibes-Regular.ttf"
-
-def ensure_watermark_font():
-    """Download Great Vibes font once and cache it on the volume."""
-    if WATERMARK_FONT_PATH.exists():
-        return
-    try:
-        WATERMARK_FONT_PATH.parent.mkdir(parents=True, exist_ok=True)
-        log.info(f"Downloading watermark font from {WATERMARK_FONT_URL}")
-        urllib.request.urlretrieve(WATERMARK_FONT_URL, str(WATERMARK_FONT_PATH))
-        log.info("Watermark font downloaded successfully")
-    except Exception as e:
-        log.warning(f"Could not download watermark font: {e}")
-
-# Download in a background thread so startup isn't blocked
-threading.Thread(target=ensure_watermark_font, daemon=True).start()
-
 # ── Postgres ──────────────────────────────────────────────────────────────────
 DATABASE_URL = os.environ["DATABASE_URL"]  # set automatically by Railway Postgres plugin
 
@@ -196,6 +177,17 @@ def init_db():
                 WHERE u.id = sub.user_id
                   AND u.plan != 'free'
                   AND u.plan_cycle_start IS NULL;
+            """)
+            cur.execute("""
+                ALTER TABLE razorpay_orders ADD COLUMN IF NOT EXISTS discount_code TEXT DEFAULT NULL;
+            """)
+            # Rate-limit table for discount code validation attempts
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS discount_validate_attempts (
+                    id         TEXT PRIMARY KEY,
+                    user_id    TEXT NOT NULL,
+                    attempted_at DOUBLE PRECISION
+                );
             """)
             # Migration: add previous_plan + proration fields to razorpay_orders
             cur.execute("""
@@ -1016,14 +1008,11 @@ def apply_watermark(image_bytes: bytes, watermark_text: str) -> bytes:
     txt_layer = PILImage.new("RGBA", img.size, (255, 255, 255, 0))
     draw = ImageDraw.Draw(txt_layer)
 
-    # Cursive script fonts render larger visually — bump size up
-    font_size = max(36, int(h * 0.058))
+    font_size = max(28, int(h * 0.045))
     font = None
 
-    # Prefer the downloaded Great Vibes cursive font (matches admin preview),
-    # then fall back to any available system serif/sans font.
+    # Broader list covering Debian, Ubuntu, Alpine (Railway)
     font_candidates = [
-        str(WATERMARK_FONT_PATH),                                             # Great Vibes (preferred)
         "/usr/share/fonts/truetype/dejavu/DejaVuSerif-BoldItalic.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
         "/usr/share/fonts/truetype/liberation/LiberationSerif-BoldItalic.ttf",
@@ -1190,21 +1179,27 @@ def validate_discount_code(code: str, user_id: str, interval: str = "monthly") -
     """
     Check if a discount code is valid for this user.
     Returns {"valid": bool, "discount_pct": int, "reason": str}
+
+    All invalid paths return the same generic message to prevent
+    enumeration attacks (can't tell if code exists vs expired vs used).
     """
+    _INVALID = {"valid": False, "discount_pct": 0, "reason": "Invalid or expired discount code."}
     code = code.strip().upper()
+    if not code:
+        return _INVALID
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT * FROM discount_codes WHERE code=%s", (code,))
             dc = cur.fetchone()
     if not dc:
-        return {"valid": False, "discount_pct": 0, "reason": "Invalid discount code."}
+        return _INVALID
     dc = dict(dc)
 
     if dc.get("expires_at") and time.time() > dc["expires_at"]:
-        return {"valid": False, "discount_pct": 0, "reason": "This discount code has expired."}
+        return _INVALID
 
     if dc["use_count"] >= dc["max_uses"]:
-        return {"valid": False, "discount_pct": 0, "reason": "This discount code has been fully redeemed."}
+        return _INVALID
 
     # Check if this specific user has already used it
     with get_db() as conn:
@@ -1215,13 +1210,14 @@ def validate_discount_code(code: str, user_id: str, interval: str = "monthly") -
             )
             row = cur.fetchone()
     if row and row["n"] > 0:
-        return {"valid": False, "discount_pct": 0, "reason": "You have already used this discount code."}
+        return _INVALID
 
-    # Check interval compatibility
+    # Check interval compatibility — tell the user this one so they know
+    # to try the other billing toggle, but don't expose anything else
     dc_interval = dc.get("interval", "both")
     if dc_interval != "both" and dc_interval != interval:
         return {"valid": False, "discount_pct": 0,
-                "reason": f"This code is only valid for {dc_interval} subscriptions."}
+                "reason": f"This code is only valid for {dc_interval} billing."}
 
     return {"valid": True, "discount_pct": dc["discount_pct"], "reason": "ok", "code": code}
 
@@ -2513,9 +2509,10 @@ async def create_order(request: Request):
         token = request.cookies.get("ff_token", "")
         if token:
             cache_delete(f"session:{token}")
+        # For free upgrades there is no verify step, so consume the discount code here
         if discount_code_str and discount_pct > 0:
-            consume_discount_code(discount_code_str, user["id"])
-        log.info(f"Free upgrade via credits: user={user['id']} {current_plan}→{plan} credit={total_credit_used}p")
+            consume_discount_code(discount_code_str, user["id"], f"free_upgrade_{user['id'][:8]}_{int(now)}")
+        log.info(f"Free upgrade via credits: user={user['id']} {current_plan}→{plan} credit={total_credit_used}p discount={discount_code_str or 'none'}")
         return {
             "free_upgrade": True,
             "plan": plan,
@@ -2563,14 +2560,14 @@ async def create_order(request: Request):
         with conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO razorpay_orders
-                  (order_id, user_id, plan, amount_paise, status, created_at, previous_plan, credit_applied_paise, plan_interval)
-                VALUES (%s, %s, %s, %s, 'created', %s, %s, %s, %s)
-            """, (order_id, user["id"], plan, charge_paise, time.time(), current_plan, total_credit_used, target_interval))
+                  (order_id, user_id, plan, amount_paise, status, created_at, previous_plan, credit_applied_paise, plan_interval, discount_code)
+                VALUES (%s, %s, %s, %s, 'created', %s, %s, %s, %s, %s)
+            """, (order_id, user["id"], plan, charge_paise, time.time(), current_plan, total_credit_used, target_interval, discount_code_str or None))
         conn.commit()
 
-    if discount_code_str and discount_pct > 0:
-        consume_discount_code(discount_code_str, user["id"], order_id)
-    log.info(f"Razorpay order created: {order_id} user={user['id']} {current_plan}→{plan} ({target_interval}) charge={charge_paise}p credit={total_credit_used}p loyalty={loyalty_discount}p")
+    # NOTE: discount code is stored on the order row and consumed only after
+    # payment is verified in /api/payments/verify — NOT here.
+    log.info(f"Razorpay order created: {order_id} user={user['id']} {current_plan}→{plan} ({target_interval}) charge={charge_paise}p credit={total_credit_used}p loyalty={loyalty_discount}p discount={discount_code_str or 'none'}")
 
     return {
         "order_id":               order_id,
@@ -2677,16 +2674,14 @@ async def verify_payment(request: Request):
         cache_delete(f"session:{token}")
 
     log.info(f"Payment verified: order={order_id} payment={payment_id} user={user['id']} plan={plan}")
-    # Consume discount code if it was used on this order
+    # Consume the discount code that was stored on the order (if any)
     try:
-        with get_db() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT notes FROM razorpay_orders WHERE order_id=%s", (order_id,))
-                # notes are stored in the order payload; discount code consumed here if present
-                # We track it via razorpay notes — best effort
-                pass
-    except Exception:
-        pass
+        stored_discount = order_row.get("discount_code")
+        if stored_discount:
+            consume_discount_code(stored_discount, user["id"], order_id)
+            log.info(f"Discount code consumed: {stored_discount} for order {order_id}")
+    except Exception as e:
+        log.warning(f"Failed to consume discount code for order {order_id}: {e}")
 
     # ── Fire referral credit on first ever payment ────────────────────────────
     try:
@@ -2774,13 +2769,17 @@ async def verify_payment(request: Request):
 
 def check_admin_secret(request: Request):
     """
-    Guard for admin/cron endpoints.
-    If ADMIN_SECRET env var is set, the X-Admin-Secret header must match.
-    If ADMIN_SECRET is not configured, the check is skipped (open — set it in production).
+    Guard for admin/cron endpoints. Fail-closed:
+    - ADMIN_SECRET env var MUST be set or ALL admin calls are denied.
+    - Uses constant-time compare to prevent timing attacks.
     """
     secret = os.environ.get("ADMIN_SECRET", "")
-    if secret and request.headers.get("X-Admin-Secret", "") != secret:
-        raise HTTPException(403, "Forbidden. Set X-Admin-Secret header.")
+    if not secret:
+        log.warning("Admin endpoint called but ADMIN_SECRET is not configured — denying.")
+        raise HTTPException(403, "Forbidden.")
+    provided = request.headers.get("X-Admin-Secret", "")
+    if not hmac.compare_digest(secret.encode(), provided.encode()):
+        raise HTTPException(403, "Forbidden.")
 
 
 # ── Billing management endpoints ──────────────────────────────────────────────
@@ -3705,18 +3704,95 @@ async def check_gdrive_access(request: Request):
 
 @app.post("/api/discount/validate")
 async def validate_discount_endpoint(request: Request):
-    """Validate a discount code before checkout (no side effects)."""
+    """Validate a discount code before checkout (no side effects).
+    Rate-limited: max 5 attempts per user per 60 seconds.
+    """
     user = require_auth(request)
     try:
         body = await request.json()
     except Exception:
         raise HTTPException(400, "Invalid JSON body.")
-    code = (body.get("code") or "").strip()
+    code = (body.get("code") or "").strip().upper()
     interval = (body.get("interval") or "monthly").strip()
     if not code:
         raise HTTPException(400, "code is required.")
+
+    # ── Rate limit: 5 attempts per user per 60s ──────────────────────────────
+    window_start = time.time() - 60
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT COUNT(*) as n FROM discount_validate_attempts WHERE user_id=%s AND attempted_at > %s",
+                (user["id"], window_start)
+            )
+            row = cur.fetchone()
+            if row and row["n"] >= 5:
+                raise HTTPException(429, "Too many attempts. Please wait a moment before trying again.")
+            # Record this attempt
+            cur.execute(
+                "INSERT INTO discount_validate_attempts (id, user_id, attempted_at) VALUES (%s,%s,%s)",
+                (str(uuid.uuid4()), user["id"], time.time())
+            )
+        conn.commit()
+
     result = validate_discount_code(code, user["id"], interval)
+    # Never return the raw code in the validate response — frontend already has it
+    result.pop("code", None)
     return result
+
+
+@app.post("/api/admin/discount/seed")
+async def admin_seed_discounts(request: Request):
+    """
+    Admin-only: idempotently seed the 40 launch discount codes.
+    Safe to run multiple times — uses INSERT ... ON CONFLICT DO NOTHING.
+
+    Generates:
+      - 10 x 50% off monthly  (GP50M_01 … GP50M_10)
+      - 10 x 100% off monthly (GP100M_01 … GP100M_10)
+      - 10 x 50% off annual   (GP50A_01 … GP50A_10)
+      - 10 x 100% off annual  (GP100A_01 … GP100A_10)
+
+    Each code: max 1 use (one redemption per code), valid once per user.
+    No expiry set — revoke individually via the DB if needed.
+    """
+    check_admin_secret(request)
+    now = time.time()
+    codes_to_create = []
+
+    for i in range(1, 11):
+        suffix = f"{i:02d}"
+        codes_to_create += [
+            (f"GP50M_{suffix}",  50,  "monthly", 1, "seed"),
+            (f"GP100M_{suffix}", 100, "monthly", 1, "seed"),
+            (f"GP50A_{suffix}",  50,  "annual",  1, "seed"),
+            (f"GP100A_{suffix}", 100, "annual",  1, "seed"),
+        ]
+
+    created, skipped = 0, 0
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            for code, pct, interval, max_uses, created_by in codes_to_create:
+                cur.execute("""
+                    INSERT INTO discount_codes
+                      (code, discount_pct, interval, max_uses, use_count, expires_at, created_by, created_at)
+                    VALUES (%s, %s, %s, %s, 0, NULL, %s, %s)
+                    ON CONFLICT (code) DO NOTHING
+                """, (code, pct, interval, max_uses, created_by, now))
+                if cur.rowcount > 0:
+                    created += 1
+                else:
+                    skipped += 1
+        conn.commit()
+
+    log.info(f"Discount seed: {created} created, {skipped} already existed")
+    return {
+        "ok": True,
+        "created": created,
+        "skipped": skipped,
+        "total": len(codes_to_create),
+        "codes": [c[0] for c in codes_to_create],
+    }
 
 
 @app.post("/api/admin/discount/create")

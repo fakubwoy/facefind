@@ -641,7 +641,7 @@
       </div>
     </div>
     <div class="discount-form">
-      <input type="text" id="discountCodeInput" class="discount-input" placeholder="e.g., GOTCHAPIC50" autocomplete="off" />
+      <input type="text" id="discountCodeInput" class="discount-input" placeholder="Enter code" autocomplete="off" spellcheck="false" />
       <button id="applyDiscountBtn" class="apply-discount-btn">Apply code</button>
     </div>
     <div id="discountFeedback" class="discount-feedback"></div>
@@ -814,8 +814,6 @@
   const ARROW_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>';
   const CANCEL_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
 
-  const SWITCH_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M7 16V4m0 0L3 8m4-4l4 4"/><path d="M17 8v12m0 0l4-4m-4 4l-4-4"/></svg>';
-
   function updateCurrentPlanUI() {
     // Reset all cards first
     Object.values(PLAN_META).forEach(({ ctaId, badgeId, label, isGold }) => {
@@ -832,39 +830,19 @@
 
     const { ctaId, badgeId, isGold } = PLAN_META[_currentPlanKey];
 
-    // Badge always shows on the matching plan card, regardless of billing toggle
+    // The badge is always shown (plan is active regardless of billing view)
     const badge = document.getElementById(badgeId);
-    if (badge) {
-      badge.style.display = 'inline-flex';
-      // Adjust badge text to reflect what interval they're on
-      if (_currentInterval === 'monthly' && billing === 'annual') {
-        badge.textContent = '✓ Current plan (monthly)';
-      } else if (_currentInterval === 'annual' && billing === 'monthly') {
-        badge.textContent = '✓ Current plan (annual)';
-      } else {
-        badge.textContent = '✓ Current plan';
-      }
-    }
+    if (badge) badge.style.display = 'inline-flex';
 
-    const cta = document.getElementById(ctaId);
-    if (!cta) return;
-
+    // The CTA becomes "Cancel plan" only when the billing toggle matches the user's interval
     const billingMatchesCurrent =
       (billing === 'monthly' && _currentInterval === 'monthly') ||
       (billing === 'annual'  && _currentInterval === 'annual');
 
-    if (billingMatchesCurrent) {
-      // Exact match — Cancel plan
+    const cta = document.getElementById(ctaId);
+    if (cta && billingMatchesCurrent) {
       cta.className = 'card-cta cta-cancel';
       cta.innerHTML = CANCEL_SVG + ' Cancel plan';
-    } else if (_currentInterval === 'monthly' && billing === 'annual') {
-      // They're on monthly, viewing the annual toggle for the same plan — offer switch
-      cta.className = 'card-cta ' + (isGold ? 'cta-gold' : 'cta-blue');
-      cta.innerHTML = SWITCH_SVG + ' Switch to Annual';
-    } else if (_currentInterval === 'annual' && billing === 'monthly') {
-      // They're on annual, viewing monthly toggle — offer downgrade to monthly
-      cta.className = 'card-cta cta-cancel';
-      cta.innerHTML = SWITCH_SVG + ' Switch to Monthly';
     }
   }
 
@@ -929,7 +907,9 @@
       }
       
       activeDiscount = { code, discount_pct: data.discount_pct };
-      feedback.textContent = `✓ ${code} applied! ${data.discount_pct}% off your ${billing === 'annual' ? 'annual' : 'monthly'} subscription.`;
+      const pctLabel = data.discount_pct === 100 ? 'free' : `${data.discount_pct}% off`;
+      const intervalLabel = billing === 'annual' ? 'annual' : 'monthly';
+      feedback.textContent = `✓ Code applied — ${pctLabel} on your ${intervalLabel} plan.`;
       feedback.className = 'discount-feedback success';
       
       // Show success styling on input
