@@ -1785,6 +1785,20 @@
   // ── Event Groups ────────────────────────────────────────────────────────────
   let groups = {};
 
+  let _datasetsCacheTs = 0; // timestamp of last datasets fetch
+
+  async function fetchDatasetsIfStale(maxAgeMs = 2000) {
+    if (Date.now() - _datasetsCacheTs < maxAgeMs) return; // already fresh
+    try {
+      const r = await fetch(`${API}/api/datasets`, { credentials: 'include' });
+      if (r.ok) { allDatasetsCache = await r.json(); _datasetsCacheTs = Date.now(); }
+    } catch {}
+  }
+
+  function invalidateDatasetsCache() {
+    _datasetsCacheTs = 0; // force next fetchDatasetsIfStale to actually fetch
+  }
+
   async function loadGroups() {
     let groupsArr = [];
     try {
@@ -1792,10 +1806,7 @@
       if (r.ok) groupsArr = await r.json();
     } catch {}
 
-    try {
-      const r2 = await fetch(`${API}/api/datasets`, { credentials: 'include' });
-      if (r2.ok) allDatasetsCache = await r2.json();
-    } catch {}
+    await fetchDatasetsIfStale();
 
     // Convert array to object
 // Convert array to object
@@ -1966,6 +1977,7 @@
       if (!r.ok) throw new Error(d.detail || 'Failed');
       closeModal('createGroupModal');
       toast('Event created!', 'success');
+      invalidateDatasetsCache();
       await loadGroups();
       openGroup(d.id);
     } catch(e) {
@@ -1979,6 +1991,7 @@
       const r = await fetch(`${API}/api/groups/${groupId}`, { method: 'DELETE', credentials: 'include' });
       if (!r.ok) throw new Error((await r.json()).detail || 'Failed');
       toast('Event deleted');
+      invalidateDatasetsCache();
       loadGroups();
     } catch(e) {
       toast('Error: ' + e.message, 'error');
@@ -1991,10 +2004,8 @@
     const list = document.getElementById('datasetList');
     if (!list) return;
     try {
-      // Re-fetch all to ensure freshness
-      const r = await fetch(`${API}/api/datasets`, { credentials: 'include' });
-      if (!r.ok) return;
-      allDatasetsCache = await r.json();
+      await fetchDatasetsIfStale(1500); // use cache if fetched within 1.5s
+      if (!allDatasetsCache) return;
       
       let datasets = [];
       if (gId === '__ungrouped__') {
@@ -2071,6 +2082,7 @@
         selectedDatasetId = null;
         document.getElementById('shareBtn').disabled = true;
       }
+      invalidateDatasetsCache();
       loadGroups(); // refreshes both groups and datasets
       loadPlanBanner();
     } catch(e) { toast('Error: ' + e.message, 'error'); }
@@ -2224,6 +2236,7 @@
       driveBtn.disabled = true;
       driveBtn.innerHTML = `<span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite"></span> Importing…`;
       toast('Google Drive connected! Fetching your photos…', 'success');
+      invalidateDatasetsCache();
       loadGroups(); // Refreshes datasets and groups
       loadPlanBanner();
       startPolling('drive', d.dataset_id);
@@ -2320,6 +2333,7 @@
         return;
       }
       // Preserve the selected group across the loadGroups re-render
+      invalidateDatasetsCache();
       const savedGroupId = document.getElementById('uploadTargetGroup').value;
       loadGroups().then(() => {
         if (savedGroupId) document.getElementById('uploadTargetGroup').value = savedGroupId;
@@ -2475,6 +2489,7 @@
             else showDriveSuccess(id);
           }, 600);
           // Single consolidated refresh on completion
+          invalidateDatasetsCache();
           loadDatasets(currentGroupId);
           loadPlanBanner();
           loadGroups().then(() => loadAnalytics());
@@ -2633,7 +2648,9 @@
 
         const statusChanged   = d.status    !== lastStatus;
         const progressChanged = d.processed !== lastProcessed;
-        if (statusChanged || progressChanged) { loadDatasets(currentGroupId); lastStatus = d.status; lastProcessed = d.processed; }
+        // Only reload on status change, not every progress tick
+        if (statusChanged) { loadDatasets(currentGroupId); lastStatus = d.status; }
+        if (progressChanged) { lastProcessed = d.processed; }
 
         if (d.status === 'ready') {
           clearInterval(reembeddingPollInterval); reembeddingPollInterval = null;
@@ -2808,11 +2825,8 @@
 
     let datasetCount = 0;
     try {
-      const r2 = await fetch(`${API}/api/datasets`, { credentials: 'include' });
-      if (r2.ok) {
-        const data = await r2.json();
-        datasetCount = Object.keys(data).length;
-      }
+      await fetchDatasetsIfStale(2000);
+      datasetCount = Object.keys(allDatasetsCache || {}).length;
     } catch {}
 
     const banner = document.getElementById('planBanner');
@@ -2938,13 +2952,8 @@
   loadGroups().then(() => loadAnalytics());
   loadPlanBanner();
 
-  // Background refresh
-  setInterval(() => {
-    if (!pollingInterval && !reembeddingPollInterval) {
-      if (currentGroupId) loadDatasets(currentGroupId);
-      else loadGroups();
-    }
-  }, 12000);
+  // Background refresh intentionally removed — data is refreshed on user actions
+  // and active uploads are handled by dedicated polling intervals.
 </script>
 </body>
 </html>
