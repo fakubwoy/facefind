@@ -1381,6 +1381,11 @@
                 <input type="text" id="datasetName" placeholder="e.g. Reception, Day 2, Candids">
               </div>
 
+              <button id="uploadBtn" class="btn btn-primary" disabled>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Upload &amp; Find Faces
+              </button>
+
               <!-- Progress panel -->
               <div class="progress-panel" id="zipProgressPanel">
                 <div class="progress-panel-fill" id="zipProgressFill"></div>
@@ -1400,11 +1405,6 @@
                 <div class="success-meta" id="zipSuccessMeta">Collection ready to share.</div>
                 <button class="btn-reset" onclick="resetZipUpload(); switchSection('events', document.querySelector('.section-tab'))">Go to Events</button>
               </div>
-
-              <button id="uploadBtn" class="btn btn-primary" disabled>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                Upload &amp; Find Faces
-              </button>
             </div>
 
             <!-- Google Drive tab -->
@@ -2416,6 +2416,7 @@
     if (groupId) fd.append('group_id', groupId);
 
     uploadBtn.disabled = true;
+    uploadBtn.style.display = 'none';
     dropZone.style.display = 'none';
     document.getElementById('zipSelectedInfo').style.display = 'none';
     document.getElementById('limitWall').classList.remove('show');
@@ -2614,15 +2615,22 @@
           toast(`All done — ${d.face_count} people found in your photos!`, 'success');
         } else if (d.status === 'error') {
           clearInterval(pollingInterval); pollingInterval = null;
-          updateInlineProgress(which, 'Error', d.error || 'Something went wrong', pct === -1 ? 0 : pct, '');
-          document.getElementById(which + 'Ring').style.stroke = 'var(--error)';
-          document.getElementById(which + 'Pct').style.color   = 'var(--error)';
-          // Re-enable drive button so the user can try again
           if (which === 'drive') {
-            driveBtn.disabled = false;
-            driveBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Import from Google Drive`;
+            // Hide progress panel, restore the drive form with an inline error message
+            document.getElementById('driveProgressPanel').classList.remove('visible');
             document.getElementById('driveZone').style.display = '';
             document.getElementById('driveNameField').style.display = '';
+            driveBtn.disabled = false;
+            driveBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Import from Google Drive`;
+            const errMsg = d.error || 'Something went wrong';
+            const isAccessErr = /access|permission|not found|forbidden|download/i.test(errMsg);
+            showDriveWarn(isAccessErr
+              ? 'We couldn\'t download any images. Make sure the folder is set to "Anyone with the link" \u2192 Viewer in Google Drive, then try again.'
+              : `Something went wrong: ${errMsg}. Please try again.`);
+          } else {
+            updateInlineProgress(which, 'Error', d.error || 'Something went wrong', pct === -1 ? 0 : pct, '');
+            document.getElementById(which + 'Ring').style.stroke = 'var(--error)';
+            document.getElementById(which + 'Pct').style.color   = 'var(--error)';
           }
           toast(`Something went wrong: ${d.error || 'Unknown error'}. Please try uploading again.`, 'error');
         }
