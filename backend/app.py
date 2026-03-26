@@ -1006,6 +1006,11 @@ def download_gdrive_folder(folder_id: str, dest_dir: Path, dataset_id: str):
 
     if was_truncated:
         log.info(f"[{dataset_id}] Plan quota applied — only first {downloaded} images imported from Drive")
+        # Store a non-fatal warning so the UI can surface it
+        db_update_dataset_fields(
+            dataset_id,
+            error=f"Your plan allows up to {max_images:,} images. Only the first {downloaded:,} photos from the Drive folder were imported."
+        )
 
     db_update_dataset_fields(dataset_id, status="queued")
     run_embedding_job(dataset_id)
@@ -1833,6 +1838,12 @@ async def use_gdrive_folder(
     access = check_gdrive_folder_accessible(folder_id)
     if not access["accessible"]:
         raise HTTPException(400, f"Google Drive folder is not accessible: {access['reason']}")
+
+    # ── Enforce dataset count limit (same as zip upload) ─────────────────────
+    limits = get_plan_limits(user)
+    existing = db_list_datasets(user["id"])
+    if len(existing) >= limits["max_datasets"]:
+        raise HTTPException(400, f"Dataset limit reached. Your plan allows {limits['max_datasets']} dataset(s). Delete one or upgrade.")
 
     dataset_id  = str(uuid.uuid4())[:8]
     dataset_dir = DATASETS_DIR / dataset_id
