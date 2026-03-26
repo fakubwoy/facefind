@@ -1613,7 +1613,7 @@
         const scoreW  = Math.round(m.score * 100);
         const thumbSrc = `${API}/api/thumb/${data.dataset_id}/${m.image_path}`;
         const fullSrc  = `${API}/api/image/${data.dataset_id}/${m.image_path}`;
-        const dlSrc    = `${API}/api/image/${data.dataset_id}/${m.image_path}/watermarked?share_id=${shareId}`;
+        const dlSrc    = `${API}/api/watermarked/${data.dataset_id}?image_path=${encodeURIComponent(m.image_path)}&share_id=${shareId}`;
         const label    = (m.label || '').replace(/_/g, ' ');
 
         item.innerHTML = `

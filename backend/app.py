@@ -3513,7 +3513,7 @@ def get_share_qr(share_id: str, request: Request):
 
 # ── Watermarked image download ────────────────────────────────────────────────
 
-@app.get("/api/image/{dataset_id}/{image_path:path}/watermarked")
+@app.get("/api/watermarked/{dataset_id}")
 def serve_image_watermarked(dataset_id: str, image_path: str, share_id: str = None):
     """
     Serve an image with the share's watermark text burned in.
