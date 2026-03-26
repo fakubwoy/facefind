@@ -986,58 +986,69 @@ def generate_qr_code_png(data: str) -> bytes:
 
 def apply_watermark(image_bytes: bytes, watermark_text: str) -> bytes:
     """
-    Overlay studio name as a cursive-style watermark at bottom-left of image.
-    Uses Pillow; falls back to original bytes if font loading fails.
+    Overlay studio name as a watermark at bottom-left of image.
+    Uses Pillow. Raises on failure so the caller can log and handle it.
     """
-    try:
-        from PIL import Image as PILImage, ImageDraw, ImageFont
-        img = PILImage.open(io.BytesIO(image_bytes)).convert("RGBA")
-        w, h = img.size
+    from PIL import Image as PILImage, ImageDraw, ImageFont
 
-        txt_layer = PILImage.new("RGBA", img.size, (255, 255, 255, 0))
-        draw = ImageDraw.Draw(txt_layer)
+    img = PILImage.open(io.BytesIO(image_bytes)).convert("RGBA")
+    w, h = img.size
 
-        font_size = max(20, int(h * 0.045))
-        font = None
+    txt_layer = PILImage.new("RGBA", img.size, (255, 255, 255, 0))
+    draw = ImageDraw.Draw(txt_layer)
 
-        # Try system cursive/italic fonts
-        font_candidates = [
-            "/usr/share/fonts/truetype/dejavu/DejaVuSerif-BoldItalic.ttf",
-            "/usr/share/fonts/truetype/liberation/LiberationSerif-BoldItalic.ttf",
-            "/usr/share/fonts/truetype/freefont/FreeSerifBoldItalic.ttf",
-        ]
-        for path in font_candidates:
-            if os.path.exists(path):
-                try:
-                    font = ImageFont.truetype(path, font_size)
-                    break
-                except Exception:
-                    continue
+    font_size = max(28, int(h * 0.045))
+    font = None
 
-        if font is None:
+    # Broader list covering Debian, Ubuntu, Alpine (Railway)
+    font_candidates = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSerif-BoldItalic.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSerif-BoldItalic.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSerifBoldItalic.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
+        "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/dejavu/DejaVuSerif-BoldItalic.ttf",
+        "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/ttf-dejavu/DejaVuSans-Bold.ttf",
+    ]
+    for fpath in font_candidates:
+        if os.path.exists(fpath):
+            try:
+                font = ImageFont.truetype(fpath, font_size)
+                log.info(f"Watermark font: {fpath} size={font_size}")
+                break
+            except Exception as fe:
+                log.warning(f"Font load failed {fpath}: {fe}")
+
+    if font is None:
+        log.warning("No system font found — using Pillow default")
+        try:
+            font = ImageFont.load_default(size=font_size)
+        except TypeError:
             font = ImageFont.load_default()
 
-        # Text bounding box
+    # Text bounding box — textbbox available since Pillow 8.0
+    try:
         bbox = draw.textbbox((0, 0), watermark_text, font=font)
         tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    except AttributeError:
+        tw, th = draw.textsize(watermark_text, font=font)
 
-        # Position: bottom-left with 2% padding
-        pad_x = int(w * 0.02)
-        pad_y = int(h * 0.02)
-        x = pad_x
-        y = h - th - pad_y
+    pad_x = int(w * 0.02)
+    pad_y = int(h * 0.02)
+    x = pad_x
+    y = h - th - pad_y * 3
 
-        # Shadow for readability
-        draw.text((x + 2, y + 2), watermark_text, font=font, fill=(0, 0, 0, 110))
-        draw.text((x, y), watermark_text, font=font, fill=(255, 255, 255, 200))
+    draw.text((x + 2, y + 2), watermark_text, font=font, fill=(0, 0, 0, 130))
+    draw.text((x, y), watermark_text, font=font, fill=(255, 255, 255, 210))
 
-        out = PILImage.alpha_composite(img, txt_layer).convert("RGB")
-        buf = io.BytesIO()
-        out.save(buf, format="JPEG", quality=92)
-        return buf.getvalue()
-    except Exception as e:
-        log.warning(f"Watermark failed: {e}")
-        return image_bytes
+    out = PILImage.alpha_composite(img, txt_layer).convert("RGB")
+    buf = io.BytesIO()
+    out.save(buf, format="JPEG", quality=92)
+    log.info(f"Watermark applied: size={w}x{h}")
+    return buf.getvalue()
 
 
 # ── Google Drive accessibility check ─────────────────────────────────────────
@@ -1923,6 +1934,12 @@ async def create_share(request: Request):
     if ds["status"] != "ready":
         raise HTTPException(400, "Dataset is not ready yet.")
 
+    # If no explicit watermark supplied, inherit from the event group
+    if not watermark_text and ds.get("group_id"):
+        group = db_get_group(ds["group_id"])
+        if group:
+            watermark_text = group.get("watermark_text") or ""
+
     # 5. Check if share already exists
     with get_db() as conn:
         with conn.cursor() as cur:
@@ -1930,6 +1947,16 @@ async def create_share(request: Request):
             existing = cur.fetchone()
             
     if existing:
+        # Update watermark on existing share if group watermark changed
+        if watermark_text:
+            with get_db() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "UPDATE shares SET watermark_text=%s WHERE share_id=%s",
+                        (watermark_text[:80], existing["share_id"])
+                    )
+                conn.commit()
+            cache_delete(f"share:{existing['share_id']}")
         return {"share_id": existing["share_id"]}
 
     # 6. Create new share
@@ -3528,13 +3555,24 @@ def serve_image_watermarked(dataset_id: str, image_path: str, share_id: str = No
     if share_id:
         share = db_get_share(share_id)
         if share:
-            watermark_text = share.get("watermark_text") or None
             # Record download event
             record_share_event(share_id, "download")
+            # 1. Prefer watermark set directly on the share
+            watermark_text = share.get("watermark_text") or None
+            # 2. Fall back to the event group's watermark if share has none
+            if not watermark_text:
+                ds = db_get_dataset(share["dataset_id"])
+                if ds and ds.get("group_id"):
+                    group = db_get_group(ds["group_id"])
+                    if group:
+                        watermark_text = group.get("watermark_text") or None
 
     image_bytes = full_path.read_bytes()
     if watermark_text:
-        image_bytes = apply_watermark(image_bytes, watermark_text)
+        try:
+            image_bytes = apply_watermark(image_bytes, watermark_text)
+        except Exception as e:
+            log.error(f"apply_watermark failed for {dataset_id}/{image_path}: {e}", exc_info=True)
 
     return Response(
         content=image_bytes,
