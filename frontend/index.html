@@ -65,7 +65,7 @@
       --primary: #4f46e5;
       --primary-dark: #3730a3;
       --primary-light: #eef2ff;
-      --accent: #f97373; /* A warmer, more emotional accent */
+      --accent: #f97373;
       --accent-light: #fff5f5;
       --accent-dark: #e25c5c;
       --text: #1c1917;
@@ -107,7 +107,6 @@
       min-width: 0;
     }
 
-    /* --- Cursive Font for Branding --- */
     .cursive {
       font-family: 'Kaushan Script', cursive;
       font-weight: 400;
@@ -351,7 +350,7 @@
       background: linear-gradient(135deg, #fcd34d, #fbbf24);
     }
 
-    /* --- Hero Visual (GIF) --- */
+    /* --- Hero Visual --- */
     .hero-visual {
       display: flex;
       justify-content: center;
@@ -359,18 +358,154 @@
       animation: fadeIn 0.5s 0.15s ease both;
     }
 
-    .demo-gif {
+    /* --- How It Works Animation --- */
+    /* FASTER: card transitions 0.35s→0.22s, arrows 0.3s→0.18s */
+    .hiw-wrap {
       width: 100%;
-      border-radius: var(--radius-lg);
-      box-shadow: var(--shadow-xl);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .hiw-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 0;
+      width: 100%;
+      justify-content: center;
+    }
+    .hiw-arr {
+      display: flex;
+      align-items: center;
+      padding-top: 70px;
+      width: 36px;
+      flex-shrink: 0;
+    }
+    .hiw-arr svg {
+      width: 100%;
+      opacity: 0;
+      transform: translateX(-4px);
+      transition: opacity 0.18s ease, transform 0.18s ease; /* was 0.3s */
+    }
+    .hiw-arr.show svg { opacity: 1; transform: translateX(0); }
+    .hiw-card {
+      width: 240px;
       background: var(--surface);
-      border: 1px solid var(--border);
-      transition: transform 0.3s ease;
+      border-radius: var(--radius-lg);
+      padding: 20px 18px 18px;
+      border: 1px solid rgba(0,0,0,0.045);
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+      flex-shrink: 0;
+      opacity: 0;
+      transform: translateY(14px);
+      transition: opacity 0.22s ease, transform 0.22s ease, box-shadow 0.2s ease; /* was 0.35s */
     }
-
-    .demo-gif:hover {
-      transform: translateY(-5px);
+    .hiw-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--primary), var(--accent));
     }
+    .hiw-card.show { opacity: 1; transform: translateY(0); }
+    .hiw-card.active { box-shadow: var(--shadow-xl); }
+    .hiw-snum {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--accent);
+      opacity: 0.55;
+      margin-bottom: 11px;
+    }
+    .hiw-icon {
+      width: 40px; height: 40px;
+      background: var(--accent-light);
+      border-radius: 11px;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 13px;
+      color: var(--accent);
+      transition: transform 0.22s ease; /* was 0.35s */
+    }
+    .hiw-icon.green { background: #ecfdf5; color: #059669; }
+    .hiw-card.active .hiw-icon { transform: scale(1.07) rotate(-3deg); }
+    .hiw-icon svg { width: 19px; height: 19px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+    .hiw-ct { font-family: 'Fraunces', serif; font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 5px; line-height: 1.2; }
+    .hiw-cd { font-size: 11.5px; color: var(--muted); line-height: 1.7; margin-bottom: 14px; }
+    .hiw-div { height: 1px; background: var(--border); margin-bottom: 13px; }
+    .hiw-dz {
+      border: 1.5px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 12px 10px;
+      text-align: center;
+      background: var(--bg);
+      margin-bottom: 10px;
+      transition: border-color 0.22s, background 0.22s; /* was 0.35s */
+    }
+    .hiw-card.active .hiw-dz { border-color: var(--primary); background: var(--primary-light); }
+    .hiw-dzi { width: 26px; height: 26px; margin: 0 auto 6px; color: var(--muted); transition: color 0.22s; } /* was 0.35s */
+    .hiw-card.active .hiw-dzi { color: var(--primary); }
+    .hiw-dzi svg { width: 100%; height: 100%; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+    .hiw-dzt { font-size: 10.5px; color: var(--muted); line-height: 1.5; }
+    .hiw-dzt strong { display: block; font-size: 11px; color: var(--text2); margin-bottom: 1px; }
+    .hiw-tgrid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; margin-bottom: 10px; }
+    .hiw-thumb { aspect-ratio: 1; border-radius: 4px; background: var(--surface2); overflow: hidden; position: relative; }
+    .hiw-thumb .fill { position: absolute; inset: 0; transform: scaleY(0); transform-origin: bottom; transition: transform 0.18s ease; border-radius: 4px; } /* was 0.28s */
+    .hiw-thumb.in .fill { transform: scaleY(1); }
+    .ht1 .fill{background:#c4b5fd}.ht2 .fill{background:#fca5a5}.ht3 .fill{background:#fcd34d}.ht4 .fill{background:#6ee7b7}.ht5 .fill{background:#93c5fd}
+    .ht6 .fill{background:#f9a8d4}.ht7 .fill{background:#a5b4fc}.ht8 .fill{background:#fed7aa}.ht9 .fill{background:#d9f99d}.ht10 .fill{background:#a5f3fc}
+    .hiw-cpill { display: inline-flex; align-items: center; gap: 5px; background: var(--primary-light); border: 1px solid rgba(79,70,229,.15); border-radius: 999px; padding: 4px 10px; font-size: 10.5px; font-weight: 600; color: var(--primary); }
+    .hiw-cpill svg { width: 11px; height: 11px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .hiw-prows { display: flex; flex-direction: column; gap: 7px; margin-bottom: 11px; }
+    .hiw-prow { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--muted); }
+    .hiw-pdot { width: 6px; height: 6px; border-radius: 50%; background: var(--border); flex-shrink: 0; transition: background 0.22s, box-shadow 0.22s; } /* was 0.35s */
+    .hiw-card.active .hiw-pdot.d { background: #059669; box-shadow: 0 0 0 3px rgba(5,150,105,.15); }
+    .hiw-card.active .hiw-pdot.p { background: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,.12); }
+    .hiw-plbl { flex: 1; transition: color 0.22s; } /* was 0.35s */
+    .hiw-card.active .hiw-done .hiw-plbl { color: var(--text2); }
+    .hiw-ptick { font-size: 10px; font-weight: 700; color: #059669; opacity: 0; transition: opacity 0.22s; } /* was 0.35s */
+    .hiw-card.active .hiw-done .hiw-ptick { opacity: 1; }
+    .hiw-lblock { background: var(--surface2); border-radius: var(--radius); padding: 10px; display: flex; align-items: center; gap: 8px; border: 1px solid var(--border); }
+    .hiw-qrm { width: 34px; height: 34px; background: white; border: 1px solid var(--border); border-radius: 6px; display: grid; grid-template-columns: repeat(5,1fr); gap: 2px; padding: 3px; flex-shrink: 0; }
+    .hiw-qrc { border-radius: 1px; }
+    .hiw-lmeta { flex: 1; min-width: 0; }
+    .hiw-lurl { font-size: 10px; font-weight: 700; color: var(--primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
+    .hiw-lsub { font-size: 9.5px; color: var(--muted); }
+    .hiw-cbtn { flex-shrink: 0; background: var(--primary); color: white; border: none; border-radius: 6px; padding: 5px 9px; font-size: 10px; font-weight: 700; cursor: pointer; font-family: inherit; }
+    .hiw-sbk { background: var(--surface2); border-radius: var(--radius); padding: 11px 10px; text-align: center; border: 1px solid var(--border); margin-bottom: 10px; }
+    .hiw-fring { width: 48px; height: 48px; border-radius: 50%; background: white; border: 1.5px solid var(--border); display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; position: relative; transition: border-color 0.25s, box-shadow 0.25s; color: var(--muted); } /* was 0.4s */
+    .hiw-card.active .hiw-fring { border-color: #059669; box-shadow: 0 0 0 4px rgba(5,150,105,.12); color: #059669; }
+    .hiw-fring svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+    .hiw-sring { position: absolute; inset: -6px; border-radius: 50%; border: 2px solid transparent; border-top-color: #059669; border-right-color: #059669; opacity: 0; transition: opacity 0.22s; } /* was 0.35s */
+    .hiw-card.active .hiw-sring { opacity: 1; animation: hiw-spin 1s linear infinite; } /* was 1.6s */
+    @keyframes hiw-spin { to { transform: rotate(360deg); } }
+    .hiw-shit { font-size: 11px; color: var(--muted); }
+    .hiw-rrow { display: flex; gap: 3px; margin-bottom: 10px; }
+    .hiw-rp { flex: 1; aspect-ratio: 2/3; border-radius: 5px; border: 1.5px solid var(--border); position: relative; overflow: hidden; opacity: 0.3; transition: opacity 0.22s, border-color 0.22s; } /* was 0.35s */
+    .hiw-card.active .hiw-rp:nth-child(1){opacity:1;border-color:#059669;transition-delay:.07s}  /* was .12s */
+    .hiw-card.active .hiw-rp:nth-child(2){opacity:1;border-color:#059669;transition-delay:.17s}  /* was .28s */
+    .hiw-card.active .hiw-rp:nth-child(3){opacity:1;border-color:#059669;transition-delay:.27s}  /* was .44s */
+    .hiw-card.active .hiw-rp:nth-child(4){opacity:1;border-color:#059669;transition-delay:.37s}  /* was .60s */
+    .hiw-card.active .hiw-rp:nth-child(5){opacity:1;border-color:#059669;transition-delay:.47s}  /* was .76s */
+    .hiw-rp1{background:linear-gradient(160deg,#c4b5fd,#a5b4fc)}.hiw-rp2{background:linear-gradient(160deg,#fca5a5,#f9a8d4)}.hiw-rp3{background:linear-gradient(160deg,#fcd34d,#fed7aa)}.hiw-rp4{background:linear-gradient(160deg,#6ee7b7,#a5f3fc)}.hiw-rp5{background:linear-gradient(160deg,#93c5fd,#c4b5fd)}
+    .hiw-rtick { position: absolute; top: 3px; right: 3px; width: 12px; height: 12px; border-radius: 50%; background: #059669; display: flex; align-items: center; justify-content: center; opacity: 0; transform: scale(0); transition: opacity 0.16s, transform 0.16s; } /* was 0.25s */
+    .hiw-rtick svg { width: 7px; height: 7px; stroke: white; fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+    .hiw-card.active .hiw-rp:nth-child(1) .hiw-rtick{opacity:1;transform:scale(1);transition-delay:.22s}  /* was .35s */
+    .hiw-card.active .hiw-rp:nth-child(2) .hiw-rtick{opacity:1;transform:scale(1);transition-delay:.32s}  /* was .51s */
+    .hiw-card.active .hiw-rp:nth-child(3) .hiw-rtick{opacity:1;transform:scale(1);transition-delay:.42s}  /* was .67s */
+    .hiw-card.active .hiw-rp:nth-child(4) .hiw-rtick{opacity:1;transform:scale(1);transition-delay:.52s}  /* was .83s */
+    .hiw-card.active .hiw-rp:nth-child(5) .hiw-rtick{opacity:1;transform:scale(1);transition-delay:.62s}  /* was .99s */
+    .hiw-nlb { display: flex; align-items: center; gap: 6px; background: #ecfdf5; border: 1px solid rgba(5,150,105,.2); border-radius: 9px; padding: 7px 10px; font-size: 11px; font-weight: 600; color: #059669; }
+    .hiw-nlb svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+    .hiw-dots { display: flex; gap: 6px; margin-top: 20px; align-items: center; }
+    .hiw-dot { height: 6px; width: 6px; border-radius: 999px; background: var(--border); cursor: pointer; transition: background 0.2s, width 0.2s; } /* was 0.3s */
+    .hiw-dot.on { background: var(--primary); width: 20px; }
+    .hiw-toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(64px); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 16px; font-size: 13px; display: flex; align-items: center; gap: 8px; box-shadow: var(--shadow-lg); transition: transform 0.28s cubic-bezier(.34,1.56,.64,1); z-index: 200; white-space: nowrap; } /* was 0.4s */
+    .hiw-toast.show { transform: translateX(-50%) translateY(0); }
+    .hiw-toast svg { width: 14px; height: 14px; stroke: #059669; fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+    .hiw-tmsg { color: var(--text2); }
+    .hiw-tmsg strong { color: #059669; }
 
     /* --- Stats Strip --- */
     .stats-strip {
@@ -451,7 +586,7 @@
       margin-bottom: 56px;
     }
 
-    /* --- How It Works Steps (Simplified) --- */
+    /* --- How It Works Steps --- */
     .steps-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -531,7 +666,7 @@
       line-height: 1.75;
     }
 
-    /* --- Use Cases (Renamed "Perfect for...") --- */
+    /* --- Use Cases --- */
     .usecases-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -597,7 +732,7 @@
       line-height: 1.7;
     }
 
-    /* --- Privacy/Emotion Strip --- */
+    /* --- Privacy Strip --- */
     .privacy-strip {
       background: linear-gradient(135deg, #fef3e8 0%, #fff1f0 100%);
       border-radius: var(--radius-xl);
@@ -789,34 +924,18 @@
 
     /* --- Animations --- */
     @keyframes fadeInDown {
-      from {
-        opacity: 0;
-        transform: translateY(-12px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
+      from { opacity: 0; transform: translateY(-12px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
     @keyframes fadeInUp {
-      from {
-        opacity: 0;
-        transform: translateY(20px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
     @keyframes fadeIn {
-      from {
-        opacity: 0;
-      }
-      to {
-        opacity: 1;
-      }
+      from { opacity: 0; }
+      to { opacity: 1; }
     }
 
     .fade-up {
@@ -830,29 +949,12 @@
       transform: translateY(0);
     }
 
-    .fade-up.delay-1 {
-      transition-delay: 0.05s;
-    }
-
-    .fade-up.delay-2 {
-      transition-delay: 0.1s;
-    }
-
-    .fade-up.delay-3 {
-      transition-delay: 0.15s;
-    }
-
-    .fade-up.delay-4 {
-      transition-delay: 0.2s;
-    }
-
-    .fade-up.delay-5 {
-      transition-delay: 0.25s;
-    }
-
-    .fade-up.delay-6 {
-      transition-delay: 0.3s;
-    }
+    .fade-up.delay-1 { transition-delay: 0.05s; }
+    .fade-up.delay-2 { transition-delay: 0.1s; }
+    .fade-up.delay-3 { transition-delay: 0.15s; }
+    .fade-up.delay-4 { transition-delay: 0.2s; }
+    .fade-up.delay-5 { transition-delay: 0.25s; }
+    .fade-up.delay-6 { transition-delay: 0.3s; }
 
     .logo-text { display: inline-flex; align-items: baseline; gap: 0; letter-spacing: normal; }
     .logo-text .logo-serif { font-family: 'Fraunces', serif; font-weight: 800; }
@@ -918,10 +1020,88 @@
       </div>
     </div>
 
-    <!-- GIF Visual -->
+    <!-- Inline Animation -->
     <div class="hero-visual">
-      <!-- IMPORTANT: Replace 'assets/lenstagram-demo.gif' with the actual path to your GIF -->
-      <img class="demo-gif" src="assets/lenstagram-demo.gif" alt="Lenstagram Demo: Upload a selfie and instantly find your photos" loading="lazy">
+      <div class="hiw-wrap">
+        <div class="hiw-row" id="hiwRow">
+          <!-- Card 1 -->
+          <div class="hiw-card" id="hiwC1">
+            <div class="hiw-snum">Step 01</div>
+            <div class="hiw-icon"><svg viewBox="0 0 24 24"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg></div>
+            <div class="hiw-ct">Bring in your art</div>
+            <div class="hiw-cd">Upload all your event photos at once. We quietly prepare everything in the background.</div>
+            <div class="hiw-div"></div>
+            <div class="hiw-dz">
+              <div class="hiw-dzi"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+              <div class="hiw-dzt"><strong>Drop your folder here</strong>or click to browse</div>
+            </div>
+            <div class="hiw-tgrid">
+              <div class="hiw-thumb ht1"><div class="fill"></div></div>
+              <div class="hiw-thumb ht2"><div class="fill"></div></div>
+              <div class="hiw-thumb ht3"><div class="fill"></div></div>
+              <div class="hiw-thumb ht4"><div class="fill"></div></div>
+              <div class="hiw-thumb ht5"><div class="fill"></div></div>
+              <div class="hiw-thumb ht6"><div class="fill"></div></div>
+              <div class="hiw-thumb ht7"><div class="fill"></div></div>
+              <div class="hiw-thumb ht8"><div class="fill"></div></div>
+              <div class="hiw-thumb ht9"><div class="fill"></div></div>
+              <div class="hiw-thumb ht10"><div class="fill"></div></div>
+            </div>
+            <div class="hiw-cpill"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg><span id="hiwCntLbl">247 photos ready</span></div>
+          </div>
+          <!-- Arrow 1 -->
+          <div class="hiw-arr" id="hiwA1"><svg viewBox="0 0 48 18" fill="none"><path d="M2 9 H40 M34 3 L46 9 L34 15" stroke="#d6d0c8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <!-- Card 2 -->
+          <div class="hiw-card" id="hiwC2">
+            <div class="hiw-snum">Step 02</div>
+            <div class="hiw-icon"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div>
+            <div class="hiw-ct">Share the joy</div>
+            <div class="hiw-cd">A unique link and QR code are generated. Share it with the couple or the whole crowd.</div>
+            <div class="hiw-div"></div>
+            <div class="hiw-prows">
+              <div class="hiw-prow hiw-done"><div class="hiw-pdot d"></div><div class="hiw-plbl">Photos received</div><div class="hiw-ptick">✓</div></div>
+              <div class="hiw-prow hiw-done"><div class="hiw-pdot d"></div><div class="hiw-plbl">Every face matched &amp; indexed</div><div class="hiw-ptick">✓</div></div>
+              <div class="hiw-prow hiw-done"><div class="hiw-pdot p"></div><div class="hiw-plbl">Link ready to share</div><div class="hiw-ptick">✓</div></div>
+            </div>
+            <div class="hiw-lblock">
+              <div class="hiw-qrm" id="hiwQr"></div>
+              <div class="hiw-lmeta"><div class="hiw-lurl">lenstagram.app/g/wedding24</div><div class="hiw-lsub">Works for anyone — no account needed</div></div>
+              <button class="hiw-cbtn">Copy</button>
+            </div>
+          </div>
+          <!-- Arrow 2 -->
+          <div class="hiw-arr" id="hiwA2"><svg viewBox="0 0 48 18" fill="none"><path d="M2 9 H40 M34 3 L46 9 L34 15" stroke="#d6d0c8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <!-- Card 3 -->
+          <div class="hiw-card" id="hiwC3">
+            <div class="hiw-snum">Step 03</div>
+            <div class="hiw-icon green"><svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>
+            <div class="hiw-ct">The magic happens</div>
+            <div class="hiw-cd">Anyone opens the link, takes a selfie, and instantly sees every photo they appear in.</div>
+            <div class="hiw-div"></div>
+            <div class="hiw-sbk">
+              <div class="hiw-fring"><div class="hiw-sring"></div><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M6 20v-1a6 6 0 0 1 12 0v1"/></svg></div>
+              <div class="hiw-shit">One selfie is all it takes</div>
+            </div>
+            <div class="hiw-rrow">
+              <div class="hiw-rp hiw-rp1"><div class="hiw-rtick"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div>
+              <div class="hiw-rp hiw-rp2"><div class="hiw-rtick"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div>
+              <div class="hiw-rp hiw-rp3"><div class="hiw-rtick"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div>
+              <div class="hiw-rp hiw-rp4"><div class="hiw-rtick"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div>
+              <div class="hiw-rp hiw-rp5"><div class="hiw-rtick"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div>
+            </div>
+            <div class="hiw-nlb"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>No login · No app · Instant access</div>
+          </div>
+        </div>
+        <div class="hiw-dots">
+          <div class="hiw-dot on" onclick="hiwGoTo(0)"></div>
+          <div class="hiw-dot" onclick="hiwGoTo(1)"></div>
+          <div class="hiw-dot" onclick="hiwGoTo(2)"></div>
+        </div>
+      </div>
+    </div>
+    <div class="hiw-toast" id="hiwToast">
+      <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+      <span class="hiw-tmsg"><strong>14 photos found</strong> — tap to save them all</span>
     </div>
   </section>
 
@@ -1182,6 +1362,79 @@
   </footer>
 
   <script>
+    // ── How It Works Animation ──
+    (function() {
+      const qr = document.getElementById('hiwQr');
+      if (qr) {
+        [1,1,0,1,1,1,0,1,0,1,0,0,1,0,0,1,0,1,0,1,1,1,0,1,1].forEach(v => {
+          const c = document.createElement('div');
+          c.className = 'hiw-qrc';
+          c.style.background = v ? '#1c1917' : 'transparent';
+          qr.appendChild(c);
+        });
+      }
+
+      function hiwAnimCount(el, to, ms) {
+        const s = performance.now();
+        (function f(now) {
+          const p = Math.min((now - s) / ms, 1), e = 1 - Math.pow(1 - p, 3);
+          el.textContent = Math.round(e * to) + ' photos ready';
+          if (p < 1) requestAnimationFrame(f);
+        })(s);
+      }
+
+      const hiwDots = document.querySelectorAll('.hiw-dot');
+      let hiwCur = 0, hiwTicker = null;
+      window.hiwGoTo = function(i) { hiwCur = i; hiwApply(i); };
+
+      function hiwApply(idx) {
+        ['hiwC1','hiwC2','hiwC3'].forEach(id => {
+          const el = document.getElementById(id);
+          if (!el) return;
+          el.classList.remove('show','active');
+          el.querySelectorAll('.hiw-thumb').forEach(t => t.classList.remove('in'));
+        });
+        ['hiwA1','hiwA2'].forEach(id => { const el = document.getElementById(id); if (el) el.classList.remove('show'); });
+        hiwDots.forEach((d, i) => d.classList.toggle('on', i === idx));
+        const toast = document.getElementById('hiwToast');
+        if (toast) toast.classList.remove('show');
+
+        ['hiwC1','hiwC2','hiwC3'].forEach((id, i) => {
+          if (i > idx) return;
+          const el = document.getElementById(id);
+          if (!el) return;
+          el.classList.add('show');
+          if (i === idx) setTimeout(() => el.classList.add('active'), 30); // was 50
+        });
+
+        if (idx >= 1) setTimeout(() => { const el = document.getElementById('hiwA1'); if (el) el.classList.add('show'); }, 70);  // was 120
+        if (idx >= 2) setTimeout(() => { const el = document.getElementById('hiwA2'); if (el) el.classList.add('show'); }, 70);  // was 120
+
+        if (idx === 0) {
+          // Faster thumb stagger: 30ms delay between thumbs, start at 130ms (was 220ms + 55ms stagger)
+          document.querySelectorAll('.hiw-thumb').forEach((t, i) => setTimeout(() => t.classList.add('in'), 130 + i * 30));
+          const lbl = document.getElementById('hiwCntLbl');
+          if (lbl) { lbl.textContent = '0 photos ready'; setTimeout(() => hiwAnimCount(lbl, 247, 650), 160); } // was 280ms start, 1100ms duration
+        }
+
+        if (idx === 2) {
+          setTimeout(() => {
+            const t = document.getElementById('hiwToast');
+            if (t) { t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2000); } // was 1800ms delay, 2500ms visible
+          }, 1100); // was 1800
+        }
+      }
+
+      function hiwStartTimer() { hiwTicker = setInterval(() => { hiwCur = (hiwCur + 1) % 3; hiwApply(hiwCur); }, 2400); } // was 3600
+      const row = document.getElementById('hiwRow');
+      if (row) {
+        row.addEventListener('mouseenter', () => clearInterval(hiwTicker));
+        row.addEventListener('mouseleave', hiwStartTimer);
+      }
+      hiwApply(0);
+      hiwStartTimer();
+    })();
+
     // ── FAQ ──
     function toggleFaq(el) {
       const item = el.closest('.faq-item');
@@ -1211,10 +1464,7 @@
       a.addEventListener('click', e => {
         e.preventDefault();
         const t = document.querySelector(a.getAttribute('href'));
-        if (t) t.scrollIntoView({
-          behavior: 'smooth',
-          block: 'start'
-        });
+        if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
     });
   </script>
