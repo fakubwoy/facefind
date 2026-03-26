@@ -2513,9 +2513,9 @@
   // ── Plan Banner ─────────────────────────────────────────────────────────────
   const PLAN_CONFIG = {
     free:          { label: 'Starter (Free)',   maxDatasets: 1,    maxImages: 100,    iconClass: 'free', isProPhoto: false },
-    personal_lite: { label: 'Snapshot',         maxDatasets: 5,    maxImages: 2000,   iconClass: 'paid', isProPhoto: false },
-    personal_pro:  { label: 'Storyteller',      maxDatasets: 15,   maxImages: 10000,  iconClass: 'paid', isProPhoto: false },
-    personal_max:  { label: 'Storyteller Max',  maxDatasets: 30,   maxImages: 30000,  iconClass: 'paid', isProPhoto: false },
+    personal_lite: { label: 'Lite',             maxDatasets: 5,    maxImages: 2000,   iconClass: 'paid', isProPhoto: false },
+    personal_pro:  { label: 'Pro',              maxDatasets: 15,   maxImages: 10000,  iconClass: 'paid', isProPhoto: false },
+    personal_max:  { label: 'Max',              maxDatasets: 30,   maxImages: 30000,  iconClass: 'paid', isProPhoto: false },
     photo_starter: { label: 'Studio Starter',   maxDatasets: 50,   maxImages: 100000, iconClass: 'pro',  isProPhoto: true  },
     photo_pro:     { label: 'Studio Pro',       maxDatasets: 9999, maxImages: 500000, iconClass: 'pro',  isProPhoto: true  },
   };
@@ -2596,9 +2596,7 @@
           const label = renewalDate ? `Renews ${renewalDate}` : `${bi.days_remaining}d remaining`;
           extras.push(`<span style="font-size:11px;color:var(--muted);">${label}</span>`);
         }
-        if (currentPlan !== 'free' && !bi.scheduled_downgrade) {
-          extras.push(`<button onclick="cancelSubscription()" style="background:none;border:1.5px solid var(--border);font-size:11px;color:var(--muted);cursor:pointer;padding:4px 12px;border-radius:6px;font-family:inherit;font-weight:600;transition:border-color 0.2s,color 0.2s;" onmouseover="this.style.borderColor='#dc2626';this.style.color='#dc2626';" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)';">Cancel plan</button>`);
-        }
+
         let extraEl = document.getElementById('planExtras');
         if (!extraEl) {
           extraEl = document.createElement('div');

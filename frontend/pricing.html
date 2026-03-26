@@ -118,6 +118,8 @@
     .cta-blue:hover { background:var(--primary-dark); transform:translateY(-1px); box-shadow:0 6px 18px rgba(79,70,229,0.3); }
     .cta-gold { background:var(--gold); color:#fff; }
     .cta-gold:hover { background:var(--gold-dark); transform:translateY(-1px); box-shadow:0 6px 18px rgba(217,119,6,0.3); }
+    .cta-cancel { background:var(--surface2); color:var(--muted); border:1.5px solid var(--border2); }
+    .cta-cancel:hover { background:#fef2f2; color:#dc2626; border-color:#fecaca; transform:translateY(-1px); }
 
     /* FEATURE LIST */
     .fl { list-style:none; display:flex; flex-direction:column; gap:8px; flex:1; }
@@ -795,9 +797,59 @@
     });
   }
 
+  // ── Current plan UI ──────────────────────────────────────────────────────────
+  // Populated after auth check; used to re-evaluate when billing toggle changes.
+  let _currentPlanKey = null;   // e.g. 'personal_lite'
+  let _currentInterval = null;  // 'monthly' | 'annual'
+
+  // Map plan keys → CTA element ids and their original label text
+  const PLAN_META = {
+    personal_lite:  { ctaId: 'p1-cta',  badgeId: 'badge-p1',  label: 'Get Lite',           isGold: false },
+    personal_pro:   { ctaId: 'p2-cta',  badgeId: 'badge-p2',  label: 'Get Pro',            isGold: false },
+    personal_max:   { ctaId: 'p3-cta',  badgeId: 'badge-p3',  label: 'Get Max',            isGold: false },
+    photo_starter:  { ctaId: 'ph1-cta', badgeId: 'badge-ph1', label: 'Get Studio Starter', isGold: true  },
+    photo_pro:      { ctaId: 'ph2-cta', badgeId: 'badge-ph2', label: 'Get Studio Pro',     isGold: true  },
+  };
+
+  const ARROW_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>';
+  const CANCEL_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+
+  function updateCurrentPlanUI() {
+    // Reset all cards first
+    Object.values(PLAN_META).forEach(({ ctaId, badgeId, label, isGold }) => {
+      const badge = document.getElementById(badgeId);
+      if (badge) badge.style.display = 'none';
+      const cta = document.getElementById(ctaId);
+      if (cta) {
+        cta.className = 'card-cta ' + (isGold ? 'cta-gold' : 'cta-blue');
+        cta.innerHTML = label + ' ' + ARROW_SVG;
+      }
+    });
+
+    if (!_currentPlanKey || !PLAN_META[_currentPlanKey]) return;
+
+    const { ctaId, badgeId, isGold } = PLAN_META[_currentPlanKey];
+
+    // The badge is always shown (plan is active regardless of billing view)
+    const badge = document.getElementById(badgeId);
+    if (badge) badge.style.display = 'inline-flex';
+
+    // The CTA becomes "Cancel plan" only when the billing toggle matches the user's interval
+    const billingMatchesCurrent =
+      (billing === 'monthly' && _currentInterval === 'monthly') ||
+      (billing === 'annual'  && _currentInterval === 'annual');
+
+    const cta = document.getElementById(ctaId);
+    if (cta && billingMatchesCurrent) {
+      cta.className = 'card-cta cta-cancel';
+      cta.innerHTML = CANCEL_SVG + ' Cancel plan';
+    }
+  }
+
   function setBilling(m){
     billing = m;
     applyBilling();
+    updateCurrentPlanUI();
     // Clear discount when billing changes (codes may be interval-specific)
     activeDiscount = null;
     const feedback = document.getElementById('discountFeedback');
@@ -1251,6 +1303,19 @@
         setProfileUser(user);
         document.getElementById('mainNav').style.display = 'none';
         document.getElementById('adminHeader').style.display = 'flex';
+
+        // Set current plan state and reflect on cards
+        _currentPlanKey = user.plan || null;
+        _currentInterval = user.plan_interval || 'monthly';
+        // If user is on an annual plan, pre-select the annual toggle to match
+        if (_currentInterval === 'annual' && billing !== 'annual') {
+          billing = 'annual';
+          applyBilling();
+          document.getElementById('btnMonthly').classList.remove('active');
+          document.getElementById('btnAnnual').classList.add('active');
+        }
+        updateCurrentPlanUI();
+
         const freeStripCta = document.getElementById('freeStripCta');
         if (freeStripCta) {
           freeStripCta.href = '/admin.html';
