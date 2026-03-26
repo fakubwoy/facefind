@@ -596,6 +596,29 @@
       gap: 20px;
     }
 
+    /* ── Timeline layout ── */
+    .timeline-year-section { margin-bottom: 36px; }
+    .timeline-year-label {
+      display: flex; align-items: center; gap: 14px;
+      margin-bottom: 20px;
+    }
+    .timeline-year-text {
+      font-family: 'Fraunces', serif;
+      font-size: 13px; font-weight: 700; letter-spacing: 0.08em;
+      color: var(--muted); text-transform: uppercase; white-space: nowrap;
+    }
+    .timeline-year-line {
+      flex: 1; height: 1px; background: var(--border);
+    }
+    .timeline-year-count {
+      font-size: 11px; color: var(--muted); white-space: nowrap;
+    }
+    .timeline-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(288px, 1fr));
+      gap: 20px;
+    }
+
     /* Elegant Event Card */
     .group-card {
       background: var(--surface);
@@ -1179,11 +1202,11 @@
             New Event
           </button>
         </div>
-        <div class="groups-grid" id="groupsGrid">
-          <div class="empty" style="grid-column:1/-1;">
+        <div id="groupsGrid">
+          <div class="empty">
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:12px;color:var(--muted)"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
             <div style="font-weight:700;color:var(--text);font-size:15px;margin-bottom:6px;">No events yet</div>
-            Create your first event group — like "Priya & Rahul Wedding 2025" — then upload photos. Share the link with guests so they can find themselves instantly.
+            Create your first event group — like "Priya &amp; Rahul Wedding 2025" — then upload photos. Share the link with guests so they can find themselves instantly.
           </div>
         </div>
       </div>
@@ -1852,18 +1875,63 @@
     other:      { theme: 'other',      mono: 'E', label: 'Event' },
   };
 
+  // ── Parse a freeform date string into a sortable value ─────────────────────
+  // Handles: "15 December 2025", "Dec 2025", "2025", "15 Dec 25", etc.
+  // Returns a Date object, or null if unparseable. Backwards-compatible: 
+  // groups without event_date just sort to the bottom.
+  function parseEventDate(str) {
+    if (!str) return null;
+    // Try native parse first (works for ISO and many EN formats)
+    const d = new Date(str);
+    if (!isNaN(d)) return d;
+    // Try "15 December 2025" / "December 2025" / "Dec 2025"
+    const m = str.match(/(\d{1,2})?\s*([A-Za-z]+)\s+(\d{2,4})/);
+    if (m) {
+      const day = m[1] ? parseInt(m[1]) : 1;
+      const month = m[2];
+      const year = m[3].length === 2 ? 2000 + parseInt(m[3]) : parseInt(m[3]);
+      const d2 = new Date(`${month} ${day} ${year}`);
+      if (!isNaN(d2)) return d2;
+    }
+    // Try bare year "2025"
+    if (/^\d{4}$/.test(str.trim())) return new Date(parseInt(str.trim()), 0, 1);
+    return null;
+  }
+
   function renderGroups() {
     const grid = document.getElementById('groupsGrid');
     const groupList = Object.values(groups);
     if (!groupList.length) {
-      grid.innerHTML = `<div class="empty" style="grid-column:1/-1;">
+      grid.innerHTML = `<div class="empty">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:12px;color:var(--muted)"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
         <div style="font-weight:700;color:var(--text);font-size:15px;margin-bottom:6px;">No events yet</div>
         Create your first event group — like "Priya &amp; Rahul Wedding 2025" — then upload photos. Guests can find themselves instantly with just a selfie.
       </div>`;
       return;
     }
-    grid.innerHTML = groupList.map(g => {
+
+    // Attach parsed date to each group for sorting
+    groupList.forEach(g => {
+      g._parsedDate = parseEventDate(g.event_date || g.date);
+    });
+
+    // Separate dated vs undated (ungrouped virtual card always goes last)
+    const dated   = groupList.filter(g => g._parsedDate && !g.is_ungrouped)
+                              .sort((a, b) => b._parsedDate - a._parsedDate); // newest first
+    const undated = groupList.filter(g => !g._parsedDate && !g.is_ungrouped)
+                              .sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+    const ungrouped = groupList.filter(g => g.is_ungrouped);
+
+    // Group dated events by year
+    const byYear = {};
+    dated.forEach(g => {
+      const yr = g._parsedDate.getFullYear();
+      if (!byYear[yr]) byYear[yr] = [];
+      byYear[yr].push(g);
+    });
+    const years = Object.keys(byYear).map(Number).sort((a, b) => b - a); // newest year first
+
+    function cardHTML(g) {
       const cfg = GC_THEMES[g.event_type || g.type] || GC_THEMES.other;
       const photoCount = (g.total_images || 0).toLocaleString('en-IN');
       const colCount   = g.dataset_count || 0;
@@ -1894,9 +1962,42 @@
             </div>
           </div>
         </div>`;
-    }).join('');
-  }
+    }
 
+    function sectionHTML(label, cards, extraClass = '') {
+      return `<div class="timeline-year-section${extraClass ? ' ' + extraClass : ''}">
+        <div class="timeline-year-label">
+          <span class="timeline-year-text">${label}</span>
+          <span class="timeline-year-line"></span>
+          <span class="timeline-year-count">${cards.length} event${cards.length !== 1 ? 's' : ''}</span>
+        </div>
+        <div class="timeline-grid">
+          ${cards.map(cardHTML).join('')}
+        </div>
+      </div>`;
+    }
+
+    let html = '';
+
+    // Dated sections — one per year, newest first
+    years.forEach(yr => {
+      html += sectionHTML(String(yr), byYear[yr]);
+    });
+
+    // Undated events (no date set) — only show section if there are any
+    if (undated.length) {
+      html += sectionHTML('No Date', undated, 'timeline-section-undated');
+    }
+
+    // Ungrouped virtual card — always last, no section header, just inline
+    if (ungrouped.length) {
+      html += `<div class="timeline-grid" style="margin-top:${(dated.length || undated.length) ? '8px' : '0'}">
+        ${ungrouped.map(cardHTML).join('')}
+      </div>`;
+    }
+
+    grid.innerHTML = html;
+  }
   function populateGroupSelectors() {
     const sel = document.getElementById('uploadTargetGroup');
     const groupList = Object.values(groups).filter(g => !g.is_ungrouped);
@@ -2195,8 +2296,14 @@
 
   driveBtn.addEventListener('click', async () => {
     const url  = document.getElementById('driveFolderUrl').value.trim();
-    const name = document.getElementById('driveDatasetName').value.trim();
     const groupId = document.getElementById('uploadTargetGroup').value;
+    // Auto-name: if no explicit name, use "<group name> · <date>" if group has a date
+    let name = document.getElementById('driveDatasetName').value.trim();
+    if (!name && groupId && groups[groupId]) {
+      const g = groups[groupId];
+      const d = g.event_date || g.date;
+      name = d ? `${g.name} · ${d}` : '';
+    }
     if (!url) { toast('Please paste a Google Drive folder URL', 'error'); return; }
     if (!url.includes('drive.google.com')) { showDriveWarn('Please enter a valid Google Drive folder URL.'); return; }
 
@@ -2295,8 +2402,14 @@
   uploadBtn.addEventListener('click', () => {
     const file = zipFile.files[0];
     if (!file) return;
-    const name    = document.getElementById('datasetName').value.trim();
     const groupId = document.getElementById('uploadTargetGroup').value;
+    // Auto-name: if no explicit name, use "<group name> · <date>" if group has a date
+    let name = document.getElementById('datasetName').value.trim();
+    if (!name && groupId && groups[groupId]) {
+      const g = groups[groupId];
+      const d = g.event_date || g.date;
+      name = d ? `${g.name} · ${d}` : '';
+    }
     const fd = new FormData();
     fd.append('file', file);
     if (name) fd.append('name', name);
