@@ -269,6 +269,13 @@ def init_db():
                     created_at    DOUBLE PRECISION
                 );
             """)
+            # Migration: add event_type and event_date to event_groups
+            cur.execute("""
+                ALTER TABLE event_groups ADD COLUMN IF NOT EXISTS event_type TEXT DEFAULT 'other';
+            """)
+            cur.execute("""
+                ALTER TABLE event_groups ADD COLUMN IF NOT EXISTS event_date TEXT DEFAULT NULL;
+            """)
             # Migration: ensure datasets table has group_id column
             cur.execute("""
                 ALTER TABLE datasets ADD COLUMN IF NOT EXISTS group_id TEXT DEFAULT NULL;
@@ -930,10 +937,31 @@ def download_gdrive_folder(folder_id: str, dest_dir: Path, dataset_id: str):
     api_key    = os.environ.get("GOOGLE_API_KEY", "").strip()
     downloaded = 0
     last_error = ""
+    was_truncated = False
+
+    # Determine image limit for this dataset's owner
+    ds = db_get_dataset(dataset_id)
+    max_images = None
+    if ds:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT plan FROM users WHERE id=%s", (ds["user_id"],))
+                row = cur.fetchone()
+        if row:
+            plan = (row["plan"] or "free")
+            max_images = PLAN_LIMITS.get(plan, PLAN_LIMITS["free"])["max_images"]
 
     if api_key:
         try:
             files = _gdrive_list_folder(folder_id, api_key, dataset_id)
+            # ── Enforce plan image quota: take only the first N files ──────────
+            if max_images is not None and len(files) > max_images:
+                log.warning(
+                    f"[{dataset_id}] Drive has {len(files)} images but plan limit is "
+                    f"{max_images} — truncating to first {max_images} files"
+                )
+                files = files[:max_images]
+                was_truncated = True
             total = len(files)
             log.info(f"[{dataset_id}] Downloading {total} images via Drive API")
             db_update_dataset_fields(dataset_id, total=total, processed=0)
@@ -955,7 +983,16 @@ def download_gdrive_folder(folder_id: str, dest_dir: Path, dataset_id: str):
             import gdown
             gdown.download_folder(id=folder_id, output=str(dest_dir), quiet=False, use_cookies=False)
             img_exts = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
-            downloaded = sum(1 for p in dest_dir.rglob("*") if p.suffix.lower() in img_exts)
+            all_imgs = [p for p in dest_dir.rglob("*") if p.suffix.lower() in img_exts]
+            # Enforce quota when using gdown fallback
+            if max_images is not None and len(all_imgs) > max_images:
+                log.warning(f"[{dataset_id}] gdown: truncating {len(all_imgs)} → {max_images} images")
+                for p in sorted(all_imgs, key=lambda x: x.name)[max_images:]:
+                    p.unlink(missing_ok=True)
+                was_truncated = True
+                downloaded = max_images
+            else:
+                downloaded = len(all_imgs)
         except Exception as exc:
             last_error = str(exc)
             log.error(f"[{dataset_id}] gdown error: {exc}")
@@ -966,6 +1003,9 @@ def download_gdrive_folder(folder_id: str, dest_dir: Path, dataset_id: str):
         ) + (f"Last error: {last_error}" if last_error else "")
         db_update_dataset_fields(dataset_id, status="error", error=msg)
         return
+
+    if was_truncated:
+        log.info(f"[{dataset_id}] Plan quota applied — only first {downloaded} images imported from Drive")
 
     db_update_dataset_fields(dataset_id, status="queued")
     run_embedding_job(dataset_id)
@@ -1113,18 +1153,21 @@ def check_gdrive_folder_accessible(folder_id: str) -> dict:
 
 # ── Event Group DB helpers ────────────────────────────────────────────────────
 
-def db_create_group(user_id: str, name: str, description: str = "", watermark_text: str = "") -> dict:
+def db_create_group(user_id: str, name: str, description: str = "", watermark_text: str = "",
+                    event_type: str = "other", event_date: str = "") -> dict:
     group_id = str(uuid.uuid4())[:12]
     now = time.time()
+    event_type = event_type or "other"
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO event_groups (id, user_id, name, description, watermark_text, created_at)
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """, (group_id, user_id, name, description, watermark_text or "", now))
+                INSERT INTO event_groups (id, user_id, name, description, watermark_text, event_type, event_date, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """, (group_id, user_id, name, description, watermark_text or "", event_type, event_date or None, now))
         conn.commit()
     return {"id": group_id, "user_id": user_id, "name": name, "description": description,
-            "watermark_text": watermark_text, "created_at": now}
+            "watermark_text": watermark_text, "event_type": event_type,
+            "event_date": event_date or None, "created_at": now}
 
 
 def db_get_group(group_id: str) -> Optional[dict]:
@@ -3443,8 +3486,11 @@ async def create_group(request: Request):
         raise HTTPException(400, "Group name is required.")
     description = (body.get("description") or "").strip()
     watermark_text = (body.get("watermark_text") or "").strip()[:80]
-    group = db_create_group(user["id"], name, description, watermark_text)
-    log.info(f"Group created: {group['id']} by user {user['id']}")
+    event_type = (body.get("type") or "other").strip()
+    event_date = (body.get("date") or "").strip()[:60]
+    group = db_create_group(user["id"], name, description, watermark_text,
+                            event_type=event_type, event_date=event_date)
+    log.info(f"Group created: {group['id']} type={event_type} by user {user['id']}")
     return group
 
 
@@ -3474,7 +3520,7 @@ async def update_group(group_id: str, request: Request):
         body = await request.json()
     except Exception:
         raise HTTPException(400, "Invalid JSON body.")
-    allowed = {"name", "description", "watermark_text"}
+    allowed = {"name", "description", "watermark_text", "event_type", "event_date"}
     updates = {k: v for k, v in body.items() if k in allowed}
     if not updates:
         raise HTTPException(400, "No valid fields to update.")
