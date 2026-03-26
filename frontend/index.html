@@ -357,6 +357,7 @@
       justify-content: flex-end;
       align-items: center;
       animation: fadeIn 0.5s 0.15s ease both;
+      position: relative;
     }
 
     /* --- How It Works Animation --- */
@@ -501,8 +502,8 @@
     .hiw-dots { display: flex; gap: 6px; margin-top: 20px; align-items: center; justify-content: flex-end; padding-right: 20px; }
     .hiw-dot { height: 6px; width: 6px; border-radius: 999px; background: var(--border); cursor: pointer; transition: background 0.2s, width 0.2s; }
     .hiw-dot.on { background: var(--primary); width: 20px; }
-    .hiw-toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(64px); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 16px; font-size: 13px; display: flex; align-items: center; gap: 8px; box-shadow: var(--shadow-lg); transition: transform 0.28s cubic-bezier(.34,1.56,.64,1); z-index: 200; white-space: nowrap; }
-    .hiw-toast.show { transform: translateX(-50%) translateY(0); }
+    .hiw-toast { position: absolute; bottom: -30px; right: 50px; left: auto; transform: translateY(64px); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 16px; font-size: 13px; display: flex; align-items: center; gap: 8px; box-shadow: var(--shadow-lg); transition: transform 0.28s cubic-bezier(.34,1.56,.64,1); z-index: 200; white-space: nowrap; }
+    .hiw-toast.show { transform: translateY(0); }
     .hiw-toast svg { width: 14px; height: 14px; stroke: #059669; fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
     .hiw-tmsg { color: var(--text2); }
     .hiw-tmsg strong { color: #059669; }
