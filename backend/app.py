@@ -49,6 +49,25 @@ EXECUTABLE_PATH = Path(os.environ.get("EXECUTABLE_PATH", "/data/releases/facefin
 for d in [DATASETS_DIR, EMBEDDINGS_DIR, UPLOADS_DIR, THUMBS_DIR]:
     d.mkdir(parents=True, exist_ok=True)
 
+# ── Cursive watermark font (Great Vibes) ──────────────────────────────────────
+WATERMARK_FONT_PATH = DATA_DIR / "fonts" / "GreatVibes-Regular.ttf"
+WATERMARK_FONT_URL  = "https://github.com/google/fonts/raw/main/ofl/greatvibes/GreatVibes-Regular.ttf"
+
+def ensure_watermark_font():
+    """Download Great Vibes font once and cache it on the volume."""
+    if WATERMARK_FONT_PATH.exists():
+        return
+    try:
+        WATERMARK_FONT_PATH.parent.mkdir(parents=True, exist_ok=True)
+        log.info(f"Downloading watermark font from {WATERMARK_FONT_URL}")
+        urllib.request.urlretrieve(WATERMARK_FONT_URL, str(WATERMARK_FONT_PATH))
+        log.info("Watermark font downloaded successfully")
+    except Exception as e:
+        log.warning(f"Could not download watermark font: {e}")
+
+# Download in a background thread so startup isn't blocked
+threading.Thread(target=ensure_watermark_font, daemon=True).start()
+
 # ── Postgres ──────────────────────────────────────────────────────────────────
 DATABASE_URL = os.environ["DATABASE_URL"]  # set automatically by Railway Postgres plugin
 
@@ -997,11 +1016,14 @@ def apply_watermark(image_bytes: bytes, watermark_text: str) -> bytes:
     txt_layer = PILImage.new("RGBA", img.size, (255, 255, 255, 0))
     draw = ImageDraw.Draw(txt_layer)
 
-    font_size = max(28, int(h * 0.045))
+    # Cursive script fonts render larger visually — bump size up
+    font_size = max(36, int(h * 0.058))
     font = None
 
-    # Broader list covering Debian, Ubuntu, Alpine (Railway)
+    # Prefer the downloaded Great Vibes cursive font (matches admin preview),
+    # then fall back to any available system serif/sans font.
     font_candidates = [
+        str(WATERMARK_FONT_PATH),                                             # Great Vibes (preferred)
         "/usr/share/fonts/truetype/dejavu/DejaVuSerif-BoldItalic.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
         "/usr/share/fonts/truetype/liberation/LiberationSerif-BoldItalic.ttf",

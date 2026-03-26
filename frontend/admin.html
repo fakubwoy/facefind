@@ -1784,12 +1784,32 @@
     document.getElementById('groupDetailView').style.display = '';
     document.getElementById('groupDetailTitle').textContent = g?.name || 'Event Photos';
     loadDatasets(groupId);
+
+    // Reset watermark UI first
+    document.getElementById('watermarkEnabled').checked = false;
+    document.getElementById('watermarkText').value = '';
+    document.getElementById('watermarkFieldWrap').style.display = 'none';
+    document.getElementById('watermarkPreview').classList.remove('visible');
+
     // Check existing share
     if (g && g.share_id) {
       const shareUrl = `${BASE_URL}/share.html?id=${g.share_id}`;
       document.getElementById('shareUrl').textContent = shareUrl;
       document.getElementById('shareBox').classList.add('visible');
       generateQRCanvas(shareUrl, document.getElementById('qrCanvas'));
+
+      // Load share details to restore watermark settings
+      fetch(`${API}/api/shares/${g.share_id}`, { credentials: 'include' })
+        .then(r => r.ok ? r.json() : null)
+        .then(share => {
+          if (share && share.watermark_text) {
+            document.getElementById('watermarkEnabled').checked = true;
+            document.getElementById('watermarkText').value = share.watermark_text;
+            document.getElementById('watermarkFieldWrap').style.display = '';
+            updateWatermarkPreview();
+          }
+        })
+        .catch(() => {});
     } else {
       document.getElementById('shareBox').classList.remove('visible');
     }
@@ -1954,6 +1974,7 @@
       const payload = { dataset_id: selectedDatasetId };
       if (currentGroupId && currentGroupId !== '__ungrouped__') payload.group_id = currentGroupId;
       if (watermarkText) payload.watermark_text = watermarkText;
+      else payload.watermark_text = '';   // explicitly clear if unchecked
 
       const r = await fetch(`${API}/api/shares`, { 
         method: 'POST', 
@@ -1963,11 +1984,21 @@
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.detail || 'Failed');
+
       const shareUrl = `${BASE_URL}/share.html?id=${d.share_id}`;
       document.getElementById('shareUrl').textContent = shareUrl;
       document.getElementById('shareBox').classList.add('visible');
       generateQRCanvas(shareUrl, document.getElementById('qrCanvas'));
       if (currentGroupId && groups[currentGroupId]) groups[currentGroupId].share_id = d.share_id;
+
+      // If the share already existed, also PATCH the watermark so edits are saved
+      await fetch(`${API}/api/shares/${d.share_id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ watermark_text: watermarkText || '' }),
+        credentials: 'include'
+      }).catch(() => {});
+
       toast('Share link ready!', 'success');
     } catch(e) {
       toast('Error: ' + e.message, 'error');
