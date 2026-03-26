@@ -14,6 +14,7 @@
     :root {
       --bg:#f9f7f4; --surface:#ffffff; --surface2:#f2efe9; --border:#e8e3db; --border2:#d4cfc7;
       --primary:#4f46e5; --primary-dark:#3730a3; --primary-light:#eef2ff;
+      --accent:#f97373;
       --gold:#d97706; --gold-light:#fffbeb; --gold-dark:#b45309;
       --text:#1c1917; --text2:#44403c; --muted:#78716c;
       --success:#059669; --success-light:#ecfdf5;
@@ -31,7 +32,7 @@
     nav.scrolled { box-shadow:var(--shadow); }
     .nav-inner { max-width:1120px; margin:0 auto; padding:0 28px; height:68px; display:flex; align-items:center; justify-content:space-between; }
     .logo { font-family:'Fraunces',serif; font-size:22px; font-weight:800; color:var(--primary); text-decoration:none; display:flex; align-items:center; gap:8px; letter-spacing:-0.5px; }
-    .logo span.cursive { font-family: 'Kaushan Script', cursive; font-size: 20px; color: var(--gold); margin-left: -4px; }
+    .logo .cursive, .ah-logo .cursive { font-family: 'Kaushan Script', cursive; font-size: 20px; color: var(--accent); }
     .nav-links { display:flex; align-items:center; gap:2px; }
     .nav-link { font-size:14px; font-weight:500; color:var(--muted); text-decoration:none; padding:8px 14px; border-radius:var(--r-sm); transition:color 0.2s,background 0.2s; }
     .nav-link:hover { color:var(--text); background:rgba(0,0,0,0.04); }
@@ -395,7 +396,7 @@
   <div class="ah-left">
     <a href="/admin.html" class="ah-logo">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="10" r="3"/><path d="M9 16c0-1.7 1.3-3 3-3s3 1.3 3 3"/></svg>
-      <span class="logo-text"><span class="logo-serif">Lens</span><span class="cursive" style="font-family:'Kaushan Script',cursive;color:var(--gold);">tagram</span></span>
+      <span class="logo-text"><span class="logo-serif">Lens</span><span class="cursive">tagram</span></span>
     </a>
     <span class="ah-badge">Pricing</span>
   </div>
@@ -764,7 +765,7 @@
   <div class="footer-inner">
     <a href="/" class="footer-logo">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="10" r="3"/><path d="M9 16c0-1.7 1.3-3 3-3s3 1.3 3 3"/></svg>
-      <span class="logo-text"><span class="logo-serif">Lens</span><span style="font-family:'Kaushan Script',cursive;color:var(--gold);font-size:16px;">tagram</span></span>
+      <span class="logo-text"><span class="logo-serif">Lens</span><span class="cursive">tagram</span></span>
     </a>
     <div class="footer-links">
       <a href="/login.html" id="footerSignIn">Sign in</a><a href="/pricing.html">Pricing</a>
