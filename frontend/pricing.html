@@ -813,6 +813,8 @@
 
   const ARROW_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>';
   const CANCEL_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+  const DOWN_SVG   = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>';
+  const UP_SVG     = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>';
 
   function updateCurrentPlanUI() {
     // Reset all cards first
@@ -830,19 +832,29 @@
 
     const { ctaId, badgeId, isGold } = PLAN_META[_currentPlanKey];
 
-    // The badge is always shown (plan is active regardless of billing view)
+    // Badge always shown regardless of toggle state
     const badge = document.getElementById(badgeId);
     if (badge) badge.style.display = 'inline-flex';
 
-    // The CTA becomes "Cancel plan" only when the billing toggle matches the user's interval
+    const cta = document.getElementById(ctaId);
+    if (!cta) return;
+
     const billingMatchesCurrent =
       (billing === 'monthly' && _currentInterval === 'monthly') ||
       (billing === 'annual'  && _currentInterval === 'annual');
 
-    const cta = document.getElementById(ctaId);
-    if (cta && billingMatchesCurrent) {
+    if (billingMatchesCurrent) {
+      // Same plan, same interval → Cancel
       cta.className = 'card-cta cta-cancel';
       cta.innerHTML = CANCEL_SVG + ' Cancel plan';
+    } else if (_currentInterval === 'annual' && billing === 'monthly') {
+      // Viewing monthly prices while on annual → offer to switch down to monthly
+      cta.className = 'card-cta cta-cancel';
+      cta.innerHTML = DOWN_SVG + ' Switch to Monthly';
+    } else if (_currentInterval === 'monthly' && billing === 'annual') {
+      // Viewing annual prices while on monthly → offer to switch up to annual (upgrade)
+      cta.className = 'card-cta ' + (isGold ? 'cta-gold' : 'cta-blue');
+      cta.innerHTML = UP_SVG + ' Switch to Annual';
     }
   }
 
@@ -1136,6 +1148,7 @@
 
   async function showDowngradeModal(currentPlan, targetPlan, me, targetInterval) {
     targetInterval = targetInterval || 'monthly';
+    const currentInterval = (me && me.plan_interval) || _currentInterval || 'monthly';
     const isTierDowngrade = planRank(targetPlan) < planRank(currentPlan);
     if (isTierDowngrade) targetInterval = 'monthly';
     let info = await getBillingInfo();
@@ -1189,7 +1202,9 @@
 
   async function confirmDowngrade(targetPlan, targetInterval) {
     targetInterval = targetInterval || 'monthly';
-    const btn = document.getElementById('confirmDowngradeBtn');
+    // Support both downgrade modal button and cancel modal button
+    const btn = document.getElementById('confirmDowngradeBtn') || document.getElementById('confirmCancelBtn');
+    const originalLabel = btn ? btn.textContent.trim() : 'Schedule downgrade';
     if (btn) { btn.disabled = true; btn.textContent = 'Scheduling…'; }
     try {
       const r = await fetch('/api/billing/schedule-downgrade', {
@@ -1200,6 +1215,12 @@
       const d = await r.json();
       if (!r.ok) throw new Error(d.detail || 'Failed.');
       _billingInfo = null;
+      // Refresh the current-plan UI so badge/CTA updates
+      if (targetPlan === 'free') {
+        _currentPlanKey = null;
+        _currentInterval = null;
+      }
+      updateCurrentPlanUI();
       const box = document.getElementById('payModalBox');
       if (box) box.innerHTML = `
         <div style="text-align:center;">
@@ -1211,8 +1232,8 @@
           <button onclick="closePayModal();" style="background:#4f46e5;border:none;color:#fff;font-weight:700;font-size:14px;padding:10px 24px;border-radius:10px;cursor:pointer;">Got it</button>
         </div>`;
     } catch(e) {
-      if (btn) { btn.disabled = false; btn.textContent = 'Schedule downgrade'; }
-      alert('Could not schedule downgrade: ' + e.message);
+      if (btn) { btn.disabled = false; btn.textContent = originalLabel; }
+      alert('Could not schedule: ' + e.message);
     }
   }
 
