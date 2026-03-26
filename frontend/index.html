@@ -502,7 +502,7 @@
     .hiw-dots { display: flex; gap: 6px; margin-top: 20px; align-items: center; justify-content: flex-end; padding-right: 20px; }
     .hiw-dot { height: 6px; width: 6px; border-radius: 999px; background: var(--border); cursor: pointer; transition: background 0.2s, width 0.2s; }
     .hiw-dot.on { background: var(--primary); width: 20px; }
-    .hiw-toast { background: var(--surface); border: 1px solid rgba(5,150,105,.25); border-radius: var(--radius); padding: 9px 12px; font-size: 12px; display: flex; align-items: center; gap: 7px; box-shadow: 0 2px 12px rgba(5,150,105,.12); margin-top: 10px; opacity: 0; transform: translateY(8px); transition: opacity 0.28s cubic-bezier(.34,1.56,.64,1), transform 0.28s cubic-bezier(.34,1.56,.64,1); white-space: nowrap; pointer-events: none; }
+    .hiw-toast { width: 216px; background: var(--surface); border: 1px solid rgba(5,150,105,.25); border-radius: var(--radius); padding: 9px 12px; font-size: 12px; display: flex; align-items: center; gap: 7px; box-shadow: 0 2px 12px rgba(5,150,105,.12); margin-top: 8px; align-self: flex-end; opacity: 0; transform: translateY(6px); transition: opacity 0.28s cubic-bezier(.34,1.56,.64,1), transform 0.28s cubic-bezier(.34,1.56,.64,1); pointer-events: none; }
     .hiw-toast.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
     .hiw-toast svg { width: 13px; height: 13px; stroke: #059669; fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
     .hiw-tmsg { color: var(--text2); }
@@ -1078,11 +1078,11 @@
               <div class="hiw-rp hiw-rp5"><div class="hiw-rtick"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div></div>
             </div>
             <div class="hiw-nlb"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>No login · No app · Instant access</div>
-            <div class="hiw-toast" id="hiwToast">
-              <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
-              <span class="hiw-tmsg"><strong>14 photos found</strong> — tap to save them all</span>
-            </div>
           </div>
+        </div>
+        <div class="hiw-toast" id="hiwToast">
+          <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+          <span class="hiw-tmsg"><strong>14 photos found</strong> — tap to save them all</span>
         </div>
         <div class="hiw-dots">
           <div class="hiw-dot on" onclick="hiwGoTo(0)"></div>
