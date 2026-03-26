@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>GotchaPic — Find Your Photos</title>
+  <title>Lenstagram — Find Your Photos</title>
   <meta name="description" content="Upload a selfie to instantly find every photo you appear in from this event. No sign-up needed — AI-powered face search for weddings, events & conferences." />
   <meta name="robots" content="noindex" />
 
   <meta property="og:type"        content="website" />
-  <meta property="og:title"       content="Find Yourself in the Photos — GotchaPic" />
-  <meta property="og:description" content="Upload a selfie and instantly find every photo you appear in from this event. Powered by GotchaPic AI face search." />
-  <meta property="og:image"       content="https://gotchapic.com/og-image.jpg" />
-  <meta property="og:site_name"   content="GotchaPic" />
+  <meta property="og:title"       content="Find Yourself in the Photos — Lenstagram" />
+  <meta property="og:description" content="Upload a selfie and instantly find every photo you appear in from this event. Powered by Lenstagram AI face search." />
+  <meta property="og:image"       content="https://lenstagram.app/og-image.jpg" />
+  <meta property="og:site_name"   content="Lenstagram" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700;9..144,800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Kaushan+Script&display=swap" rel="stylesheet">
@@ -920,6 +920,7 @@
 
     .footer-brand:hover { color: var(--primary); }
     .footer-brand span { font-family: 'Kaushan Script', cursive; color: var(--accent); font-weight: 400; }
+    .footer-brand .logo-serif { font-family: 'Fraunces', serif; color: var(--muted); font-weight: 800; }
 
     .footer-tagline {
       font-size: 12px;
@@ -975,6 +976,9 @@
       .card { padding: 24px 20px; }
       .header-inner { padding: 0 20px; }
     }
+
+    .logo-text { display: inline-flex; align-items: baseline; gap: 0; letter-spacing: normal; }
+    .logo-text .logo-serif { font-family: 'Fraunces', serif; font-weight: 800; }
   </style>
 </head>
 <body>
@@ -982,13 +986,13 @@
 <!-- Header -->
 <header class="site-header">
   <div class="header-inner">
-    <a href="https://gotchapic.com" class="logo">
+    <a href="https://lenstagram.app" class="logo">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/>
         <path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/>
         <circle cx="12" cy="10" r="3"/><path d="M9 16c0-1.7 1.3-3 3-3s3 1.3 3 3"/>
       </svg>
-      <span>Gotcha</span><span class="cursive">Pic</span>
+      <span class="logo-text"><span class="logo-serif">Lens</span><span class="cursive">tagram</span></span>
     </a>
     <div class="header-badge">
       <div class="event-dot"></div>
@@ -1250,7 +1254,7 @@
 
 <!-- Footer -->
 <footer>
-  <a href="https://gotchapic.com" class="footer-brand">Gotcha<span>Pic</span></a>
+  <a href="https://lenstagram.app" class="footer-brand"><span class="logo-text"><span class="logo-serif">Lens</span><span>tagram</span></span></a>
   <div class="footer-tagline">AI photo search for weddings &amp; events</div>
 </footer>
 
@@ -1320,7 +1324,7 @@
       shareData = await r.json();
       const name = shareData.dataset_name || 'Photo Collection';
       setAlbumName(name);
-      document.title = `GotchaPic — ${name}`;
+      document.title = `Lenstagram — ${name}`;
     } catch {
       setAlbumName('Link not found');
       showError('This share link is invalid or has expired.');
