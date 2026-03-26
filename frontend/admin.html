@@ -824,7 +824,26 @@
     .stat-value { font-family: 'Fraunces', serif; font-size: 28px; font-weight: 800; color: var(--text); letter-spacing: -1px; }
     .stat-sub { font-size: 11px; color: var(--muted); margin-top: 3px; }
 
-    .activity-list { display: flex; flex-direction: column; gap: 1px; }
+    .activity-list { display: flex; flex-direction: column; gap: 0; }
+    .activity-item {
+      display: flex; align-items: flex-start; gap: 12px;
+      padding: 12px 0; border-bottom: 1px solid var(--border);
+    }
+    .activity-item:last-child { border-bottom: none; }
+    .activity-dot {
+      width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; margin-top: 1px;
+    }
+    .activity-dot.upload  { background: #eff6ff; color: #3b82f6; }
+    .activity-dot.view    { background: #f0fdf4; color: #16a34a; }
+    .activity-dot.download{ background: #faf5ff; color: #9333ea; }
+    .activity-dot.share   { background: #fff7ed; color: #ea580c; }
+    .activity-dot.event   { background: #f0f9ff; color: #0284c7; }
+    .activity-body { flex: 1; min-width: 0; }
+    .activity-title { font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.4; }
+    .activity-title span.activity-name { color: var(--primary); }
+    .activity-meta  { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+    .activity-right { font-size: 11px; color: var(--muted); white-space: nowrap; flex-shrink: 0; padding-top: 3px; }
 
     /* ── Toast ── */
     .toast {
@@ -2515,6 +2534,21 @@
   }
 
   // ── Analytics ───────────────────────────────────────────────────────────────
+  function fmtRelTime(ts) {
+    if (!ts) return '';
+    const diff = Date.now() / 1000 - ts;
+    if (diff < 60)        return 'just now';
+    if (diff < 3600)      return Math.floor(diff / 60) + 'm ago';
+    if (diff < 86400)     return Math.floor(diff / 3600) + 'h ago';
+    if (diff < 86400 * 7) return Math.floor(diff / 86400) + 'd ago';
+    return new Date(ts * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  }
+
+  function fmtAbsTime(ts) {
+    if (!ts) return '';
+    return new Date(ts * 1000).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  }
+
   async function loadAnalytics() {
     let totalViews = 0;
     let totalDownloads = 0;
@@ -2522,23 +2556,109 @@
 
     Object.values(groups).forEach(g => {
       if (g.share_id) activeEvents++;
-      totalViews += (g.view_count || 0);
+      totalViews    += (g.view_count || 0);
       totalDownloads += (g.download_count || 0);
     });
 
-    let totalPhotos = 0;
-    try {
-      const r = await fetch(`${API}/api/datasets`, { credentials: 'include' });
-      if (r.ok) {
-        const data = await r.json();
-        totalPhotos = Object.values(data).reduce((sum, d) => sum + (d.total || 0), 0);
-      }
-    } catch(e) {}
+    let totalPhotos = Object.values(allDatasetsCache).reduce((s, d) => s + (d.total || 0), 0);
 
-    document.getElementById('statSearches').textContent = totalPhotos.toLocaleString('en-IN');
-    document.getElementById('statViews').textContent = totalViews.toLocaleString('en-IN');
-    document.getElementById('statDownloads').textContent = totalDownloads.toLocaleString('en-IN');
-    document.getElementById('statEvents').textContent = activeEvents.toLocaleString('en-IN');
+    document.getElementById('statSearches').textContent   = totalPhotos.toLocaleString('en-IN');
+    document.getElementById('statViews').textContent      = totalViews.toLocaleString('en-IN');
+    document.getElementById('statDownloads').textContent  = totalDownloads.toLocaleString('en-IN');
+    document.getElementById('statEvents').textContent     = activeEvents.toLocaleString('en-IN');
+
+    // ── Build activity feed ─────────────────────────────────────────────────
+    const items = [];
+
+    // Per-group: views, downloads, share created
+    for (const g of Object.values(groups)) {
+      if (g.is_ungrouped) continue;
+
+      if (g.share_id) {
+        // Fetch analytics for this share to get last_viewed_at
+        try {
+          const r = await fetch(`${API}/api/shares/${g.share_id}/analytics`, { credentials: 'include' });
+          if (r.ok) {
+            const a = await r.json();
+            if (a.last_viewed_at) {
+              items.push({
+                type: 'view',
+                ts: a.last_viewed_at,
+                title: `<span class="activity-name">${escHtml(g.name)}</span> was viewed`,
+                meta: `${(a.view_count || 0).toLocaleString('en-IN')} total views · ${(a.download_count || 0).toLocaleString('en-IN')} downloads`,
+              });
+            }
+            if (a.download_count > 0 && !a.last_viewed_at) {
+              items.push({
+                type: 'download',
+                ts: g.created_at,
+                title: `${(a.download_count).toLocaleString('en-IN')} photos downloaded from <span class="activity-name">${escHtml(g.name)}</span>`,
+                meta: `${(a.view_count || 0).toLocaleString('en-IN')} total views`,
+              });
+            }
+          }
+        } catch {}
+
+        // Share link is active
+        items.push({
+          type: 'share',
+          ts: g.created_at,
+          title: `Share link activated for <span class="activity-name">${escHtml(g.name)}</span>`,
+          meta: 'Guests can now find themselves with a selfie',
+        });
+      }
+
+      // Datasets (uploads) inside this group
+      const groupDatasets = Object.values(allDatasetsCache).filter(d => d.group_id === g.id);
+      for (const d of groupDatasets) {
+        if (d.status === 'ready' || d.status === 'indexed') {
+          items.push({
+            type: 'upload',
+            ts: d.created_at,
+            title: `<span class="activity-name">${escHtml(d.name || 'Collection')}</span> indexed in <span class="activity-name">${escHtml(g.name)}</span>`,
+            meta: `${(d.total || 0).toLocaleString('en-IN')} photos · ${(d.face_count || 0).toLocaleString('en-IN')} faces indexed`,
+          });
+        }
+      }
+    }
+
+    // Event groups created
+    Object.values(groups).filter(g => !g.is_ungrouped).forEach(g => {
+      items.push({
+        type: 'event',
+        ts: g.created_at,
+        title: `Event <span class="activity-name">${escHtml(g.name)}</span> created`,
+        meta: g.type ? g.type.charAt(0).toUpperCase() + g.type.slice(1) + (g.date ? ' · ' + g.date : '') : (g.date || ''),
+      });
+    });
+
+    // Sort newest first
+    items.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+
+    const ICONS = {
+      upload:   '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>',
+      view:     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>',
+      download: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>',
+      share:    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>',
+      event:    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+    };
+
+    const list = document.getElementById('activityList');
+    if (!items.length) {
+      list.innerHTML = '<div style="text-align:center;padding:32px 0;color:var(--muted);font-size:13px;">No activity yet — share links with guests to see events here.</div>';
+      return;
+    }
+
+    list.innerHTML = items.slice(0, 20).map(item => `
+      <div class="activity-item">
+        <div class="activity-dot ${item.type}">${ICONS[item.type] || ''}</div>
+        <div class="activity-body">
+          <div class="activity-title">${item.title}</div>
+          ${item.meta ? `<div class="activity-meta">${item.meta}</div>` : ''}
+        </div>
+        <div class="activity-right" title="${fmtAbsTime(item.ts)}">${fmtRelTime(item.ts)}</div>
+      </div>
+    `).join('');
   }
 
   // ── Plan Banner ─────────────────────────────────────────────────────────────
