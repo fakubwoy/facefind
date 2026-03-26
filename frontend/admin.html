@@ -1827,7 +1827,6 @@
 
     renderGroups();
     populateGroupSelectors();
-    loadAnalytics(); // Refresh analytics when groups load
   }
 
   // ── Event type → theme + monogram letter ───────────────────────────────────
@@ -2221,9 +2220,9 @@
         }
         throw new Error(errMsg);
       }
-      // Reset the button now that the drive is accepted and polling will take over
-      driveBtn.disabled = false;
-      driveBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Import from Google Drive`;
+      // Keep button disabled while drive is processing — re-enabled by polling on completion/error
+      driveBtn.disabled = true;
+      driveBtn.innerHTML = `<span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite"></span> Importing…`;
       toast('Google Drive connected! Fetching your photos…', 'success');
       loadGroups(); // Refreshes datasets and groups
       loadPlanBanner();
@@ -2320,7 +2319,11 @@
         loadPlanBanner();
         return;
       }
-      loadGroups();
+      // Preserve the selected group across the loadGroups re-render
+      const savedGroupId = document.getElementById('uploadTargetGroup').value;
+      loadGroups().then(() => {
+        if (savedGroupId) document.getElementById('uploadTargetGroup').value = savedGroupId;
+      });
       loadPlanBanner();
       startPolling('zip', d.dataset_id);
     });
@@ -2452,9 +2455,15 @@
 
         const statusChanged   = d.status    !== lastStatus;
         const progressChanged = d.processed !== lastProcessed;
-        if (statusChanged || progressChanged) {
+        // Only refresh the dataset list when status changes, not on every progress tick
+        // (avoids constant re-renders that make cards blink)
+        if (statusChanged) {
+          const _savedGroup = document.getElementById('uploadTargetGroup')?.value;
           loadDatasets(currentGroupId);
-          lastStatus    = d.status;
+          if (_savedGroup) document.getElementById('uploadTargetGroup').value = _savedGroup;
+          lastStatus = d.status;
+        }
+        if (progressChanged) {
           lastProcessed = d.processed;
         }
 
@@ -2465,15 +2474,28 @@
             if (which === 'zip') showZipSuccess(d.name || d.id, id);
             else showDriveSuccess(id);
           }, 600);
+          // Single consolidated refresh on completion
           loadDatasets(currentGroupId);
           loadPlanBanner();
-          loadGroups();
+          loadGroups().then(() => loadAnalytics());
+          // Re-enable drive button now that the import is fully done
+          if (which === 'drive') {
+            driveBtn.disabled = false;
+            driveBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Import from Google Drive`;
+          }
           toast(`All done — ${d.face_count} people found in your photos!`, 'success');
         } else if (d.status === 'error') {
           clearInterval(pollingInterval); pollingInterval = null;
           updateInlineProgress(which, 'Error', d.error || 'Something went wrong', pct === -1 ? 0 : pct, '');
           document.getElementById(which + 'Ring').style.stroke = 'var(--error)';
           document.getElementById(which + 'Pct').style.color   = 'var(--error)';
+          // Re-enable drive button so the user can try again
+          if (which === 'drive') {
+            driveBtn.disabled = false;
+            driveBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Import from Google Drive`;
+            document.getElementById('driveZone').style.display = '';
+            document.getElementById('driveNameField').style.display = '';
+          }
           toast(`Something went wrong: ${d.error || 'Unknown error'}. Please try uploading again.`, 'error');
         }
       } catch (e) {}
@@ -2913,7 +2935,7 @@
 
   // ── Init ────────────────────────────────────────────────────────────────────
   checkAuth();
-  loadGroups();
+  loadGroups().then(() => loadAnalytics());
   loadPlanBanner();
 
   // Background refresh
