@@ -524,6 +524,9 @@
       width: 64px; height: 64px;
     }
 
+    .loading-ring .ring-track { stroke: var(--border2); }
+    .loading-ring .ring-arc   { stroke: var(--primary); }
+
     @keyframes spin { to { transform: rotate(360deg); } }
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
@@ -1154,8 +1157,8 @@
   <div class="loading-state" id="loadingState">
     <div class="loading-ring">
       <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="32" cy="32" r="28" stroke="currentColor" stroke-width="4"/>
-        <path d="M32 4 A28 28 0 0 1 60 32" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+        <circle cx="32" cy="32" r="28" stroke-width="4" class="ring-track"/>
+        <path d="M32 4 A28 28 0 0 1 60 32" stroke-width="4" stroke-linecap="round" class="ring-arc"/>
       </svg>
     </div>
     <div class="loading-title">Searching…</div>
@@ -1640,8 +1643,10 @@
       const a    = document.createElement('a');
       a.href     = URL.createObjectURL(blob);
       a.download = path.split('/').pop() || 'photo.jpg';
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(a.href);
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(a.href), 100);
       toast('Photo saved!');
     } catch {
       toast('Download failed — try right-clicking the image.', '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>');
@@ -1670,7 +1675,7 @@
 
   /* ── Lightbox ───────────────────────────────────────────── */
   function openLightbox(src, dlSrc, meta) {
-    document.getElementById('lightboxImg').src = src;
+    document.getElementById('lightboxImg').src = dlSrc;
     document.getElementById('lightboxLabel').textContent =
       `${(meta.label || '').replace(/_/g, ' ')} — ${Math.round(meta.score * 100)}% match`;
     const dl = document.getElementById('lightboxDl');
