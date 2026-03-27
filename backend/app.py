@@ -31,19 +31,22 @@ from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request as GoogleRequest
 from googleapiclient.discovery import build
 
+# ── B2 storage ────────────────────────────────────────────────────────────────
+import b2_storage as b2
+
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("facefind")
 
-# ── Storage root (Railway Volume mounted at /data, falls back to local) ───────
-DATA_DIR       = Path(os.environ.get("DATA_DIR", "/data"))
-DATASETS_DIR   = DATA_DIR / "datasets"
-EMBEDDINGS_DIR = DATA_DIR / "embeddings"
-UPLOADS_DIR    = DATA_DIR / "uploads"
-THUMBS_DIR     = DATA_DIR / "thumbs"   # persistent thumbnail cache
+# ── Storage root — temp scratch only; bulk data lives in B2 ──────────────────
+DATA_DIR       = Path(os.environ.get("DATA_DIR", "/tmp/facefind"))
+DATASETS_DIR   = DATA_DIR / "datasets"    # temp extraction only
+EMBEDDINGS_DIR = DATA_DIR / "embeddings"  # temp build only
+UPLOADS_DIR    = DATA_DIR / "uploads"     # temp selfie only
+THUMBS_DIR     = DATA_DIR / "thumbs"      # not used (B2 caches thumbs)
 FRONTEND_DIR   = Path(__file__).parent.parent / "frontend"
 
-# Path to the self-hosted executable ZIP served for download
+# Executable ZIP is now served from B2 — local path only used for migration
 EXECUTABLE_PATH = Path(os.environ.get("EXECUTABLE_PATH", "/data/releases/facefind-selfhosted.zip"))
 
 for d in [DATASETS_DIR, EMBEDDINGS_DIR, UPLOADS_DIR, THUMBS_DIR]:
@@ -390,7 +393,13 @@ def db_get_dataset(dataset_id: str) -> Optional[dict]:
     return None
 
 def get_dataset_disk_size(dataset_id: str) -> int:
-    """Return total bytes of all files in the dataset directory."""
+    """Return total bytes of dataset images stored in B2 (best-effort)."""
+    try:
+        if b2.b2_configured():
+            keys = b2.list_keys(f"datasets/{dataset_id}/")
+            return len(keys) * 500_000  # rough 500KB estimate per image
+    except Exception:
+        pass
     dataset_dir = DATASETS_DIR / dataset_id
     if not dataset_dir.exists():
         return 0
@@ -757,35 +766,59 @@ def run_embedding_job(dataset_id: str):
     emb_dir     = EMBEDDINGS_DIR / dataset_id
     emb_dir.mkdir(exist_ok=True)
 
+    use_b2 = b2.b2_configured()
     exts = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
-    image_paths = [p for p in dataset_dir.rglob("*") if p.suffix.lower() in exts]
 
-    log.info(f"[{dataset_id}] Embedding {len(image_paths)} images")
-    db_update_dataset_fields(dataset_id, status="processing", total=len(image_paths), processed=0)
+    # Build the image list: from B2 keys if available, else local disk
+    if use_b2:
+        b2_keys = [k for k in b2.list_keys(f"datasets/{dataset_id}/")
+                   if Path(k).suffix.lower() in exts]
+        image_paths = None
+        total = len(b2_keys)
+    else:
+        image_paths = [p for p in dataset_dir.rglob("*") if p.suffix.lower() in exts]
+        b2_keys = None
+        total = len(image_paths)
+
+    log.info(f"[{dataset_id}] Embedding {total} images (source={'B2' if use_b2 else 'local'})")
+    db_update_dataset_fields(dataset_id, status="processing", total=total, processed=0)
 
     embeddings, metadata = [], []
     model = get_face_model()
 
-    for i, img_path in enumerate(image_paths):
+    items = b2_keys if use_b2 else image_paths
+
+    for i, item in enumerate(items):
         try:
-            img = cv2.imread(str(img_path))
-            if img is None:
-                continue
+            if use_b2:
+                img_bytes = b2.download_bytes(item)
+                if img_bytes is None:
+                    continue
+                img = decode_image(img_bytes)
+                rel_path = item[len(f"datasets/{dataset_id}/"):]
+                label    = Path(rel_path).parent.name or Path(rel_path).stem
+            else:
+                img = cv2.imread(str(item))
+                if img is None:
+                    continue
+                rel_path = str(item.relative_to(dataset_dir))
+                label    = item.parent.name
+
             for face in model.get(img):
                 emb  = face.normed_embedding.astype("float32")
                 bbox = [int(x) for x in face.bbox.tolist()]
                 embeddings.append(emb)
                 metadata.append({
-                    "image_path": str(img_path.relative_to(dataset_dir)),
-                    "label":      img_path.parent.name,
+                    "image_path": rel_path,
+                    "label":      label,
                     "bbox":       bbox,
                 })
         except Exception as exc:
-            log.warning(f"[{dataset_id}] {img_path.name}: {exc}")
+            log.warning(f"[{dataset_id}] item {i}: {exc}")
 
         # Update progress more frequently for better UI feedback
-        update_freq = 1 if len(image_paths) < 50 else 5
-        if (i + 1) % update_freq == 0 or i == len(image_paths) - 1:
+        update_freq = 1 if total < 50 else 5
+        if (i + 1) % update_freq == 0 or i == total - 1:
             db_update_dataset_fields(dataset_id, processed=i+1)
             log.info(f"[{dataset_id}] Progress: {i+1}/{len(image_paths)}")
 
@@ -799,8 +832,25 @@ def run_embedding_job(dataset_id: str):
         idx.add(emb_matrix)
         faiss.write_index(idx, str(emb_dir / "face_index.faiss"))
 
+        # Upload embeddings to B2
+        if use_b2:
+            for fname in ("embeddings.npy", "metadata.pkl", "face_index.faiss"):
+                fpath = emb_dir / fname
+                if fpath.exists():
+                    b2.upload_embedding_file(dataset_id, fname, fpath.read_bytes())
+                    log.info(f"[{dataset_id}] Uploaded {fname} to B2")
+
     db_update_dataset_fields(dataset_id, status="ready", face_count=len(embeddings))
     log.info(f"[{dataset_id}] Done — {len(embeddings)} face embeddings")
+
+    # Clean up local temp files after uploading to B2
+    if use_b2:
+        import shutil
+        if emb_dir.exists():
+            shutil.rmtree(emb_dir, ignore_errors=True)
+        if dataset_dir.exists():
+            shutil.rmtree(dataset_dir, ignore_errors=True)
+        log.info(f"[{dataset_id}] Local temp dirs cleaned up")
 
     # Unload model after batch embedding to free RAM
     if os.environ.get("UNLOAD_MODEL_AFTER_EMBED", "true").lower() == "true":
@@ -827,6 +877,18 @@ def _get_index_and_meta(dataset_id: str):
     emb_dir    = EMBEDDINGS_DIR / dataset_id
     index_path = emb_dir / "face_index.faiss"
     meta_path  = emb_dir / "metadata.pkl"
+
+    # Download from B2 if not cached locally
+    if b2.b2_configured() and not index_path.exists():
+        emb_dir.mkdir(parents=True, exist_ok=True)
+        for fname, path in [("face_index.faiss", index_path), ("metadata.pkl", meta_path)]:
+            data = b2.download_embedding_file(dataset_id, fname)
+            if data:
+                path.write_bytes(data)
+                log.info(f"[{dataset_id}] Downloaded {fname} from B2 ({len(data):,} bytes)")
+            else:
+                log.warning(f"[{dataset_id}] {fname} not found in B2")
+
     if not index_path.exists():
         return None, None
 
@@ -1013,6 +1075,18 @@ def download_gdrive_folder(folder_id: str, dest_dir: Path, dataset_id: str):
         )
 
     db_update_dataset_fields(dataset_id, status="queued")
+
+    # Upload downloaded images to B2 before embedding
+    if b2.b2_configured():
+        exts = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
+        uploaded = 0
+        for img_path in dest_dir.rglob("*"):
+            if img_path.is_file() and img_path.suffix.lower() in exts:
+                rel = str(img_path.relative_to(dest_dir))
+                b2.upload_dataset_image(dataset_id, rel, img_path.read_bytes())
+                uploaded += 1
+        log.info(f"[{dataset_id}] GDrive: uploaded {uploaded} images to B2")
+
     run_embedding_job(dataset_id)
 
 # ── Auth helpers ──────────────────────────────────────────────────────────────
@@ -1808,6 +1882,17 @@ async def upload_zip(
     total_imgs, capped = compress_images_in_dir(dataset_dir, free_tier=is_free)
     log.info(f"[{dataset_id}] {'Free' if is_free else 'Paid'} tier cap: {capped}/{total_imgs} images processed")
 
+    # Upload images to B2
+    if b2.b2_configured():
+        exts = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
+        uploaded = 0
+        for img_path in dataset_dir.rglob("*"):
+            if img_path.is_file() and img_path.suffix.lower() in exts:
+                rel = str(img_path.relative_to(dataset_dir))
+                b2.upload_dataset_image(dataset_id, rel, img_path.read_bytes())
+                uploaded += 1
+        log.info(f"[{dataset_id}] Uploaded {uploaded} images to B2")
+
     background_tasks.add_task(run_embedding_job, dataset_id)
     return {"dataset_id": dataset_id, "status": "compressing"}
 
@@ -1895,6 +1980,17 @@ def delete_dataset(dataset_id: str, request: Request):
         shutil.rmtree(dataset_dir)
     if emb_dir.exists():
         shutil.rmtree(emb_dir)
+
+    # Delete from B2
+    if b2.b2_configured():
+        b2.delete_dataset_images(dataset_id)
+        b2.delete_embeddings(dataset_id)
+        b2.delete_thumbs(dataset_id)
+        log.info(f"Dataset {dataset_id} B2 objects deleted")
+
+    # Evict from in-memory index cache
+    with _index_cache_lock:
+        _index_cache.pop(dataset_id, None)
 
     with get_db() as conn:
         with conn.cursor() as cur:
@@ -2188,6 +2284,14 @@ async def search_by_selfie(share_id: str, file: UploadFile = File(...), face_ind
 
 @app.get("/api/image/{dataset_id}/{image_path:path}")
 def serve_image(dataset_id: str, image_path: str):
+    if b2.b2_configured():
+        data = b2.download_dataset_image(dataset_id, image_path)
+        if data is None:
+            raise HTTPException(404, "Image not found.")
+        ext = Path(image_path).suffix.lower()
+        ctype = "image/jpeg" if ext in (".jpg", ".jpeg") else "image/png" if ext == ".png" else "image/webp"
+        return Response(content=data, media_type=ctype,
+                        headers={"Cache-Control": "public, max-age=604800, immutable"})
     full_path = DATASETS_DIR / dataset_id / image_path
     if not full_path.exists():
         raise HTTPException(404, "Image not found.")
@@ -2198,13 +2302,34 @@ THUMB_WIDTH = int(os.environ.get("THUMB_WIDTH", "400"))
 
 @app.get("/api/thumb/{dataset_id}/{image_path:path}")
 def serve_thumb(dataset_id: str, image_path: str):
-    src_path   = DATASETS_DIR / dataset_id / image_path
+    if b2.b2_configured():
+        # Check B2 thumb cache
+        thumb_data = b2.download_thumb(dataset_id, image_path + ".thumb.jpg")
+        if thumb_data:
+            return Response(content=thumb_data, media_type="image/jpeg",
+                            headers={"Cache-Control": "public, max-age=604800, immutable"})
+        # Generate thumb from original B2 image
+        src_data = b2.download_dataset_image(dataset_id, image_path)
+        if src_data is None:
+            raise HTTPException(404, "Image not found.")
+        img = decode_image(src_data)
+        h, w = img.shape[:2]
+        if w > THUMB_WIDTH:
+            new_h = int(h * THUMB_WIDTH / w)
+            img = cv2.resize(img, (THUMB_WIDTH, new_h), interpolation=cv2.INTER_AREA)
+        _, buf = cv2.imencode(".jpg", img, [int(cv2.IMWRITE_JPEG_QUALITY), 82])
+        thumb_bytes = buf.tobytes()
+        # Upload thumb to B2 for future caching
+        b2.upload_thumb(dataset_id, image_path + ".thumb.jpg", thumb_bytes)
+        return Response(content=thumb_bytes, media_type="image/jpeg",
+                        headers={"Cache-Control": "public, max-age=604800, immutable"})
+
+    # Fallback: local disk
+    src_path = DATASETS_DIR / dataset_id / image_path
     if not src_path.exists():
         raise HTTPException(404, "Image not found.")
-
     thumb_path = THUMBS_DIR / dataset_id / (image_path + ".thumb.jpg")
     thumb_path.parent.mkdir(parents=True, exist_ok=True)
-
     if not thumb_path.exists():
         img = cv2.imread(str(src_path))
         if img is None:
@@ -2212,14 +2337,10 @@ def serve_thumb(dataset_id: str, image_path: str):
         h, w = img.shape[:2]
         if w > THUMB_WIDTH:
             new_h = int(h * THUMB_WIDTH / w)
-            img   = cv2.resize(img, (THUMB_WIDTH, new_h), interpolation=cv2.INTER_AREA)
+            img = cv2.resize(img, (THUMB_WIDTH, new_h), interpolation=cv2.INTER_AREA)
         cv2.imwrite(str(thumb_path), img, [int(cv2.IMWRITE_JPEG_QUALITY), 82])
-
-    return FileResponse(
-        str(thumb_path),
-        media_type="image/jpeg",
-        headers={"Cache-Control": "public, max-age=604800, immutable"},
-    )
+    return FileResponse(str(thumb_path), media_type="image/jpeg",
+                        headers={"Cache-Control": "public, max-age=604800, immutable"})
 
 # ── Download & license endpoints ──────────────────────────────────────────────
 
@@ -2316,15 +2437,29 @@ def request_download_link(request: Request):
 def download_file(token: str, request: Request):
     """
     Serve the self-hosted executable ZIP after validating the one-use download token.
+    Streams from B2 if configured, falls back to local file.
     """
+    from fastapi.responses import StreamingResponse
     user_id = consume_download_token(token)
     if not user_id:
         raise HTTPException(403, "Invalid or expired download link. Please request a new one.")
 
+    if b2.b2_configured() and b2.executable_exists():
+        log.info(f"Executable streamed from B2 by user {user_id}")
+        size = b2.get_executable_size()
+        headers = {"Content-Disposition": 'attachment; filename="facefind-selfhosted.zip"'}
+        if size:
+            headers["Content-Length"] = str(size)
+        return StreamingResponse(
+            b2.stream_executable(),
+            media_type="application/zip",
+            headers=headers,
+        )
+
     if not EXECUTABLE_PATH.exists():
         raise HTTPException(503, "The download package is not yet available. Please contact support.")
 
-    log.info(f"Executable downloaded by user {user_id}")
+    log.info(f"Executable downloaded from local by user {user_id}")
     return FileResponse(
         str(EXECUTABLE_PATH),
         media_type="application/zip",
@@ -3437,11 +3572,19 @@ def debug_email():
 @app.get("/api/health")
 def health():
     r = get_redis()
+    b2_status = "disabled"
+    if b2.b2_configured():
+        try:
+            b2.get_b2_client()
+            b2_status = "connected"
+        except Exception:
+            b2_status = "error"
     return {
         "status":    "ok",
         "timestamp": time.time(),
         "redis":     "connected" if r else "disabled",
         "db":        "postgres",
+        "b2":        b2_status,
         "email":     "configured" if all([
             os.environ.get("GMAIL_CLIENT_ID"),
             os.environ.get("GMAIL_CLIENT_SECRET"),
@@ -3625,9 +3768,15 @@ def serve_image_watermarked(dataset_id: str, image_path: str, share_id: str = No
     Called from share.html when user downloads a result.
     Requires share_id query param to look up watermark settings.
     """
-    full_path = DATASETS_DIR / dataset_id / image_path
-    if not full_path.exists():
-        raise HTTPException(404, "Image not found.")
+    if b2.b2_configured():
+        image_bytes = b2.download_dataset_image(dataset_id, image_path)
+        if image_bytes is None:
+            raise HTTPException(404, "Image not found.")
+    else:
+        full_path = DATASETS_DIR / dataset_id / image_path
+        if not full_path.exists():
+            raise HTTPException(404, "Image not found.")
+        image_bytes = full_path.read_bytes()
 
     watermark_text = None
     if share_id:
@@ -3645,7 +3794,6 @@ def serve_image_watermarked(dataset_id: str, image_path: str, share_id: str = No
                     if group:
                         watermark_text = group.get("watermark_text") or None
 
-    image_bytes = full_path.read_bytes()
     if watermark_text:
         try:
             image_bytes = apply_watermark(image_bytes, watermark_text)
@@ -3914,6 +4062,30 @@ def admin_list_discounts(request: Request):
             cur.execute("SELECT * FROM discount_codes ORDER BY created_at DESC")
             codes = [dict(r) for r in cur.fetchall()]
     return codes
+
+
+# ── Admin: one-shot migration from local volume to B2 ────────────────────────
+
+@app.post("/api/admin/migrate-to-b2")
+def admin_migrate_to_b2(request: Request):
+    """
+    Trigger one-shot migration: copies all local volume data into B2.
+    Safe to run multiple times (idempotent — B2 objects are overwritten).
+    """
+    check_admin_secret(request)
+    if not b2.b2_configured():
+        raise HTTPException(503, "B2 is not configured. Set B2_KEY_ID, B2_APPLICATION_KEY, B2_BUCKET_NAME.")
+
+    messages = []
+    summary = b2.migrate_local_to_b2(
+        datasets_dir=DATASETS_DIR,
+        embeddings_dir=EMBEDDINGS_DIR,
+        thumbs_dir=THUMBS_DIR,
+        uploads_dir=UPLOADS_DIR,
+        executable_path=EXECUTABLE_PATH,
+        progress_callback=messages.append,
+    )
+    return {"ok": True, "summary": summary, "log": messages}
 
 
 if FRONTEND_DIR.exists():
