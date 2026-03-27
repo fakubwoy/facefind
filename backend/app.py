@@ -3551,6 +3551,28 @@ def admin_set_plan(request: Request, target_email: str = Form(...), plan: str = 
     log.info(f"Plan updated: {target_email} → {plan}")
     return {"ok": True, "email": target_email, "plan": plan}
 
+
+@app.post("/api/admin/clean-local-volume")
+def admin_clean_local_volume(request: Request):
+    """
+    Admin-only: Wipes local files to free up Railway disk space
+    after a successful B2 migration. Does NOT delete from B2 or DB.
+    """
+    check_admin_secret(request)
+    import shutil
+
+    cleaned = {"datasets": 0, "embeddings": 0, "thumbs": 0}
+
+    for d, key in [(DATASETS_DIR, "datasets"), (EMBEDDINGS_DIR, "embeddings"), (THUMBS_DIR, "thumbs")]:
+        if d.exists():
+            for p in d.iterdir():
+                if p.is_dir():
+                    shutil.rmtree(p, ignore_errors=True)
+                    cleaned[key] += 1
+
+    log.info(f"Local volume cleaned: {cleaned}")
+    return {"ok": True, "message": "Local volume safely wiped.", "cleaned": cleaned}
+
 # ── Debug endpoint to check email config ──────────────────────────────────────
 
 @app.get("/api/debug/email")
