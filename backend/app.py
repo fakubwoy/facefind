@@ -822,7 +822,7 @@ def run_embedding_job(dataset_id: str):
         update_freq = 1 if total < 50 else 5
         if (i + 1) % update_freq == 0 or i == total - 1:
             db_update_dataset_fields(dataset_id, processed=i+1)
-            log.info(f"[{dataset_id}] Progress: {i+1}/{len(image_paths)}")
+            log.info(f"[{dataset_id}] Progress: {i+1}/{total}")
 
     if embeddings:
         emb_matrix = np.stack(embeddings).astype("float32")
