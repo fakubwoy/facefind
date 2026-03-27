@@ -1,5 +1,5 @@
 """
-FaceFind – Backend API (Railway Edition)
+Pixmatch – Backend API (Railway Edition)
 - Postgres for metadata (datasets, shares, license keys, download tokens)
 - Redis for caching dataset status + search results
 - Local filesystem volume for images + FAISS indexes
@@ -7,7 +7,9 @@ FaceFind – Backend API (Railway Edition)
 """
 
 import os, io, re, uuid, time, json, pickle, zipfile, threading, hashlib, secrets, base64
-import smtplib, random
+import sys
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).parent))
+import smtplib, random, hmac
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.message import EmailMessage
@@ -31,19 +33,22 @@ from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request as GoogleRequest
 from googleapiclient.discovery import build
 
+# ── B2 storage ────────────────────────────────────────────────────────────────
+import b2_storage as b2
+
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("facefind")
 
-# ── Storage root (Railway Volume mounted at /data, falls back to local) ───────
-DATA_DIR       = Path(os.environ.get("DATA_DIR", "/data"))
-DATASETS_DIR   = DATA_DIR / "datasets"
-EMBEDDINGS_DIR = DATA_DIR / "embeddings"
-UPLOADS_DIR    = DATA_DIR / "uploads"
-THUMBS_DIR     = DATA_DIR / "thumbs"   # persistent thumbnail cache
+# ── Storage root — temp scratch only; bulk data lives in B2 ──────────────────
+DATA_DIR       = Path(os.environ.get("DATA_DIR", "/tmp/facefind"))
+DATASETS_DIR   = DATA_DIR / "datasets"    # temp extraction only
+EMBEDDINGS_DIR = DATA_DIR / "embeddings"  # temp build only
+UPLOADS_DIR    = DATA_DIR / "uploads"     # temp selfie only
+THUMBS_DIR     = DATA_DIR / "thumbs"      # not used (B2 caches thumbs)
 FRONTEND_DIR   = Path(__file__).parent.parent / "frontend"
 
-# Path to the self-hosted executable ZIP served for download
+# Executable ZIP is now served from B2 — local path only used for migration
 EXECUTABLE_PATH = Path(os.environ.get("EXECUTABLE_PATH", "/data/releases/facefind-selfhosted.zip"))
 
 for d in [DATASETS_DIR, EMBEDDINGS_DIR, UPLOADS_DIR, THUMBS_DIR]:
@@ -112,7 +117,7 @@ def init_db():
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS shares (
                     share_id     TEXT PRIMARY KEY,
-                    dataset_id   TEXT NOT NULL,
+                    dataset_id   TEXT NOT NULL UNIQUE,
                     dataset_name TEXT,
                     created_at   DOUBLE PRECISION
                 );
@@ -124,6 +129,101 @@ def init_db():
             # Migration: add plan column to users
             cur.execute("""
                 ALTER TABLE users ADD COLUMN IF NOT EXISTS plan TEXT DEFAULT 'free';
+            """)
+            # Migration: billing cycle tracking + credits
+            cur.execute("""
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_cycle_start DOUBLE PRECISION DEFAULT NULL;
+            """)
+            cur.execute("""
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS credits_paise INT DEFAULT 0;
+            """)
+            cur.execute("""
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS scheduled_downgrade TEXT DEFAULT NULL;
+            """)
+            cur.execute("""
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS scheduled_downgrade_at DOUBLE PRECISION DEFAULT NULL;
+            """)
+            # Migration: track target interval for scheduled interval switches
+            cur.execute("""
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS scheduled_downgrade_interval TEXT DEFAULT NULL;
+            """)
+            cur.execute("""
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS loyalty_discount_used BOOLEAN DEFAULT FALSE;
+            """)
+            # Migration: billing interval (monthly vs annual)
+            cur.execute("""
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_interval TEXT DEFAULT 'monthly';
+            """)
+            cur.execute("""
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by TEXT DEFAULT NULL;
+            """)
+            # Referral credits ledger
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS referral_credits (
+                    id           TEXT PRIMARY KEY,
+                    user_id      TEXT NOT NULL,
+                    from_user_id TEXT NOT NULL,
+                    amount_paise INT NOT NULL,
+                    reason       TEXT,
+                    created_at   DOUBLE PRECISION
+                );
+            """)
+            # Migration: backfill plan_cycle_start for existing paid users who have none.
+            # Uses their most recent paid order's created_at as a best estimate.
+            cur.execute("""
+                UPDATE users u
+                SET plan_cycle_start = sub.latest_order
+                FROM (
+                    SELECT user_id, MAX(created_at) AS latest_order
+                    FROM razorpay_orders
+                    WHERE status = 'paid'
+                    GROUP BY user_id
+                ) sub
+                WHERE u.id = sub.user_id
+                  AND u.plan != 'free'
+                  AND u.plan_cycle_start IS NULL;
+            """)
+            cur.execute("""
+                ALTER TABLE razorpay_orders ADD COLUMN IF NOT EXISTS discount_code TEXT DEFAULT NULL;
+            """)
+            # Rate-limit table for discount code validation attempts
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS discount_validate_attempts (
+                    id         TEXT PRIMARY KEY,
+                    user_id    TEXT NOT NULL,
+                    attempted_at DOUBLE PRECISION
+                );
+            """)
+            # Migration: add previous_plan + proration fields to razorpay_orders
+            cur.execute("""
+                ALTER TABLE razorpay_orders ADD COLUMN IF NOT EXISTS previous_plan TEXT DEFAULT NULL;
+            """)
+            cur.execute("""
+                ALTER TABLE razorpay_orders ADD COLUMN IF NOT EXISTS plan_interval TEXT DEFAULT 'monthly';
+            """)
+            cur.execute("""
+                ALTER TABLE razorpay_orders ADD COLUMN IF NOT EXISTS credit_applied_paise INT DEFAULT 0;
+            """)
+            cur.execute("""
+                ALTER TABLE razorpay_orders ADD COLUMN IF NOT EXISTS credit_applied_paise INT DEFAULT 0;
+            """)
+            # Migration: enforce one share per dataset (deduplicate first, then add constraint)
+            cur.execute("""
+                DELETE FROM shares s1
+                USING shares s2
+                WHERE s1.created_at < s2.created_at
+                  AND s1.dataset_id = s2.dataset_id;
+            """)
+            cur.execute("""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_constraint
+                        WHERE conname = 'shares_dataset_id_unique'
+                    ) THEN
+                        ALTER TABLE shares ADD CONSTRAINT shares_dataset_id_unique UNIQUE (dataset_id);
+                    END IF;
+                END$$;
             """)
             # License keys table
             cur.execute("""
@@ -150,6 +250,87 @@ def init_db():
                     used        BOOLEAN DEFAULT FALSE
                 );
             """)
+            # Razorpay orders table
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS razorpay_orders (
+                    order_id        TEXT PRIMARY KEY,
+                    user_id         TEXT NOT NULL,
+                    plan            TEXT NOT NULL,
+                    amount_paise    INT NOT NULL,
+                    status          TEXT DEFAULT 'created',
+                    payment_id      TEXT,
+                    created_at      DOUBLE PRECISION
+                );
+            """)
+            # ── NEW: Event Groups table ─────────────────────────────────────────────
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS event_groups (
+                    id            TEXT PRIMARY KEY,
+                    user_id       TEXT NOT NULL,
+                    name          TEXT NOT NULL,
+                    description   TEXT DEFAULT '',
+                    cover_image   TEXT DEFAULT NULL,
+                    watermark_text TEXT DEFAULT NULL,
+                    created_at    DOUBLE PRECISION
+                );
+            """)
+            # Migration: add event_type and event_date to event_groups
+            cur.execute("""
+                ALTER TABLE event_groups ADD COLUMN IF NOT EXISTS event_type TEXT DEFAULT 'other';
+            """)
+            cur.execute("""
+                ALTER TABLE event_groups ADD COLUMN IF NOT EXISTS event_date TEXT DEFAULT NULL;
+            """)
+            # Migration: ensure datasets table has group_id column
+            cur.execute("""
+                ALTER TABLE datasets ADD COLUMN IF NOT EXISTS group_id TEXT DEFAULT NULL;
+            """)
+            # Migration: shares table — add watermark, analytics, qr fields
+            cur.execute("""
+                ALTER TABLE shares ADD COLUMN IF NOT EXISTS watermark_text TEXT DEFAULT NULL;
+            """)
+            cur.execute("""
+                ALTER TABLE shares ADD COLUMN IF NOT EXISTS view_count INT DEFAULT 0;
+            """)
+            cur.execute("""
+                ALTER TABLE shares ADD COLUMN IF NOT EXISTS download_count INT DEFAULT 0;
+            """)
+            cur.execute("""
+                ALTER TABLE shares ADD COLUMN IF NOT EXISTS last_viewed_at DOUBLE PRECISION DEFAULT NULL;
+            """)
+            # ── NEW: Discount codes table ────────────────────────────────────────────
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS discount_codes (
+                    code            TEXT PRIMARY KEY,
+                    discount_pct    INT NOT NULL,
+                    interval        TEXT DEFAULT 'both',
+                    max_uses        INT DEFAULT 1,
+                    use_count       INT DEFAULT 0,
+                    expires_at      DOUBLE PRECISION DEFAULT NULL,
+                    created_by      TEXT DEFAULT 'admin',
+                    created_at      DOUBLE PRECISION
+                );
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS discount_code_uses (
+                    id          TEXT PRIMARY KEY,
+                    code        TEXT NOT NULL,
+                    user_id     TEXT NOT NULL,
+                    used_at     DOUBLE PRECISION,
+                    order_id    TEXT DEFAULT NULL
+                );
+            """)
+            # Share analytics log (optional detail)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS share_analytics (
+                    id          TEXT PRIMARY KEY,
+                    share_id    TEXT NOT NULL,
+                    event_type  TEXT NOT NULL,
+                    ip_hash     TEXT,
+                    created_at  DOUBLE PRECISION
+                );
+            """)
+
         conn.commit()
     log.info("DB tables ready")
 
@@ -214,7 +395,13 @@ def db_get_dataset(dataset_id: str) -> Optional[dict]:
     return None
 
 def get_dataset_disk_size(dataset_id: str) -> int:
-    """Return total bytes of all files in the dataset directory."""
+    """Return total bytes of dataset images stored in B2 (best-effort)."""
+    try:
+        if b2.b2_configured():
+            keys = b2.list_keys(f"datasets/{dataset_id}/")
+            return len(keys) * 500_000  # rough 500KB estimate per image
+    except Exception:
+        pass
     dataset_dir = DATASETS_DIR / dataset_id
     if not dataset_dir.exists():
         return 0
@@ -414,9 +601,109 @@ SELF_HOSTED_PLAN_LIMITS = {
     },
 }
 
+# ── Razorpay config ───────────────────────────────────────────────────────────
+RAZORPAY_KEY_ID     = os.environ.get("RAZORPAY_KEY_ID", "")
+RAZORPAY_KEY_SECRET = os.environ.get("RAZORPAY_KEY_SECRET", "")
+
+# Amount in paise (INR × 100), plan key → monthly amount
+PLAN_PRICES_PAISE = {
+    "personal_lite":  9900,    # ₹99
+    "personal_pro":   19900,   # ₹199
+    "personal_max":   34900,   # ₹349
+    "photo_starter":  59900,   # ₹599
+    "photo_pro":      149900,  # ₹1,499
+}
+
+# Annual prices (roughly 2 months free — ~17% discount)
+PLAN_PRICES_ANNUAL_PAISE = {
+    "personal_lite":  99000,   # ₹990/yr  (saves ₹198)
+    "personal_pro":   199000,  # ₹1,990/yr (saves ₹398)
+    "personal_max":   349000,  # ₹3,490/yr (saves ₹698)
+    "photo_starter":  599000,  # ₹5,990/yr (saves ₹1,198)
+    "photo_pro":      1499000, # ₹14,990/yr (saves ₹2,998)
+}
+
+def get_plan_price(plan: str, interval: str = "monthly") -> int:
+    """Return the price in paise for a given plan and billing interval."""
+    if interval == "annual":
+        return PLAN_PRICES_ANNUAL_PAISE.get(plan, 0)
+    return PLAN_PRICES_PAISE.get(plan, 0)
+
+def get_billing_period_days(interval: str = "monthly") -> int:
+    """Return the number of days in a billing period."""
+    return 365 if interval == "annual" else 30
+
 def get_plan_limits(user: dict) -> dict:
     plan = user.get("plan", "free") or "free"
     return PLAN_LIMITS.get(plan, PLAN_LIMITS["free"])
+
+# ── Plan ordering for upgrade/downgrade direction ─────────────────────────────
+PLAN_ORDER = ["free", "personal_lite", "personal_pro", "personal_max", "photo_starter", "photo_pro"]
+
+def plan_rank(plan: str) -> int:
+    try:
+        return PLAN_ORDER.index(plan)
+    except ValueError:
+        return 0
+
+def compute_proration_credit(current_plan: str, cycle_start: float, interval: str = "monthly") -> int:
+    """
+    Calculate unused credit (in paise) remaining in the current billing period.
+    Supports both monthly (30-day) and annual (365-day) billing cycles.
+    Returns 0 if cycle_start is unknown or plan is free.
+    """
+    if not cycle_start or current_plan == "free" or current_plan not in PLAN_PRICES_PAISE:
+        return 0
+    price = get_plan_price(current_plan, interval)
+    period_days = get_billing_period_days(interval)
+    elapsed_seconds = time.time() - cycle_start
+    days_elapsed = min(elapsed_seconds / 86400, period_days)
+    days_remaining = max(period_days - days_elapsed, 0)
+    credit = int((days_remaining / period_days) * price)
+    return credit
+
+def compute_upgrade_charge(current_plan: str, target_plan: str, cycle_start: float, credits_paise: int, current_interval: str = "monthly", target_interval: str = "monthly") -> dict:
+    """
+    Compute what a user actually pays to upgrade.
+    - Prorates unused time on current plan as credit (respects monthly vs annual)
+    - Also applies any stored account credits (referrals, goodwill)
+    - Never charges less than ₹1 (100 paise) — Razorpay minimum
+    Returns dict with: full_price, proration_credit, account_credit, total_credit, charge, is_free_upgrade
+    """
+    full_price = get_plan_price(target_plan, target_interval)
+    proration_credit = compute_proration_credit(current_plan, cycle_start, current_interval)
+    total_credit = min(proration_credit + (credits_paise or 0), full_price)
+    charge = max(full_price - total_credit, 0)
+    return {
+        "full_price_paise":       full_price,
+        "proration_credit_paise": proration_credit,
+        "account_credit_paise":   credits_paise or 0,
+        "total_credit_paise":     total_credit,
+        "charge_paise":           charge,
+        "is_free_upgrade":        charge == 0,
+    }
+
+def apply_loyalty_discount(user: dict, target_plan: str, target_interval: str = "monthly") -> int:
+    """
+    If user has been on any paid plan ≥ 60 days without a downgrade,
+    and hasn't used a loyalty discount before, give 20% off first month of next tier.
+    Returns discount in paise (0 if not eligible).
+    """
+    if user.get("loyalty_discount_used"):
+        return 0
+    cycle_start = user.get("plan_cycle_start")
+    if not cycle_start:
+        return 0
+    days_on_plan = (time.time() - cycle_start) / 86400
+    if days_on_plan < 60:
+        return 0
+    current_plan = user.get("plan", "free")
+    if current_plan == "free":
+        return 0
+    if plan_rank(target_plan) <= plan_rank(current_plan):
+        return 0
+    full_price = get_plan_price(target_plan, target_interval)
+    return int(full_price * 0.20)  # 20% off
 
 def count_images_in_dir(directory: Path) -> int:
     exts = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
@@ -481,37 +768,61 @@ def run_embedding_job(dataset_id: str):
     emb_dir     = EMBEDDINGS_DIR / dataset_id
     emb_dir.mkdir(exist_ok=True)
 
+    use_b2 = b2.b2_configured()
     exts = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
-    image_paths = [p for p in dataset_dir.rglob("*") if p.suffix.lower() in exts]
 
-    log.info(f"[{dataset_id}] Embedding {len(image_paths)} images")
-    db_update_dataset_fields(dataset_id, status="processing", total=len(image_paths), processed=0)
+    # Build the image list: from B2 keys if available, else local disk
+    if use_b2:
+        b2_keys = [k for k in b2.list_keys(f"datasets/{dataset_id}/")
+                   if Path(k).suffix.lower() in exts]
+        image_paths = None
+        total = len(b2_keys)
+    else:
+        image_paths = [p for p in dataset_dir.rglob("*") if p.suffix.lower() in exts]
+        b2_keys = None
+        total = len(image_paths)
+
+    log.info(f"[{dataset_id}] Embedding {total} images (source={'B2' if use_b2 else 'local'})")
+    db_update_dataset_fields(dataset_id, status="processing", total=total, processed=0)
 
     embeddings, metadata = [], []
     model = get_face_model()
 
-    for i, img_path in enumerate(image_paths):
+    items = b2_keys if use_b2 else image_paths
+
+    for i, item in enumerate(items):
         try:
-            img = cv2.imread(str(img_path))
-            if img is None:
-                continue
+            if use_b2:
+                img_bytes = b2.download_bytes(item)
+                if img_bytes is None:
+                    continue
+                img = decode_image(img_bytes)
+                rel_path = item[len(f"datasets/{dataset_id}/"):]
+                label    = Path(rel_path).parent.name or Path(rel_path).stem
+            else:
+                img = cv2.imread(str(item))
+                if img is None:
+                    continue
+                rel_path = str(item.relative_to(dataset_dir))
+                label    = item.parent.name
+
             for face in model.get(img):
                 emb  = face.normed_embedding.astype("float32")
                 bbox = [int(x) for x in face.bbox.tolist()]
                 embeddings.append(emb)
                 metadata.append({
-                    "image_path": str(img_path.relative_to(dataset_dir)),
-                    "label":      img_path.parent.name,
+                    "image_path": rel_path,
+                    "label":      label,
                     "bbox":       bbox,
                 })
         except Exception as exc:
-            log.warning(f"[{dataset_id}] {img_path.name}: {exc}")
+            log.warning(f"[{dataset_id}] item {i}: {exc}")
 
         # Update progress more frequently for better UI feedback
-        update_freq = 1 if len(image_paths) < 50 else 5
-        if (i + 1) % update_freq == 0 or i == len(image_paths) - 1:
+        update_freq = 1 if total < 50 else 5
+        if (i + 1) % update_freq == 0 or i == total - 1:
             db_update_dataset_fields(dataset_id, processed=i+1)
-            log.info(f"[{dataset_id}] Progress: {i+1}/{len(image_paths)}")
+            log.info(f"[{dataset_id}] Progress: {i+1}/{total}")
 
     if embeddings:
         emb_matrix = np.stack(embeddings).astype("float32")
@@ -523,8 +834,25 @@ def run_embedding_job(dataset_id: str):
         idx.add(emb_matrix)
         faiss.write_index(idx, str(emb_dir / "face_index.faiss"))
 
+        # Upload embeddings to B2
+        if use_b2:
+            for fname in ("embeddings.npy", "metadata.pkl", "face_index.faiss"):
+                fpath = emb_dir / fname
+                if fpath.exists():
+                    b2.upload_embedding_file(dataset_id, fname, fpath.read_bytes())
+                    log.info(f"[{dataset_id}] Uploaded {fname} to B2")
+
     db_update_dataset_fields(dataset_id, status="ready", face_count=len(embeddings))
     log.info(f"[{dataset_id}] Done — {len(embeddings)} face embeddings")
+
+    # Clean up local temp files after uploading to B2
+    if use_b2:
+        import shutil
+        if emb_dir.exists():
+            shutil.rmtree(emb_dir, ignore_errors=True)
+        if dataset_dir.exists():
+            shutil.rmtree(dataset_dir, ignore_errors=True)
+        log.info(f"[{dataset_id}] Local temp dirs cleaned up")
 
     # Unload model after batch embedding to free RAM
     if os.environ.get("UNLOAD_MODEL_AFTER_EMBED", "true").lower() == "true":
@@ -551,6 +879,18 @@ def _get_index_and_meta(dataset_id: str):
     emb_dir    = EMBEDDINGS_DIR / dataset_id
     index_path = emb_dir / "face_index.faiss"
     meta_path  = emb_dir / "metadata.pkl"
+
+    # Download from B2 if not cached locally
+    if b2.b2_configured() and not index_path.exists():
+        emb_dir.mkdir(parents=True, exist_ok=True)
+        for fname, path in [("face_index.faiss", index_path), ("metadata.pkl", meta_path)]:
+            data = b2.download_embedding_file(dataset_id, fname)
+            if data:
+                path.write_bytes(data)
+                log.info(f"[{dataset_id}] Downloaded {fname} from B2 ({len(data):,} bytes)")
+            else:
+                log.warning(f"[{dataset_id}] {fname} not found in B2")
+
     if not index_path.exists():
         return None, None
 
@@ -661,10 +1001,31 @@ def download_gdrive_folder(folder_id: str, dest_dir: Path, dataset_id: str):
     api_key    = os.environ.get("GOOGLE_API_KEY", "").strip()
     downloaded = 0
     last_error = ""
+    was_truncated = False
+
+    # Determine image limit for this dataset's owner
+    ds = db_get_dataset(dataset_id)
+    max_images = None
+    if ds:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT plan FROM users WHERE id=%s", (ds["user_id"],))
+                row = cur.fetchone()
+        if row:
+            plan = (row["plan"] or "free")
+            max_images = PLAN_LIMITS.get(plan, PLAN_LIMITS["free"])["max_images"]
 
     if api_key:
         try:
             files = _gdrive_list_folder(folder_id, api_key, dataset_id)
+            # ── Enforce plan image quota: take only the first N files ──────────
+            if max_images is not None and len(files) > max_images:
+                log.warning(
+                    f"[{dataset_id}] Drive has {len(files)} images but plan limit is "
+                    f"{max_images} — truncating to first {max_images} files"
+                )
+                files = files[:max_images]
+                was_truncated = True
             total = len(files)
             log.info(f"[{dataset_id}] Downloading {total} images via Drive API")
             db_update_dataset_fields(dataset_id, total=total, processed=0)
@@ -686,7 +1047,16 @@ def download_gdrive_folder(folder_id: str, dest_dir: Path, dataset_id: str):
             import gdown
             gdown.download_folder(id=folder_id, output=str(dest_dir), quiet=False, use_cookies=False)
             img_exts = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
-            downloaded = sum(1 for p in dest_dir.rglob("*") if p.suffix.lower() in img_exts)
+            all_imgs = [p for p in dest_dir.rglob("*") if p.suffix.lower() in img_exts]
+            # Enforce quota when using gdown fallback
+            if max_images is not None and len(all_imgs) > max_images:
+                log.warning(f"[{dataset_id}] gdown: truncating {len(all_imgs)} → {max_images} images")
+                for p in sorted(all_imgs, key=lambda x: x.name)[max_images:]:
+                    p.unlink(missing_ok=True)
+                was_truncated = True
+                downloaded = max_images
+            else:
+                downloaded = len(all_imgs)
         except Exception as exc:
             last_error = str(exc)
             log.error(f"[{dataset_id}] gdown error: {exc}")
@@ -698,11 +1068,351 @@ def download_gdrive_folder(folder_id: str, dest_dir: Path, dataset_id: str):
         db_update_dataset_fields(dataset_id, status="error", error=msg)
         return
 
+    if was_truncated:
+        log.info(f"[{dataset_id}] Plan quota applied — only first {downloaded} images imported from Drive")
+        # Store a non-fatal warning so the UI can surface it
+        db_update_dataset_fields(
+            dataset_id,
+            error=f"Your plan allows up to {max_images:,} images. Only the first {downloaded:,} photos from the Drive folder were imported."
+        )
+
     db_update_dataset_fields(dataset_id, status="queued")
+
+    # Upload downloaded images to B2 before embedding
+    if b2.b2_configured():
+        exts = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
+        uploaded = 0
+        for img_path in dest_dir.rglob("*"):
+            if img_path.is_file() and img_path.suffix.lower() in exts:
+                rel = str(img_path.relative_to(dest_dir))
+                b2.upload_dataset_image(dataset_id, rel, img_path.read_bytes())
+                uploaded += 1
+        log.info(f"[{dataset_id}] GDrive: uploaded {uploaded} images to B2")
+
     run_embedding_job(dataset_id)
 
 # ── Auth helpers ──────────────────────────────────────────────────────────────
 
+
+# ── QR Code generation ────────────────────────────────────────────────────────
+
+def generate_qr_code_png(data: str) -> bytes:
+    """Generate a QR code PNG as bytes for the given URL/data."""
+    import qrcode
+    from PIL import Image as PILImage
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        box_size=10,
+        border=4,
+    )
+    qr.add_data(data)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="#1c1917", back_color="white")
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+# ── Watermark helper ──────────────────────────────────────────────────────────
+
+def apply_watermark(image_bytes: bytes, watermark_text: str) -> bytes:
+    """
+    Overlay studio name as a watermark at bottom-left of image.
+    Uses Pillow. Raises on failure so the caller can log and handle it.
+    """
+    from PIL import Image as PILImage, ImageDraw, ImageFont
+
+    img = PILImage.open(io.BytesIO(image_bytes)).convert("RGBA")
+    w, h = img.size
+
+    txt_layer = PILImage.new("RGBA", img.size, (255, 255, 255, 0))
+    draw = ImageDraw.Draw(txt_layer)
+
+    font_size = max(28, int(h * 0.045))
+    font = None
+
+    # Broader list covering Debian, Ubuntu, Alpine (Railway)
+    font_candidates = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSerif-BoldItalic.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSerif-BoldItalic.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSerifBoldItalic.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
+        "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/dejavu/DejaVuSerif-BoldItalic.ttf",
+        "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/ttf-dejavu/DejaVuSans-Bold.ttf",
+    ]
+    for fpath in font_candidates:
+        if os.path.exists(fpath):
+            try:
+                font = ImageFont.truetype(fpath, font_size)
+                log.info(f"Watermark font: {fpath} size={font_size}")
+                break
+            except Exception as fe:
+                log.warning(f"Font load failed {fpath}: {fe}")
+
+    if font is None:
+        log.warning("No system font found — using Pillow default")
+        try:
+            font = ImageFont.load_default(size=font_size)
+        except TypeError:
+            font = ImageFont.load_default()
+
+    # Text bounding box — textbbox available since Pillow 8.0
+    try:
+        bbox = draw.textbbox((0, 0), watermark_text, font=font)
+        tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    except AttributeError:
+        tw, th = draw.textsize(watermark_text, font=font)
+
+    pad_x = int(w * 0.02)
+    pad_y = int(h * 0.02)
+    x = pad_x
+    y = h - th - pad_y * 3
+
+    draw.text((x + 2, y + 2), watermark_text, font=font, fill=(0, 0, 0, 130))
+    draw.text((x, y), watermark_text, font=font, fill=(255, 255, 255, 210))
+
+    out = PILImage.alpha_composite(img, txt_layer).convert("RGB")
+    buf = io.BytesIO()
+    out.save(buf, format="JPEG", quality=92)
+    log.info(f"Watermark applied: size={w}x{h}")
+    return buf.getvalue()
+
+
+# ── Google Drive accessibility check ─────────────────────────────────────────
+
+def check_gdrive_folder_accessible(folder_id: str) -> dict:
+    """
+    Try to list the first page of the folder.
+    Returns {"accessible": bool, "reason": str}.
+    Prefers the Drive API if GOOGLE_API_KEY is set, else tries a public URL.
+    """
+    api_key = os.environ.get("GOOGLE_API_KEY", "").strip()
+    if api_key:
+        try:
+            params = {
+                "q": f"'{folder_id}' in parents and trashed=false",
+                "fields": "files(id,name)",
+                "key": api_key,
+                "pageSize": "1",
+            }
+            url = "https://www.googleapis.com/drive/v3/files?" + urllib.parse.urlencode(params)
+            req = urllib.request.Request(url, headers={"User-Agent": "Pixmatch/1.0"})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read())
+            if "error" in data:
+                err_msg = data["error"].get("message", str(data["error"]))
+                if "not found" in err_msg.lower() or "forbidden" in err_msg.lower():
+                    return {
+                        "accessible": False,
+                        "reason": "This folder is private or doesn't exist. Please set sharing to 'Anyone with the link' and try again.",
+                    }
+                return {"accessible": False, "reason": f"Drive API error: {err_msg}"}
+            return {"accessible": True, "reason": "ok", "file_count_preview": len(data.get("files", []))}
+        except Exception as e:
+            return {"accessible": False, "reason": f"Could not reach Google Drive: {str(e)}"}
+    else:
+        # Fallback: try HTML page
+        try:
+            url = f"https://drive.google.com/drive/folders/{folder_id}"
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                body = resp.read().decode("utf-8", errors="ignore")
+            if "you need access" in body.lower() or "request access" in body.lower():
+                return {
+                    "accessible": False,
+                    "reason": "This Google Drive folder is private. Please change sharing to 'Anyone with the link — Viewer'.",
+                }
+            return {"accessible": True, "reason": "ok"}
+        except Exception as e:
+            return {"accessible": False, "reason": f"Could not verify folder access: {str(e)}"}
+
+
+# ── Event Group DB helpers ────────────────────────────────────────────────────
+
+def db_create_group(user_id: str, name: str, description: str = "", watermark_text: str = "",
+                    event_type: str = "other", event_date: str = "") -> dict:
+    group_id = str(uuid.uuid4())[:12]
+    now = time.time()
+    event_type = event_type or "other"
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO event_groups (id, user_id, name, description, watermark_text, event_type, event_date, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """, (group_id, user_id, name, description, watermark_text or "", event_type, event_date or None, now))
+        conn.commit()
+    return {"id": group_id, "user_id": user_id, "name": name, "description": description,
+            "watermark_text": watermark_text, "event_type": event_type,
+            "event_date": event_date or None, "created_at": now}
+
+
+def db_get_group(group_id: str) -> Optional[dict]:
+    cached = cache_get(f"group:{group_id}")
+    if cached:
+        return cached
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM event_groups WHERE id = %s", (group_id,))
+            row = cur.fetchone()
+    if row:
+        result = dict(row)
+        cache_set(f"group:{group_id}", result, ttl=60)
+        return result
+    return None
+
+
+def db_list_groups(user_id: str) -> list:
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT * FROM event_groups WHERE user_id = %s ORDER BY created_at DESC",
+                (user_id,)
+            )
+            rows = cur.fetchall()
+    return [dict(r) for r in rows]
+
+
+def db_update_group(group_id: str, **fields):
+    if not fields:
+        return
+    set_clause = ", ".join(f"{k}=%s" for k in fields)
+    values = list(fields.values()) + [group_id]
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(f"UPDATE event_groups SET {set_clause} WHERE id=%s", values)
+        conn.commit()
+    cache_delete(f"group:{group_id}")
+
+
+def db_delete_group(group_id: str):
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM event_groups WHERE id=%s", (group_id,))
+        conn.commit()
+    cache_delete(f"group:{group_id}")
+
+
+# ── Discount code helpers ─────────────────────────────────────────────────────
+
+def validate_discount_code(code: str, user_id: str, interval: str = "monthly") -> dict:
+    """
+    Check if a discount code is valid for this user.
+    Returns {"valid": bool, "discount_pct": int, "reason": str}
+
+    All invalid paths return the same generic message to prevent
+    enumeration attacks (can't tell if code exists vs expired vs used).
+    """
+    _INVALID = {"valid": False, "discount_pct": 0, "reason": "Invalid or expired discount code."}
+    code = code.strip().upper()
+    if not code:
+        return _INVALID
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM discount_codes WHERE code=%s", (code,))
+            dc = cur.fetchone()
+    if not dc:
+        return _INVALID
+    dc = dict(dc)
+
+    if dc.get("expires_at") and time.time() > dc["expires_at"]:
+        return _INVALID
+
+    if dc["use_count"] >= dc["max_uses"]:
+        return _INVALID
+
+    # Check if this specific user has already used it
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT COUNT(*) as n FROM discount_code_uses WHERE code=%s AND user_id=%s",
+                (code, user_id)
+            )
+            row = cur.fetchone()
+    if row and row["n"] > 0:
+        return _INVALID
+
+    # Check interval compatibility — tell the user this one so they know
+    # to try the other billing toggle, but don't expose anything else
+    dc_interval = dc.get("interval", "both")
+    if dc_interval != "both" and dc_interval != interval:
+        return {"valid": False, "discount_pct": 0,
+                "reason": f"This code is only valid for {dc_interval} billing."}
+
+    return {"valid": True, "discount_pct": dc["discount_pct"], "reason": "ok", "code": code}
+
+
+def consume_discount_code(code: str, user_id: str, order_id: str = None):
+    """Mark a discount code as used by this user."""
+    code = code.strip().upper()
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO discount_code_uses (id, code, user_id, used_at, order_id) VALUES (%s,%s,%s,%s,%s)",
+                (str(uuid.uuid4()), code, user_id, time.time(), order_id)
+            )
+            cur.execute("UPDATE discount_codes SET use_count=use_count+1 WHERE code=%s", (code,))
+        conn.commit()
+
+
+# ── Share analytics helpers ───────────────────────────────────────────────────
+
+def record_share_event(share_id: str, event_type: str, ip: str = ""):
+    """Record a view or download event for analytics."""
+    ip_hash = hashlib.sha256(ip.encode()).hexdigest()[:16] if ip else ""
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO share_analytics (id, share_id, event_type, ip_hash, created_at) VALUES (%s,%s,%s,%s,%s)",
+                    (str(uuid.uuid4()), share_id, event_type, ip_hash, time.time())
+                )
+                if event_type == "view":
+                    cur.execute(
+                        "UPDATE shares SET view_count=COALESCE(view_count,0)+1, last_viewed_at=%s WHERE share_id=%s",
+                        (time.time(), share_id)
+                    )
+                elif event_type == "download":
+                    cur.execute(
+                        "UPDATE shares SET download_count=COALESCE(download_count,0)+1 WHERE share_id=%s",
+                        (share_id,)
+                    )
+            conn.commit()
+        cache_delete(f"share:{share_id}")
+    except Exception as e:
+        log.warning(f"Analytics record failed: {e}")
+
+
+# ── Resilient ZIP upload (chunked read) ──────────────────────────────────────
+
+async def resilient_read_upload(file: "UploadFile", max_bytes: int = 2 * 1024 * 1024 * 1024) -> bytes:
+    """
+    Read an upload in 1 MB chunks with per-chunk timeout awareness.
+    Raises HTTPException(413) if file exceeds max_bytes.
+    Raises HTTPException(408) on read timeout.
+    """
+    from fastapi import UploadFile as FU
+    chunks = []
+    total = 0
+    chunk_size = 1024 * 1024  # 1 MB
+    try:
+        while True:
+            chunk = await file.read(chunk_size)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > max_bytes:
+                raise HTTPException(413, "File too large. Maximum upload size is 2 GB.")
+            chunks.append(chunk)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(408, f"Upload interrupted. Please check your connection and try again. ({e})")
+    return b"".join(chunks)
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
 
@@ -899,9 +1609,9 @@ def require_auth(request) -> dict:
 
 # ── License key helpers ───────────────────────────────────────────────────────
 
-def generate_license_key(user_id: str, plan: str) -> str:
+def generate_license_key(user_id: str, plan: str, interval: str = "monthly") -> str:
     """
-    Issue a new license key for a user based on their plan.
+    Issue a new license key for a user based on their plan and billing interval.
     Revokes any existing active key first (one key per user at a time).
     Returns the new license key string.
     """
@@ -923,6 +1633,10 @@ def generate_license_key(user_id: str, plan: str) -> str:
         conn.commit()
 
     now = time.time()
+    # Key expires at end of the billing period: 365 days for annual, 30 days for monthly
+    period_days = get_billing_period_days(interval)
+    expires_at = now + period_days * 24 * 3600
+
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
@@ -934,12 +1648,12 @@ def generate_license_key(user_id: str, plan: str) -> str:
                 user_id,
                 plan,
                 now,
-                now + 365 * 24 * 3600,   # 1-year validity
+                expires_at,
                 limits["max_activations"],
             ))
         conn.commit()
 
-    log.info(f"License key issued: {key[:12]}… for user {user_id} on plan {plan}")
+    log.info(f"License key issued: {key[:12]}… for user {user_id} on plan {plan} ({interval}, expires {period_days}d)")
     return key
 
 
@@ -1083,7 +1797,18 @@ def logout(request: Request, response: Response):
 @app.get("/api/auth/me")
 def me(request: Request):
     user = require_auth(request)
-    return {"id": user["id"], "email": user["email"], "name": user["name"], "plan": user.get("plan") or "free"}
+    return {
+        "id":    user["id"],
+        "email": user["email"],
+        "name":  user["name"],
+        "plan":  user.get("plan") or "free",
+        "plan_interval":                user.get("plan_interval") or "monthly",
+        "credits_paise":                user.get("credits_paise") or 0,
+        "scheduled_downgrade":          user.get("scheduled_downgrade"),
+        "scheduled_downgrade_at":       user.get("scheduled_downgrade_at"),
+        "scheduled_downgrade_interval": user.get("scheduled_downgrade_interval"),
+        "plan_cycle_start":             user.get("plan_cycle_start"),
+    }
 
 # ── Dataset endpoints ─────────────────────────────────────────────────────────
 
@@ -1102,6 +1827,7 @@ async def upload_zip(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     name: str = Form(default=""),
+    group_id: str = Form(default=""),
 ):
     user = require_auth(request)
     if not file.filename.endswith(".zip"):
@@ -1112,7 +1838,8 @@ async def upload_zip(
     dataset_dir.mkdir()
 
     zip_path = dataset_dir / "upload.zip"
-    zip_path.write_bytes(await file.read())
+    raw_bytes = await resilient_read_upload(file)
+    zip_path.write_bytes(raw_bytes)
     
     # Extract ZIP
     with zipfile.ZipFile(zip_path) as zf:
@@ -1140,12 +1867,33 @@ async def upload_zip(
         "status": "compressing", "total": 0, "processed": 0,
         "face_count": 0, "error": None, "created_at": time.time(),
     }
+    
+    db_upsert_dataset(ds)
+    # Assign to group if provided
+    if group_id:
+        g = db_get_group(group_id)
+        if g and g["user_id"] == user["id"]:
+            with get_db() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("UPDATE datasets SET group_id=%s WHERE id=%s", (group_id, dataset_id))
+                conn.commit()
     db_upsert_dataset(ds)
 
     # Apply caps before embedding.
     is_free = user.get("plan", "free") == "free"
     total_imgs, capped = compress_images_in_dir(dataset_dir, free_tier=is_free)
     log.info(f"[{dataset_id}] {'Free' if is_free else 'Paid'} tier cap: {capped}/{total_imgs} images processed")
+
+    # Upload images to B2
+    if b2.b2_configured():
+        exts = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
+        uploaded = 0
+        for img_path in dataset_dir.rglob("*"):
+            if img_path.is_file() and img_path.suffix.lower() in exts:
+                rel = str(img_path.relative_to(dataset_dir))
+                b2.upload_dataset_image(dataset_id, rel, img_path.read_bytes())
+                uploaded += 1
+        log.info(f"[{dataset_id}] Uploaded {uploaded} images to B2")
 
     background_tasks.add_task(run_embedding_job, dataset_id)
     return {"dataset_id": dataset_id, "status": "compressing"}
@@ -1154,17 +1902,39 @@ async def upload_zip(
 async def use_gdrive_folder(
     request: Request,
     background_tasks: BackgroundTasks,
-    folder_url: str = Form(...),
-    name: str = Form(default=""),
 ):
     user = require_auth(request)
+    
+    # FIX 1: Properly read JSON from the frontend instead of Form data
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body.")
+
+    folder_url = body.get("folder_url", "").strip()
+    name = body.get("name", "").strip()
+    group_id = body.get("group_id", "").strip()
+
+    if not folder_url:
+        raise HTTPException(400, "Google Drive folder URL is required.")
+
     folder_id = extract_gdrive_folder_id(folder_url)
     if not folder_id:
         raise HTTPException(400, "Could not extract a folder ID from the provided URL.")
+        
+    access = check_gdrive_folder_accessible(folder_id)
+    if not access["accessible"]:
+        raise HTTPException(400, f"Google Drive folder is not accessible: {access['reason']}")
+
+    # ── Enforce dataset count limit (same as zip upload) ─────────────────────
+    limits = get_plan_limits(user)
+    existing = db_list_datasets(user["id"])
+    if len(existing) >= limits["max_datasets"]:
+        raise HTTPException(400, f"Dataset limit reached. Your plan allows {limits['max_datasets']} dataset(s). Delete one or upgrade.")
 
     dataset_id  = str(uuid.uuid4())[:8]
     dataset_dir = DATASETS_DIR / dataset_id
-    dataset_dir.mkdir()
+    dataset_dir.mkdir(exist_ok=True)
 
     ds = {
         "id": dataset_id, "user_id": user["id"],
@@ -1173,7 +1943,18 @@ async def use_gdrive_folder(
         "status": "downloading", "total": 0, "processed": 0,
         "face_count": 0, "error": None, "created_at": time.time(),
     }
+    
+    # FIX 2: Upsert the dataset BEFORE assigning it to an event group
     db_upsert_dataset(ds)
+
+    if group_id:
+        g = db_get_group(group_id)
+        if g and g["user_id"] == user["id"]:
+            with get_db() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("UPDATE datasets SET group_id=%s WHERE id=%s", (group_id, dataset_id))
+                conn.commit()
+
     background_tasks.add_task(download_gdrive_folder, folder_id, dataset_dir, dataset_id)
     return {"dataset_id": dataset_id, "status": "downloading"}
 
@@ -1201,6 +1982,17 @@ def delete_dataset(dataset_id: str, request: Request):
         shutil.rmtree(dataset_dir)
     if emb_dir.exists():
         shutil.rmtree(emb_dir)
+
+    # Delete from B2
+    if b2.b2_configured():
+        b2.delete_dataset_images(dataset_id)
+        b2.delete_embeddings(dataset_id)
+        b2.delete_thumbs(dataset_id)
+        log.info(f"Dataset {dataset_id} B2 objects deleted")
+
+    # Evict from in-memory index cache
+    with _index_cache_lock:
+        _index_cache.pop(dataset_id, None)
 
     with get_db() as conn:
         with conn.cursor() as cur:
@@ -1235,7 +2027,8 @@ async def add_images_to_dataset(
     temp_dir.mkdir()
     
     zip_path = temp_dir / "upload.zip"
-    zip_path.write_bytes(await file.read())
+    raw_bytes = await resilient_read_upload(file)
+    zip_path.write_bytes(raw_bytes)
     with zipfile.ZipFile(zip_path) as zf:
         zf.extractall(temp_dir)
     zip_path.unlink()
@@ -1273,28 +2066,124 @@ async def add_images_to_dataset(
 # ── Share endpoints ───────────────────────────────────────────────────────────
 
 @app.post("/api/shares")
-def create_share(request: Request, dataset_id: str = Form(...)):
-    require_auth(request)
+async def create_share(request: Request):
+    user = require_auth(request)
+    
+    # 1. Safely parse the payload (Handles both JSON and Form Data)
+    try:
+        if request.headers.get("content-type", "").startswith("application/json"):
+            body = await request.json()
+        else:
+            form = await request.form()
+            body = dict(form)
+    except Exception:
+        raise HTTPException(400, "Invalid request body. Expected JSON.")
+
+    # 2. Extract fields (works regardless of what the frontend sent)
+    dataset_id = body.get("dataset_id")
+    group_id = body.get("group_id")
+    watermark_text = body.get("watermark_text", "")
+
+    # 3. If the frontend tried to share a 'Group', find a ready dataset inside it
+    if group_id and not dataset_id:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id FROM datasets WHERE group_id=%s AND status='ready' LIMIT 1", (group_id,))
+                row = cur.fetchone()
+        if not row:
+            raise HTTPException(400, "This group has no ready datasets yet. Wait for processing to finish before sharing.")
+        dataset_id = row["id"]
+
+    # 4. Ensure we have a valid ID before proceeding
+    if not dataset_id:
+        raise HTTPException(422, "dataset_id or group_id is required.")
+
     ds = db_get_dataset(dataset_id)
     if not ds:
         raise HTTPException(404, "Dataset not found.")
     if ds["status"] != "ready":
         raise HTTPException(400, "Dataset is not ready yet.")
+
+    # If no explicit watermark supplied, inherit from the event group
+    if not watermark_text and ds.get("group_id"):
+        group = db_get_group(ds["group_id"])
+        if group:
+            watermark_text = group.get("watermark_text") or ""
+
+    # 5. Check if share already exists
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT share_id FROM shares WHERE dataset_id = %s LIMIT 1", (dataset_id,))
+            existing = cur.fetchone()
+            
+    if existing:
+        # Update watermark on existing share if group watermark changed
+        if watermark_text:
+            with get_db() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "UPDATE shares SET watermark_text=%s WHERE share_id=%s",
+                        (watermark_text[:80], existing["share_id"])
+                    )
+                conn.commit()
+            cache_delete(f"share:{existing['share_id']}")
+        return {"share_id": existing["share_id"]}
+
+    # 6. Create new share
     share_id = str(uuid.uuid4())[:12]
     share = {
-        "share_id":    share_id,
-        "dataset_id":  dataset_id,
+        "share_id":     share_id,
+        "dataset_id":   dataset_id,
         "dataset_name": ds["name"],
-        "created_at":  time.time(),
+        "created_at":   time.time(),
     }
     db_insert_share(share)
+    
+    # 7. Apply watermark if provided
+    if watermark_text:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE shares SET watermark_text=%s WHERE share_id=%s",
+                    (watermark_text[:80], share_id)
+                )
+            conn.commit()
+        cache_delete(f"share:{share_id}")
+        
     return {"share_id": share_id}
 
-@app.get("/api/shares/{share_id}")
-def get_share(share_id: str):
+
+@app.delete("/api/shares/{share_id}")
+def delete_share(share_id: str, request: Request):
+    """
+    Delete a share link — revokes guest access and frees the slot so a
+    fresh link can be created for the same dataset if needed.
+    Only the dataset owner can delete it.
+    """
+    user = require_auth(request)
     share = db_get_share(share_id)
     if not share:
         raise HTTPException(404, "Share link not found.")
+    ds = db_get_dataset(share["dataset_id"])
+    if not ds or ds["user_id"] != user["id"]:
+        raise HTTPException(403, "Not your share link.")
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM shares WHERE share_id = %s", (share_id,))
+        conn.commit()
+    cache_delete(f"share:{share_id}")
+    log.info(f"Share {share_id} deleted by user {user['id']}")
+    return {"ok": True}
+
+
+@app.get("/api/shares/{share_id}")
+def get_share(share_id: str, request: Request):
+    share = db_get_share(share_id)
+    if not share:
+        raise HTTPException(404, "Share link not found.")
+    # Record analytics view (best-effort)
+    client_ip = request.client.host if request.client else ""
+    record_share_event(share_id, "view", client_ip)
     return share
 
 # ── Search endpoint ───────────────────────────────────────────────────────────
@@ -1397,6 +2286,14 @@ async def search_by_selfie(share_id: str, file: UploadFile = File(...), face_ind
 
 @app.get("/api/image/{dataset_id}/{image_path:path}")
 def serve_image(dataset_id: str, image_path: str):
+    if b2.b2_configured():
+        data = b2.download_dataset_image(dataset_id, image_path)
+        if data is None:
+            raise HTTPException(404, "Image not found.")
+        ext = Path(image_path).suffix.lower()
+        ctype = "image/jpeg" if ext in (".jpg", ".jpeg") else "image/png" if ext == ".png" else "image/webp"
+        return Response(content=data, media_type=ctype,
+                        headers={"Cache-Control": "public, max-age=604800, immutable"})
     full_path = DATASETS_DIR / dataset_id / image_path
     if not full_path.exists():
         raise HTTPException(404, "Image not found.")
@@ -1407,13 +2304,34 @@ THUMB_WIDTH = int(os.environ.get("THUMB_WIDTH", "400"))
 
 @app.get("/api/thumb/{dataset_id}/{image_path:path}")
 def serve_thumb(dataset_id: str, image_path: str):
-    src_path   = DATASETS_DIR / dataset_id / image_path
+    if b2.b2_configured():
+        # Check B2 thumb cache
+        thumb_data = b2.download_thumb(dataset_id, image_path + ".thumb.jpg")
+        if thumb_data:
+            return Response(content=thumb_data, media_type="image/jpeg",
+                            headers={"Cache-Control": "public, max-age=604800, immutable"})
+        # Generate thumb from original B2 image
+        src_data = b2.download_dataset_image(dataset_id, image_path)
+        if src_data is None:
+            raise HTTPException(404, "Image not found.")
+        img = decode_image(src_data)
+        h, w = img.shape[:2]
+        if w > THUMB_WIDTH:
+            new_h = int(h * THUMB_WIDTH / w)
+            img = cv2.resize(img, (THUMB_WIDTH, new_h), interpolation=cv2.INTER_AREA)
+        _, buf = cv2.imencode(".jpg", img, [int(cv2.IMWRITE_JPEG_QUALITY), 82])
+        thumb_bytes = buf.tobytes()
+        # Upload thumb to B2 for future caching
+        b2.upload_thumb(dataset_id, image_path + ".thumb.jpg", thumb_bytes)
+        return Response(content=thumb_bytes, media_type="image/jpeg",
+                        headers={"Cache-Control": "public, max-age=604800, immutable"})
+
+    # Fallback: local disk
+    src_path = DATASETS_DIR / dataset_id / image_path
     if not src_path.exists():
         raise HTTPException(404, "Image not found.")
-
     thumb_path = THUMBS_DIR / dataset_id / (image_path + ".thumb.jpg")
     thumb_path.parent.mkdir(parents=True, exist_ok=True)
-
     if not thumb_path.exists():
         img = cv2.imread(str(src_path))
         if img is None:
@@ -1421,14 +2339,10 @@ def serve_thumb(dataset_id: str, image_path: str):
         h, w = img.shape[:2]
         if w > THUMB_WIDTH:
             new_h = int(h * THUMB_WIDTH / w)
-            img   = cv2.resize(img, (THUMB_WIDTH, new_h), interpolation=cv2.INTER_AREA)
+            img = cv2.resize(img, (THUMB_WIDTH, new_h), interpolation=cv2.INTER_AREA)
         cv2.imwrite(str(thumb_path), img, [int(cv2.IMWRITE_JPEG_QUALITY), 82])
-
-    return FileResponse(
-        str(thumb_path),
-        media_type="image/jpeg",
-        headers={"Cache-Control": "public, max-age=604800, immutable"},
-    )
+    return FileResponse(str(thumb_path), media_type="image/jpeg",
+                        headers={"Cache-Control": "public, max-age=604800, immutable"})
 
 # ── Download & license endpoints ──────────────────────────────────────────────
 
@@ -1481,7 +2395,8 @@ def generate_key_endpoint(request: Request):
         raise HTTPException(403, "Your current plan does not include self-hosted access. Please upgrade.")
 
     try:
-        key = generate_license_key(user["id"], plan)
+        interval = user.get("plan_interval") or "monthly"
+        key = generate_license_key(user["id"], plan, interval)
     except ValueError as e:
         raise HTTPException(400, str(e))
 
@@ -1524,15 +2439,29 @@ def request_download_link(request: Request):
 def download_file(token: str, request: Request):
     """
     Serve the self-hosted executable ZIP after validating the one-use download token.
+    Streams from B2 if configured, falls back to local file.
     """
+    from fastapi.responses import StreamingResponse
     user_id = consume_download_token(token)
     if not user_id:
         raise HTTPException(403, "Invalid or expired download link. Please request a new one.")
 
+    if b2.b2_configured() and b2.executable_exists():
+        log.info(f"Executable streamed from B2 by user {user_id}")
+        size = b2.get_executable_size()
+        headers = {"Content-Disposition": 'attachment; filename="facefind-selfhosted.zip"'}
+        if size:
+            headers["Content-Length"] = str(size)
+        return StreamingResponse(
+            b2.stream_executable(),
+            media_type="application/zip",
+            headers=headers,
+        )
+
     if not EXECUTABLE_PATH.exists():
         raise HTTPException(503, "The download package is not yet available. Please contact support.")
 
-    log.info(f"Executable downloaded by user {user_id}")
+    log.info(f"Executable downloaded from local by user {user_id}")
     return FileResponse(
         str(EXECUTABLE_PATH),
         media_type="application/zip",
@@ -1610,6 +2539,37 @@ async def validate_license(request: Request):
     }
 
 
+@app.post("/api/license/userinfo")
+async def license_userinfo(request: Request):
+    """
+    Called by the self-hosted launcher to fetch the user account linked to a license key.
+    Used to auto-login the user locally without them needing to enter credentials.
+    Returns just enough info to create a local session: email, name, plan.
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body.")
+
+    key_str = (body.get("key") or "").strip().upper()
+    if not key_str:
+        raise HTTPException(400, "key is required.")
+
+    key_data = db_get_license_key(key_str)
+    if not key_data or key_data["revoked"]:
+        raise HTTPException(403, "Invalid or revoked license key.")
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT email, name, plan FROM users WHERE id = %s", (key_data["user_id"],))
+            row = cur.fetchone()
+
+    if not row:
+        raise HTTPException(404, "User not found.")
+
+    return {"email": row["email"], "name": row["name"], "plan": row["plan"]}
+
+
 @app.post("/api/license/revoke")
 def revoke_license(request: Request):
     """
@@ -1633,6 +2593,922 @@ def revoke_license(request: Request):
     return {"ok": True, "message": "License key revoked. You can generate a new one at any time."}
 
 
+# ── Payment endpoints (Razorpay) ──────────────────────────────────────────────
+
+@app.post("/api/payments/create-order")
+async def create_order(request: Request):
+    """
+    Create a Razorpay order for the selected plan.
+    Applies proration credit for unused days on current plan,
+    account credits (referrals/goodwill), and loyalty discount where eligible.
+    If total credits cover the full price, upgrades immediately (no payment needed).
+    """
+    user = require_auth(request)
+
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body.")
+
+    plan = (body.get("plan") or "").strip()
+    if plan not in PLAN_PRICES_PAISE:
+        raise HTTPException(400, f"Unknown plan: {plan}")
+
+    target_interval = (body.get("interval") or "monthly").strip()
+    if target_interval not in ("monthly", "annual"):
+        raise HTTPException(400, "interval must be 'monthly' or 'annual'.")
+
+    # ── Discount code (optional) ─────────────────────────────────────────────
+    discount_code_str = (body.get("discount_code") or "").strip().upper()
+    discount_pct = 0
+    if discount_code_str:
+        dc_result = validate_discount_code(discount_code_str, user["id"], target_interval)
+        if not dc_result["valid"]:
+            raise HTTPException(400, dc_result["reason"])
+        discount_pct = dc_result["discount_pct"]
+
+    current_plan = user.get("plan", "free") or "free"
+    current_interval = user.get("plan_interval") or "monthly"
+
+    # Block if literally nothing is changing
+    if plan == current_plan and target_interval == current_interval:
+        raise HTTPException(400, "You are already on this plan and billing interval.")
+
+    # An interval switch on the same plan tier is treated as an upgrade flow:
+    # monthly→annual  : charge the annual price minus proration credit on monthly
+    # annual→monthly  : NOT handled here — goes through schedule-downgrade-interval
+    #                   because the user has already paid for the full year
+    if plan == current_plan and target_interval == "monthly" and current_interval == "annual":
+        raise HTTPException(400, "To switch from annual to monthly, use the downgrade flow — your annual access continues until renewal.")
+
+    is_upgrade = plan_rank(plan) > plan_rank(current_plan) or (
+        plan == current_plan and target_interval == "annual" and current_interval == "monthly"
+    )
+
+    if not RAZORPAY_KEY_ID or not RAZORPAY_KEY_SECRET:
+        raise HTTPException(503, "Payment gateway not configured. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in Railway environment variables.")
+
+    cycle_start = user.get("plan_cycle_start")
+    credits_paise = user.get("credits_paise") or 0
+
+    # ── Loyalty discount (one-time, 20% off for loyal paid users upgrading) ──
+    loyalty_discount = 0
+    if is_upgrade:
+        loyalty_discount = apply_loyalty_discount(user, plan, target_interval)
+
+    # ── Compute what the user actually owes ───────────────────────────────────
+    billing = compute_upgrade_charge(
+        current_plan, plan, cycle_start, credits_paise + loyalty_discount,
+        current_interval=current_interval,
+        target_interval=target_interval,
+    )
+    charge_paise = billing["charge_paise"]
+    proration_credit = billing["proration_credit_paise"]
+    total_credit_used = billing["total_credit_paise"]
+
+    # ── Apply discount code percentage on top of proration/credits ────────────
+    discount_amount_paise = 0
+    if discount_pct > 0:
+        full_for_discount = get_plan_price(plan, target_interval)
+        discount_amount_paise = int(full_for_discount * discount_pct / 100)
+        charge_paise = max(charge_paise - discount_amount_paise, 0)
+        billing["discount_code_pct"] = discount_pct
+        billing["discount_code_amount_paise"] = discount_amount_paise
+
+    # ── Free upgrade: credits cover the full price ────────────────────────────
+    if is_upgrade and charge_paise == 0:
+        now = time.time()
+        new_credits = max((credits_paise + loyalty_discount) - (get_plan_price(plan, target_interval) - proration_credit), 0)
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE users SET plan=%s, plan_cycle_start=%s, credits_paise=%s,
+                           plan_interval=%s,
+                           loyalty_discount_used=CASE WHEN %s>0 THEN TRUE ELSE loyalty_discount_used END,
+                           scheduled_downgrade=NULL, scheduled_downgrade_at=NULL
+                    WHERE id=%s
+                """, (plan, now, new_credits, target_interval, loyalty_discount, user["id"]))
+                cur.execute("""
+                    INSERT INTO razorpay_orders
+                      (order_id, user_id, plan, amount_paise, status, created_at, previous_plan, credit_applied_paise, plan_interval)
+                    VALUES (%s, %s, %s, %s, 'paid', %s, %s, %s, %s)
+                """, (
+                    f"free_upgrade_{user['id'][:8]}_{int(now)}",
+                    user["id"], plan, 0, now, current_plan, total_credit_used, target_interval
+                ))
+            conn.commit()
+        token = request.cookies.get("ff_token", "")
+        if token:
+            cache_delete(f"session:{token}")
+        # For free upgrades there is no verify step, so consume the discount code here
+        if discount_code_str and discount_pct > 0:
+            consume_discount_code(discount_code_str, user["id"], f"free_upgrade_{user['id'][:8]}_{int(now)}")
+        log.info(f"Free upgrade via credits: user={user['id']} {current_plan}→{plan} credit={total_credit_used}p discount={discount_code_str or 'none'}")
+        return {
+            "free_upgrade": True,
+            "plan": plan,
+            "credit_used_paise": total_credit_used,
+            "new_credits_paise": new_credits,
+        }
+
+    # ── Paid upgrade/switch: create Razorpay order ────────────────────────────
+    receipt = f"ff_{user['id'][:8]}_{plan[:6]}_{int(time.time())}"
+    order_payload = json.dumps({
+        "amount":   charge_paise,
+        "currency": "INR",
+        "receipt":  receipt,
+        "notes": {
+            "user_id":          user["id"],
+            "user_email":       user["email"],
+            "plan":             plan,
+            "plan_interval":    target_interval,
+            "previous_plan":    current_plan,
+            "proration_credit": proration_credit,
+            "loyalty_discount": loyalty_discount,
+        },
+    }).encode()
+
+    auth_str = base64.b64encode(f"{RAZORPAY_KEY_ID}:{RAZORPAY_KEY_SECRET}".encode()).decode()
+    rz_req = urllib.request.Request(
+        "https://api.razorpay.com/v1/orders",
+        data=order_payload,
+        headers={
+            "Content-Type":  "application/json",
+            "Authorization": f"Basic {auth_str}",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(rz_req, timeout=15) as resp:
+            rz_order = json.loads(resp.read())
+    except Exception as e:
+        log.error(f"Razorpay create order error: {e}")
+        raise HTTPException(502, "Could not create payment order. Please try again.")
+
+    order_id = rz_order["id"]
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO razorpay_orders
+                  (order_id, user_id, plan, amount_paise, status, created_at, previous_plan, credit_applied_paise, plan_interval, discount_code)
+                VALUES (%s, %s, %s, %s, 'created', %s, %s, %s, %s, %s)
+            """, (order_id, user["id"], plan, charge_paise, time.time(), current_plan, total_credit_used, target_interval, discount_code_str or None))
+        conn.commit()
+
+    # NOTE: discount code is stored on the order row and consumed only after
+    # payment is verified in /api/payments/verify — NOT here.
+    log.info(f"Razorpay order created: {order_id} user={user['id']} {current_plan}→{plan} ({target_interval}) charge={charge_paise}p credit={total_credit_used}p loyalty={loyalty_discount}p discount={discount_code_str or 'none'}")
+
+    return {
+        "order_id":               order_id,
+        "amount":                 charge_paise,
+        "currency":               "INR",
+        "key_id":                 RAZORPAY_KEY_ID,
+        "user_name":              user["name"],
+        "user_email":             user["email"],
+        "plan":                   plan,
+        "plan_interval":          target_interval,
+        "billing":                billing,
+        "loyalty_discount_paise": loyalty_discount,
+        "free_upgrade":           False,
+        "discount_code":          discount_code_str,
+        "discount_pct":           discount_pct,
+    }
+
+
+@app.post("/api/payments/verify")
+async def verify_payment(request: Request):
+    """
+    Verify the Razorpay payment signature after checkout completes.
+    On success: updates the user's plan and marks the order paid.
+
+    Body (JSON):
+        razorpay_order_id, razorpay_payment_id, razorpay_signature
+    """
+    user = require_auth(request)
+
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body.")
+
+    order_id   = body.get("razorpay_order_id", "")
+    payment_id = body.get("razorpay_payment_id", "")
+    signature  = body.get("razorpay_signature", "")
+
+    if not all([order_id, payment_id, signature]):
+        raise HTTPException(400, "Missing payment fields.")
+
+    # ── Verify HMAC-SHA256 signature ─────────────────────────────────────────
+    expected = hmac.new(
+        RAZORPAY_KEY_SECRET.encode(),
+        f"{order_id}|{payment_id}".encode(),
+        hashlib.sha256,
+    ).hexdigest()
+
+    if not hmac.compare_digest(expected, signature):
+        log.warning(f"Razorpay signature mismatch for order {order_id}")
+        raise HTTPException(400, "Payment verification failed. Signature mismatch.")
+
+    # ── Fetch the order from our DB ──────────────────────────────────────────
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT * FROM razorpay_orders WHERE order_id=%s AND user_id=%s",
+                (order_id, user["id"])
+            )
+            order_row = cur.fetchone()
+
+    if not order_row:
+        raise HTTPException(404, "Order not found.")
+
+    if order_row["status"] == "paid":
+        # Idempotent — already processed
+        return {"ok": True, "plan": order_row["plan"], "already_processed": True}
+
+    plan = order_row["plan"]
+    previous_plan  = order_row.get("previous_plan") or ""
+    credit_applied = order_row.get("credit_applied_paise") or 0
+    plan_interval  = order_row.get("plan_interval") or "monthly"
+
+    # ── Update user plan + mark order paid ───────────────────────────────────
+    now = time.time()
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE users SET
+                    plan=%s,
+                    plan_interval=%s,
+                    plan_cycle_start=%s,
+                    scheduled_downgrade=NULL,
+                    scheduled_downgrade_at=NULL
+                WHERE id=%s
+            """, (plan, plan_interval, now, user["id"]))
+            # Deduct any account credits used (proration is virtual — no deduction needed)
+            if credit_applied > 0:
+                cur.execute("""
+                    UPDATE users SET
+                        credits_paise=GREATEST(credits_paise - %s, 0),
+                        loyalty_discount_used=TRUE
+                    WHERE id=%s
+                """, (credit_applied, user["id"]))
+            cur.execute(
+                "UPDATE razorpay_orders SET status='paid', payment_id=%s WHERE order_id=%s",
+                (payment_id, order_id)
+            )
+        conn.commit()
+
+    # Invalidate any cached session so /api/auth/me returns the new plan
+    token = request.cookies.get("ff_token", "")
+    if token:
+        cache_delete(f"session:{token}")
+
+    log.info(f"Payment verified: order={order_id} payment={payment_id} user={user['id']} plan={plan}")
+    # Consume the discount code that was stored on the order (if any)
+    try:
+        stored_discount = order_row.get("discount_code")
+        if stored_discount:
+            consume_discount_code(stored_discount, user["id"], order_id)
+            log.info(f"Discount code consumed: {stored_discount} for order {order_id}")
+    except Exception as e:
+        log.warning(f"Failed to consume discount code for order {order_id}: {e}")
+
+    # ── Fire referral credit on first ever payment ────────────────────────────
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT COUNT(*) as n FROM razorpay_orders WHERE user_id=%s AND status='paid' AND order_id != %s",
+                    (user["id"], order_id)
+                )
+                prior = cur.fetchone()
+        if prior and prior["n"] == 0:
+            # This is their first payment — check for a referrer
+            with get_db() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT referred_by FROM users WHERE id=%s", (user["id"],))
+                    ref_row = cur.fetchone()
+            referrer_id = ref_row["referred_by"] if ref_row else None
+            if referrer_id:
+                REFERRAL_CREDIT_PAISE = 5000  # ₹50
+                with get_db() as conn:
+                    with conn.cursor() as cur:
+                        cur.execute(
+                            "UPDATE users SET credits_paise=credits_paise+%s WHERE id=%s",
+                            (REFERRAL_CREDIT_PAISE, referrer_id)
+                        )
+                        cur.execute("""
+                            INSERT INTO referral_credits (id, user_id, from_user_id, amount_paise, reason, created_at)
+                            VALUES (%s, %s, %s, %s, %s, %s)
+                        """, (str(uuid.uuid4()), referrer_id, user["id"], REFERRAL_CREDIT_PAISE, "referral_conversion", time.time()))
+                    conn.commit()
+                log.info(f"Referral credit: ₹50 credited to {referrer_id} for referring {user['id']}")
+    except Exception as e:
+        log.warning(f"Referral credit payout failed: {e}")
+
+    # Send confirmation email (non-blocking, best-effort)
+    try:
+        plan_labels = {
+            "personal_lite":  "Personal Lite",
+            "personal_pro":   "Personal Pro",
+            "personal_max":   "Personal Max",
+            "photo_starter":  "Studio Starter",
+            "photo_pro":      "Studio Pro",
+        }
+        plan_label = plan_labels.get(plan, plan)
+        amount_inr = order_row["amount_paise"] // 100
+        html = f"""
+        <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:480px;margin:0 auto;background:#f9f7f4;padding:32px 24px">
+          <div style="text-align:center;margin-bottom:24px">
+            <span style="font-size:28px;font-weight:800;color:#4f46e5;letter-spacing:-1px">FaceFind</span>
+          </div>
+          <div style="background:#fff;border-radius:16px;padding:36px;box-shadow:0 4px 16px rgba(0,0,0,0.07)">
+            <div style="text-align:center;margin-bottom:20px;">
+              <div style="width:56px;height:56px;background:#ecfdf5;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+            </div>
+            <h2 style="margin:0 0 8px;font-size:20px;color:#1c1917;text-align:center">Payment confirmed!</h2>
+            <p style="margin:0 0 24px;font-size:14px;color:#78716c;text-align:center">
+              Your <strong style="color:#1c1917">{plan_label}</strong> plan is now active.
+            </p>
+            <div style="background:#f9f7f4;border-radius:10px;padding:16px 20px;margin-bottom:24px;">
+              <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:8px;">
+                <span style="color:#78716c">Plan</span><span style="font-weight:700;color:#1c1917">{plan_label}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:8px;">
+                <span style="color:#78716c">Amount paid</span><span style="font-weight:700;color:#1c1917">&#x20B9;{amount_inr}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:13px;">
+                <span style="color:#78716c">Payment ID</span><span style="font-weight:600;color:#4f46e5;font-size:11px;font-family:monospace">{payment_id}</span>
+              </div>
+            </div>
+            <a href="https://facefind-production.up.railway.app/admin.html"
+               style="display:block;text-align:center;background:#4f46e5;color:#fff;font-weight:700;font-size:14px;padding:12px 24px;border-radius:10px;text-decoration:none;">
+              Go to Dashboard
+            </a>
+          </div>
+        </div>
+        """
+        send_email(user["email"], f"FaceFind — {plan_label} plan activated ✓", html)
+    except Exception as e:
+        log.warning(f"Could not send payment confirmation email: {e}")
+
+    return {"ok": True, "plan": plan}
+
+
+def check_admin_secret(request: Request):
+    """
+    Guard for admin/cron endpoints. Fail-closed:
+    - ADMIN_SECRET env var MUST be set or ALL admin calls are denied.
+    - Uses constant-time compare to prevent timing attacks.
+    """
+    secret = os.environ.get("ADMIN_SECRET", "")
+    if not secret:
+        log.warning("Admin endpoint called but ADMIN_SECRET is not configured — denying.")
+        raise HTTPException(403, "Forbidden.")
+    provided = request.headers.get("X-Admin-Secret", "")
+    if not hmac.compare_digest(secret.encode(), provided.encode()):
+        raise HTTPException(403, "Forbidden.")
+
+
+# ── Billing management endpoints ──────────────────────────────────────────────
+
+@app.get("/api/billing/info")
+def billing_info(request: Request):
+    """
+    Return everything the frontend needs to render upgrade/downgrade options:
+    - Current plan + cycle start + billing interval
+    - Proration credit available (for upgrades)
+    - Account credits balance
+    - Loyalty discount eligibility
+    - Scheduled downgrade (if any)
+    - Dataset usage vs new-plan limits (for downgrade warnings)
+    - Renewal date based on correct billing period (30 or 365 days)
+    """
+    user = require_auth(request)
+    current_plan     = user.get("plan", "free") or "free"
+    current_interval = user.get("plan_interval") or "monthly"
+    cycle_start      = user.get("plan_cycle_start")
+    credits          = user.get("credits_paise") or 0
+    loyalty_discount = apply_loyalty_discount(user, "")  # just checking eligibility
+
+    # Compute upgrade costs for every higher plan (show both monthly and annual options)
+    upgrade_costs = {}
+    for plan, price in PLAN_PRICES_PAISE.items():
+        if plan_rank(plan) > plan_rank(current_plan):
+            upgrade_costs[plan] = {}
+            for target_interval in ("monthly", "annual"):
+                loyalty = apply_loyalty_discount(user, plan, target_interval)
+                billing = compute_upgrade_charge(
+                    current_plan, plan, cycle_start, credits + loyalty,
+                    current_interval=current_interval,
+                    target_interval=target_interval,
+                )
+                upgrade_costs[plan][target_interval] = {
+                    **billing,
+                    "loyalty_discount_paise": loyalty,
+                    "loyalty_eligible": loyalty > 0,
+                }
+
+    # Dataset usage for downgrade warning
+    datasets = db_list_datasets(user["id"])
+    dataset_count = len(datasets)
+
+    # Days remaining in current cycle (correct period for monthly vs annual)
+    days_remaining = None
+    renewal_at = None
+    if cycle_start and current_plan != "free":
+        period_days = get_billing_period_days(current_interval)
+        elapsed = (time.time() - cycle_start) / 86400
+        days_remaining = max(round(period_days - elapsed), 0)
+        renewal_at = cycle_start + period_days * 86400
+
+    return {
+        "plan":                          current_plan,
+        "plan_interval":                 current_interval,
+        "plan_cycle_start":              cycle_start,
+        "renewal_at":                    renewal_at,
+        "days_remaining":                days_remaining,
+        "credits_paise":                 credits,
+        "scheduled_downgrade":           user.get("scheduled_downgrade"),
+        "scheduled_downgrade_at":        user.get("scheduled_downgrade_at"),
+        "scheduled_downgrade_interval":  user.get("scheduled_downgrade_interval"),
+        "loyalty_eligible":              apply_loyalty_discount(user, "photo_pro") > 0,
+        "upgrade_costs":                 upgrade_costs,
+        "dataset_count":                 dataset_count,
+        "plan_limits":                   PLAN_LIMITS,
+    }
+
+
+@app.post("/api/billing/schedule-downgrade")
+async def schedule_downgrade(request: Request):
+    """
+    Schedule a downgrade to a lower plan OR an interval switch (annual→monthly)
+    at end of the current billing cycle.
+    - Validates the target plan is lower than current, OR same plan with annual→monthly switch
+    - Warns if user has datasets/images over new plan's limits
+    - Does NOT charge or refund anything — access continues until cycle end
+    """
+    user = require_auth(request)
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body.")
+
+    target          = (body.get("plan") or "").strip()
+    target_interval = (body.get("interval") or "monthly").strip()
+    valid_targets   = list(PLAN_LIMITS.keys())
+    if target not in valid_targets:
+        raise HTTPException(400, f"Unknown plan: {target}")
+    if target_interval not in ("monthly", "annual"):
+        raise HTTPException(400, "interval must be 'monthly' or 'annual'.")
+
+    current_plan     = user.get("plan", "free") or "free"
+    current_interval = user.get("plan_interval") or "monthly"
+
+    if current_plan == "free":
+        raise HTTPException(400, "You are already on the free plan.")
+
+    # Allow: lower plan tier (any interval), OR same plan annual→monthly switch
+    is_tier_downgrade    = plan_rank(target) < plan_rank(current_plan)
+    is_interval_switch   = (target == current_plan and
+                            current_interval == "annual" and
+                            target_interval == "monthly")
+
+    if not is_tier_downgrade and not is_interval_switch:
+        if target == current_plan and target_interval == current_interval:
+            raise HTTPException(400, "No change — you are already on this plan and interval.")
+        if target == current_plan and target_interval == "annual":
+            raise HTTPException(400, "To switch to annual billing, use the upgrade flow.")
+        raise HTTPException(400, "Use the upgrade flow to move to a higher plan.")
+
+    # Tier downgrades always land on monthly — the user hasn't paid for annual on
+    # the lower tier and no charge happens in this flow.
+    if is_tier_downgrade:
+        target_interval = "monthly"
+
+    # Calculate when the change fires (end of current billing cycle)
+    cycle_start      = user.get("plan_cycle_start") or time.time()
+    period_days      = get_billing_period_days(current_interval)
+    elapsed_seconds  = time.time() - cycle_start
+    seconds_remaining = max(period_days * 86400 - elapsed_seconds, 0)
+    downgrade_at     = time.time() + seconds_remaining
+
+    # Dataset over-limit warning (only relevant for tier downgrades)
+    datasets = db_list_datasets(user["id"])
+    new_limits = PLAN_LIMITS[target]
+    over_datasets = max(len(datasets) - new_limits["max_datasets"], 0)
+    over_images_datasets = []
+    for ds in datasets.values():
+        if ds.get("total", 0) > new_limits["max_images"]:
+            over_images_datasets.append({"name": ds["name"], "images": ds.get("total", 0)})
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE users SET
+                    scheduled_downgrade=%s,
+                    scheduled_downgrade_at=%s,
+                    scheduled_downgrade_interval=%s
+                WHERE id=%s
+            """, (target, downgrade_at, target_interval, user["id"]))
+        conn.commit()
+    cache_delete(f"session:{request.cookies.get('ff_token', '')}")
+
+    if is_interval_switch:
+        msg = (f"Your billing will switch to monthly on "
+               f"{__import__('datetime').datetime.utcfromtimestamp(downgrade_at).strftime('%d %b %Y')}. "
+               f"You keep annual access until then.")
+    else:
+        msg = (f"Your plan will change to {target.replace('_',' ').title()} on "
+               f"{__import__('datetime').datetime.utcfromtimestamp(downgrade_at).strftime('%d %b %Y')}. "
+               f"You keep full access until then.")
+
+    log.info(f"Downgrade/interval-switch scheduled: user={user['id']} "
+             f"{current_plan}({current_interval})→{target}({target_interval}) at={downgrade_at}")
+    return {
+        "ok":                    True,
+        "current_plan":          current_plan,
+        "current_interval":      current_interval,
+        "target_plan":           target,
+        "target_interval":       target_interval,
+        "downgrade_at":          downgrade_at,
+        "days_remaining":        round(seconds_remaining / 86400, 1),
+        "over_datasets":         over_datasets,
+        "over_images_datasets":  over_images_datasets,
+        "message":               msg,
+    }
+
+
+@app.post("/api/billing/cancel-downgrade")
+def cancel_downgrade(request: Request):
+    """Cancel a previously scheduled downgrade."""
+    user = require_auth(request)
+    if not user.get("scheduled_downgrade"):
+        raise HTTPException(400, "No downgrade is scheduled.")
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE users SET
+                    scheduled_downgrade=NULL,
+                    scheduled_downgrade_at=NULL,
+                    scheduled_downgrade_interval=NULL
+                WHERE id=%s
+            """, (user["id"],))
+        conn.commit()
+    cache_delete(f"session:{request.cookies.get('ff_token', '')}")
+    log.info(f"Downgrade cancelled for user {user['id']}")
+    return {"ok": True, "message": "Scheduled downgrade cancelled. Your plan stays as-is."}
+
+
+@app.post("/api/billing/cancel-subscription")
+async def cancel_subscription(request: Request):
+    """
+    Cancel a paid subscription.
+    - Does NOT immediately drop the user to free
+    - Schedules a downgrade to 'free' at end of current billing cycle
+    - User keeps full access until then
+    - Can be undone with /api/billing/cancel-downgrade before the cycle ends
+    """
+    user = require_auth(request)
+    current_plan = user.get("plan", "free") or "free"
+
+    if current_plan == "free":
+        raise HTTPException(400, "You are already on the free plan.")
+
+    if user.get("scheduled_downgrade") == "free":
+        raise HTTPException(400, "Your subscription is already scheduled for cancellation.")
+
+    cycle_start = user.get("plan_cycle_start") or time.time()
+    current_interval = user.get("plan_interval") or "monthly"
+    period_days = get_billing_period_days(current_interval)
+    elapsed_seconds = time.time() - cycle_start
+    seconds_remaining = max(period_days * 86400 - elapsed_seconds, 0)
+    cancels_at = time.time() + seconds_remaining
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE users SET
+                    scheduled_downgrade='free',
+                    scheduled_downgrade_at=%s,
+                    scheduled_downgrade_interval='monthly'
+                WHERE id=%s
+            """, (cancels_at, user["id"]))
+        conn.commit()
+    cache_delete(f"session:{request.cookies.get('ff_token', '')}")
+
+    import datetime
+    cancels_date = datetime.datetime.utcfromtimestamp(cancels_at).strftime('%d %b %Y')
+    days_left = round(seconds_remaining / 86400, 1)
+
+    log.info(f"Subscription cancelled: user={user['id']} plan={current_plan} access_until={cancels_at}")
+    return {
+        "ok":           True,
+        "cancels_at":   cancels_at,
+        "days_left":    days_left,
+        "message":      f"Your subscription is cancelled. You keep full {current_plan.replace('_',' ').title()} access until {cancels_date}, then move to the free plan. You can undo this any time before then.",
+    }
+
+
+
+@app.post("/api/billing/apply-downgrade")
+async def apply_downgrade(request: Request):
+    """
+    Internal/cron endpoint: apply any scheduled downgrades that are due.
+    Safe to call frequently — only acts on items whose downgrade_at has passed.
+    Protected by ADMIN_SECRET if that env var is set.
+    """
+    check_admin_secret(request)
+
+    now = time.time()
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT id, email, plan, plan_interval,
+                       scheduled_downgrade, scheduled_downgrade_at,
+                       scheduled_downgrade_interval, plan_cycle_start
+                FROM users
+                WHERE scheduled_downgrade IS NOT NULL
+                  AND scheduled_downgrade_at <= %s
+            """, (now,))
+            due = cur.fetchall()
+
+    applied = []
+    for row in due:
+        user_id      = row["id"]
+        old_plan     = row["plan"]
+        new_plan     = row["scheduled_downgrade"]
+        # If no target interval stored (legacy rows), default to monthly for tier
+        # downgrades and preserve current interval for same-plan switches.
+        new_interval = row.get("scheduled_downgrade_interval") or "monthly"
+        try:
+            with get_db() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        UPDATE users SET
+                            plan=%s,
+                            plan_interval=%s,
+                            plan_cycle_start=CASE WHEN %s = 'free' THEN NULL ELSE %s END,
+                            scheduled_downgrade=NULL,
+                            scheduled_downgrade_at=NULL,
+                            scheduled_downgrade_interval=NULL
+                        WHERE id=%s
+                    """, (new_plan, new_interval, new_plan, time.time(), user_id))
+                    # Revoke license key if new plan doesn't support self-hosted
+                    # or reissue at the correct tier
+                    cur.execute(
+                        "UPDATE license_keys SET revoked=TRUE WHERE user_id=%s AND revoked=FALSE",
+                        (user_id,)
+                    )
+                conn.commit()
+
+            # Issue new license key at new plan tier if eligible
+            if SELF_HOSTED_PLAN_LIMITS.get(new_plan):
+                try:
+                    generate_license_key(user_id, new_plan, new_interval)
+                except Exception as e:
+                    log.warning(f"Could not reissue key for {user_id} on {new_plan}: {e}")
+
+            # Notify user by email
+            try:
+                with get_db() as conn:
+                    with conn.cursor() as cur:
+                        cur.execute("SELECT email, name FROM users WHERE id=%s", (user_id,))
+                        u = cur.fetchone()
+                if u:
+                    plan_labels = {
+                        "free": "Starter (Free)", "personal_lite": "Personal Lite",
+                        "personal_pro": "Personal Pro", "personal_max": "Personal Max",
+                        "photo_starter": "Studio Starter", "photo_pro": "Studio Pro",
+                    }
+                    interval_label = "Annual" if new_interval == "annual" else "Monthly"
+                    is_just_interval = (new_plan == old_plan)
+                    if is_just_interval:
+                        change_desc = f"switched to <strong style=\"color:#1c1917\">{interval_label} billing</strong>"
+                        subject_suffix = f"billing switched to {interval_label}"
+                    else:
+                        change_desc = f"changed to <strong style=\"color:#1c1917\">{plan_labels.get(new_plan, new_plan)} ({interval_label})</strong>"
+                        subject_suffix = f"plan changed to {plan_labels.get(new_plan, new_plan)}"
+                    html = f"""
+                    <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:480px;margin:0 auto;background:#f9f7f4;padding:32px 24px">
+                      <div style="text-align:center;margin-bottom:24px">
+                        <span style="font-size:28px;font-weight:800;color:#4f46e5;letter-spacing:-1px">FaceFind</span>
+                      </div>
+                      <div style="background:#fff;border-radius:16px;padding:36px;box-shadow:0 4px 16px rgba(0,0,0,0.07)">
+                        <h2 style="margin:0 0 8px;font-size:20px;color:#1c1917">Billing update applied</h2>
+                        <p style="font-size:14px;color:#78716c;margin:0 0 20px">
+                          Hi {u['name']}, your plan has been {change_desc} today.
+                        </p>
+                        <p style="font-size:13px;color:#78716c;margin:0 0 24px">
+                          Your datasets are safe. If any collections exceed your new plan's limits,
+                          they are flagged but not deleted — you have 30 days to manage them.
+                        </p>
+                        <a href="https://facefind-production.up.railway.app/admin.html"
+                           style="display:block;text-align:center;background:#4f46e5;color:#fff;font-weight:700;font-size:14px;padding:12px 24px;border-radius:10px;text-decoration:none;">
+                          Go to Dashboard
+                        </a>
+                      </div>
+                    </div>
+                    """
+                    send_email(u["email"], f"FaceFind — {subject_suffix}", html)
+            except Exception as e:
+                log.warning(f"Downgrade notification email failed for {user_id}: {e}")
+
+            applied.append({"user_id": user_id, "from": f"{old_plan}", "to": f"{new_plan}({new_interval})"})
+            log.info(f"Downgrade applied: user={user_id} {old_plan}→{new_plan} interval={new_interval}")
+        except Exception as e:
+            log.error(f"Failed to apply downgrade for {user_id}: {e}")
+
+    return {"ok": True, "applied": applied, "count": len(applied)}
+
+
+@app.post("/api/billing/referral")
+async def apply_referral(request: Request):
+    """
+    Apply a referral code (referrer's user ID or email).
+    Credits ₹50 to the referrer when the new user makes their first paid purchase.
+    Stores referred_by on the current user so the credit fires on first payment.
+    Can only be set once and only before the user has ever paid.
+    """
+    user = require_auth(request)
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body.")
+
+    ref_code = (body.get("referral_code") or "").strip().lower()
+    if not ref_code:
+        raise HTTPException(400, "referral_code is required.")
+
+    if user.get("referred_by"):
+        raise HTTPException(400, "A referral code has already been applied to your account.")
+
+    # Check user has no prior payments
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT COUNT(*) as n FROM razorpay_orders WHERE user_id=%s AND status='paid'",
+                (user["id"],)
+            )
+            row = cur.fetchone()
+    if row and row["n"] > 0:
+        raise HTTPException(400, "Referral codes can only be applied before your first payment.")
+
+    # Look up referrer by email or user ID
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, email FROM users WHERE email=%s OR id=%s",
+                (ref_code, ref_code)
+            )
+            referrer = cur.fetchone()
+
+    if not referrer:
+        raise HTTPException(404, "Referral code not found.")
+    if referrer["id"] == user["id"]:
+        raise HTTPException(400, "You cannot refer yourself.")
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE users SET referred_by=%s WHERE id=%s", (referrer["id"], user["id"]))
+        conn.commit()
+    cache_delete(f"session:{request.cookies.get('ff_token', '')}")
+
+    return {"ok": True, "message": "Referral applied! Your referrer will receive ₹50 credit when you subscribe."}
+
+
+@app.post("/api/admin/add-credits")
+async def admin_add_credits(request: Request):
+    """
+    Admin-only: add goodwill/referral credits to a user's account.
+    Used for support escalations, promotions, or manual referral payouts.
+    """
+    check_admin_secret(request)
+
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body.")
+
+    target_email  = (body.get("email") or "").strip().lower()
+    amount_paise  = int(body.get("amount_paise", 0))
+    reason        = body.get("reason", "goodwill")
+
+    if not target_email or amount_paise <= 0:
+        raise HTTPException(400, "email and amount_paise (>0) are required.")
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id FROM users WHERE email=%s", (target_email,))
+            row = cur.fetchone()
+    if not row:
+        raise HTTPException(404, "User not found.")
+
+    user_id = row["id"]
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE users SET credits_paise=credits_paise+%s WHERE id=%s",
+                (amount_paise, user_id)
+            )
+            cur.execute("""
+                INSERT INTO referral_credits (id, user_id, from_user_id, amount_paise, reason, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (str(uuid.uuid4()), user_id, "admin", amount_paise, reason, time.time()))
+        conn.commit()
+
+    log.info(f"Credits added: {amount_paise}p to {target_email} reason={reason}")
+    return {"ok": True, "email": target_email, "credits_added_paise": amount_paise}
+
+
+@app.post("/api/billing/send-renewal-reminders")
+async def send_renewal_reminders(request: Request):
+    """
+    Cron endpoint: email users whose subscription renews within the next 7 days.
+    Safe to run daily. Protected by ADMIN_SECRET.
+    Respects plan_interval so annual subscribers get the correct renewal date.
+    """
+    check_admin_secret(request)
+
+    now = time.time()
+    window_start = now
+    window_end   = now + 7 * 86400  # 7 days ahead
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT id, email, name, plan, plan_interval, plan_cycle_start
+                FROM users
+                WHERE plan != 'free'
+                  AND plan_cycle_start IS NOT NULL
+                  AND scheduled_downgrade IS NULL
+            """)
+            rows = cur.fetchall()
+
+    plan_labels = {
+        "personal_lite": "Personal Lite",   "personal_pro": "Personal Pro",
+        "personal_max":  "Personal Max",    "photo_starter": "Studio Starter",
+        "photo_pro":     "Studio Pro",
+    }
+    sent = []
+    for row in rows:
+        interval    = row.get("plan_interval") or "monthly"
+        period_days = get_billing_period_days(interval)
+        renewal_at  = row["plan_cycle_start"] + period_days * 86400
+
+        if window_start <= renewal_at <= window_end:
+            days_until = max(round((renewal_at - now) / 86400), 0)
+            plan_label = plan_labels.get(row["plan"], row["plan"])
+            price_paise = get_plan_price(row["plan"], interval)
+            price_inr   = price_paise // 100
+            renewal_date = __import__('datetime').datetime.utcfromtimestamp(renewal_at).strftime('%d %b %Y')
+            period_label = "year" if interval == "annual" else "month"
+            try:
+                html = f"""
+                <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:480px;margin:0 auto;background:#f9f7f4;padding:32px 24px">
+                  <div style="text-align:center;margin-bottom:24px">
+                    <span style="font-size:28px;font-weight:800;color:#4f46e5;letter-spacing:-1px">FaceFind</span>
+                  </div>
+                  <div style="background:#fff;border-radius:16px;padding:36px;box-shadow:0 4px 16px rgba(0,0,0,0.07)">
+                    <h2 style="margin:0 0 8px;font-size:20px;color:#1c1917">Your subscription renews in {days_until} day{'s' if days_until != 1 else ''}</h2>
+                    <p style="margin:0 0 24px;font-size:14px;color:#78716c;line-height:1.65">
+                      Hi {row['name']}, just a heads-up that your <strong style="color:#1c1917">{plan_label}</strong> ({interval}) plan
+                      will automatically renew on <strong style="color:#1c1917">{renewal_date}</strong> for
+                      <strong style="color:#1c1917">&#x20B9;{price_inr:,}/{period_label}</strong>.
+                    </p>
+                    <div style="background:#f9f7f4;border-radius:10px;padding:16px 20px;margin-bottom:24px;">
+                      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:8px;">
+                        <span style="color:#78716c">Plan</span><span style="font-weight:700;color:#1c1917">{plan_label}</span>
+                      </div>
+                      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:8px;">
+                        <span style="color:#78716c">Billing</span><span style="font-weight:700;color:#1c1917">{interval.title()}</span>
+                      </div>
+                      <div style="display:flex;justify-content:space-between;font-size:13px;">
+                        <span style="color:#78716c">Renewal date</span><span style="font-weight:700;color:#1c1917">{renewal_date}</span>
+                      </div>
+                    </div>
+                    <p style="font-size:12px;color:#a8a29e;margin:0 0 20px;text-align:center">
+                      To cancel before renewal, visit your account settings.
+                    </p>
+                    <a href="https://facefind-production.up.railway.app/admin.html"
+                       style="display:block;text-align:center;background:#4f46e5;color:#fff;font-weight:700;font-size:14px;padding:12px 24px;border-radius:10px;text-decoration:none;">
+                      Manage subscription
+                    </a>
+                  </div>
+                </div>
+                """
+                send_email(row["email"], f"FaceFind — your {plan_label} plan renews on {renewal_date}", html)
+                sent.append({"user_id": row["id"], "email": row["email"], "renewal_at": renewal_at, "days_until": days_until})
+                log.info(f"Renewal reminder sent: user={row['id']} plan={row['plan']} ({interval}) renews={renewal_date}")
+            except Exception as e:
+                log.warning(f"Renewal reminder email failed for {row['id']}: {e}")
+
+    return {"ok": True, "sent": sent, "count": len(sent)}
+
+
 # ── Admin endpoints ───────────────────────────────────────────────────────────
 
 @app.post("/api/admin/set-plan")
@@ -1640,13 +3516,9 @@ def admin_set_plan(request: Request, target_email: str = Form(...), plan: str = 
     """
     Admin-only: set a user's plan.
     Call this from your payment provider's webhook after a successful payment.
-    Requires ADMIN_SECRET environment variable to be set.
-    Pass it as the X-Admin-Secret request header.
+    Protected by ADMIN_SECRET if that env var is set.
     """
-    admin_secret = os.environ.get("ADMIN_SECRET", "")
-    provided     = request.headers.get("X-Admin-Secret", "")
-    if not admin_secret or provided != admin_secret:
-        raise HTTPException(403, "Forbidden.")
+    check_admin_secret(request)
 
     valid_plans = list(PLAN_LIMITS.keys())
     if plan not in valid_plans:
@@ -1654,13 +3526,52 @@ def admin_set_plan(request: Request, target_email: str = Form(...), plan: str = 
 
     with get_db() as conn:
         with conn.cursor() as cur:
-            cur.execute("UPDATE users SET plan=%s WHERE email=%s", (plan, target_email.lower()))
-            if cur.rowcount == 0:
+            cur.execute("SELECT id, plan FROM users WHERE email=%s", (target_email.lower(),))
+            target_user = cur.fetchone()
+            if not target_user:
                 raise HTTPException(404, "User not found.")
+            cur.execute("""
+                UPDATE users SET plan=%s, plan_interval='monthly', plan_cycle_start=%s,
+                       scheduled_downgrade=NULL, scheduled_downgrade_at=NULL
+                WHERE email=%s
+            """, (plan, time.time() if plan != "free" else None, target_email.lower()))
+            # Sync license key — revoke old, issue new if plan supports it
+            cur.execute(
+                "UPDATE license_keys SET revoked=TRUE WHERE user_id=%s AND revoked=FALSE",
+                (target_user["id"],)
+            )
         conn.commit()
+
+    if SELF_HOSTED_PLAN_LIMITS.get(plan):
+        try:
+            generate_license_key(target_user["id"], plan)
+        except Exception as e:
+            log.warning(f"admin_set_plan: could not issue license key for {target_email}: {e}")
 
     log.info(f"Plan updated: {target_email} → {plan}")
     return {"ok": True, "email": target_email, "plan": plan}
+
+
+@app.post("/api/admin/clean-local-volume")
+def admin_clean_local_volume(request: Request):
+    """
+    Admin-only: Wipes local files to free up Railway disk space
+    after a successful B2 migration. Does NOT delete from B2 or DB.
+    """
+    check_admin_secret(request)
+    import shutil
+
+    cleaned = {"datasets": 0, "embeddings": 0, "thumbs": 0}
+
+    for d, key in [(DATASETS_DIR, "datasets"), (EMBEDDINGS_DIR, "embeddings"), (THUMBS_DIR, "thumbs")]:
+        if d.exists():
+            for p in d.iterdir():
+                if p.is_dir():
+                    shutil.rmtree(p, ignore_errors=True)
+                    cleaned[key] += 1
+
+    log.info(f"Local volume cleaned: {cleaned}")
+    return {"ok": True, "message": "Local volume safely wiped.", "cleaned": cleaned}
 
 # ── Debug endpoint to check email config ──────────────────────────────────────
 
@@ -1685,11 +3596,19 @@ def debug_email():
 @app.get("/api/health")
 def health():
     r = get_redis()
+    b2_status = "disabled"
+    if b2.b2_configured():
+        try:
+            b2.get_b2_client()
+            b2_status = "connected"
+        except Exception:
+            b2_status = "error"
     return {
         "status":    "ok",
         "timestamp": time.time(),
         "redis":     "connected" if r else "disabled",
         "db":        "postgres",
+        "b2":        b2_status,
         "email":     "configured" if all([
             os.environ.get("GMAIL_CLIENT_ID"),
             os.environ.get("GMAIL_CLIENT_SECRET"),
@@ -1699,9 +3618,502 @@ def health():
 
 # ── Frontend static files ─────────────────────────────────────────────────────
 
+
+# ── Event Group endpoints ─────────────────────────────────────────────────────
+
+@app.get("/api/groups")
+def list_groups(request: Request):
+    """List all event groups for the authenticated user."""
+    user = require_auth(request)
+    groups = db_list_groups(user["id"])
+    # Attach dataset count and share link per group
+    for g in groups:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT COUNT(*) as n FROM datasets WHERE user_id=%s AND group_id=%s",
+                    (user["id"], g["id"])
+                )
+                row = cur.fetchone()
+                g["dataset_count"] = row["n"] if row else 0
+                # Find share for this group (join through datasets)
+                cur.execute("""
+                    SELECT s.share_id, s.view_count, s.download_count
+                    FROM shares s
+                    JOIN datasets d ON s.dataset_id = d.id
+                    WHERE d.user_id=%s AND d.group_id=%s
+                    LIMIT 1
+                """, (user["id"], g["id"]))
+                share_row = cur.fetchone()
+                g["share_id"] = share_row["share_id"] if share_row else None
+                g["view_count"] = share_row["view_count"] if share_row else 0
+                g["download_count"] = share_row["download_count"] if share_row else 0
+    return groups
+
+
+@app.post("/api/groups")
+async def create_group(request: Request):
+    """Create a new event group."""
+    user = require_auth(request)
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body.")
+    name = (body.get("name") or "").strip()
+    if not name:
+        raise HTTPException(400, "Group name is required.")
+    description = (body.get("description") or "").strip()
+    watermark_text = (body.get("watermark_text") or "").strip()[:80]
+    event_type = (body.get("type") or "other").strip()
+    event_date = (body.get("date") or "").strip()[:60]
+    group = db_create_group(user["id"], name, description, watermark_text,
+                            event_type=event_type, event_date=event_date)
+    log.info(f"Group created: {group['id']} type={event_type} by user {user['id']}")
+    return group
+
+
+@app.get("/api/groups/{group_id}")
+def get_group(group_id: str, request: Request):
+    user = require_auth(request)
+    g = db_get_group(group_id)
+    if not g:
+        raise HTTPException(404, "Group not found.")
+    if g["user_id"] != user["id"]:
+        raise HTTPException(403, "Not your group.")
+    # Attach datasets
+    datasets = db_list_datasets(user["id"])
+    g["datasets"] = [d for d in datasets.values() if d.get("group_id") == group_id]
+    return g
+
+
+@app.patch("/api/groups/{group_id}")
+async def update_group(group_id: str, request: Request):
+    user = require_auth(request)
+    g = db_get_group(group_id)
+    if not g:
+        raise HTTPException(404, "Group not found.")
+    if g["user_id"] != user["id"]:
+        raise HTTPException(403, "Not your group.")
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body.")
+    allowed = {"name", "description", "watermark_text", "event_type", "event_date"}
+    updates = {k: v for k, v in body.items() if k in allowed}
+    if not updates:
+        raise HTTPException(400, "No valid fields to update.")
+    if "name" in updates and not updates["name"].strip():
+        raise HTTPException(400, "Group name cannot be empty.")
+    if "watermark_text" in updates:
+        updates["watermark_text"] = updates["watermark_text"][:80]
+    db_update_group(group_id, **updates)
+    return {"ok": True, "group_id": group_id}
+
+
+@app.delete("/api/groups/{group_id}")
+def delete_group(group_id: str, request: Request):
+    user = require_auth(request)
+    g = db_get_group(group_id)
+    if not g:
+        raise HTTPException(404, "Group not found.")
+    if g["user_id"] != user["id"]:
+        raise HTTPException(403, "Not your group.")
+    # Unlink datasets from group (don't delete them)
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE datasets SET group_id=NULL WHERE group_id=%s AND user_id=%s",
+                (group_id, user["id"])
+            )
+        conn.commit()
+    db_delete_group(group_id)
+    return {"ok": True}
+
+
+@app.post("/api/groups/{group_id}/assign-dataset")
+async def assign_dataset_to_group(group_id: str, request: Request):
+    """Assign a dataset to a group."""
+    user = require_auth(request)
+    g = db_get_group(group_id)
+    if not g or g["user_id"] != user["id"]:
+        raise HTTPException(403, "Group not found or not yours.")
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body.")
+    dataset_id = (body.get("dataset_id") or "").strip()
+    ds = db_get_dataset(dataset_id)
+    if not ds or ds["user_id"] != user["id"]:
+        raise HTTPException(404, "Dataset not found.")
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE datasets SET group_id=%s WHERE id=%s", (group_id, dataset_id))
+        conn.commit()
+    cache_delete(f"dataset:{dataset_id}")
+    cache_delete(f"datasets:{user['id']}")
+    return {"ok": True}
+
+
+# ── QR Code endpoint ──────────────────────────────────────────────────────────
+
+@app.get("/api/shares/{share_id}/qrcode")
+def get_share_qr(share_id: str, request: Request):
+    """
+    Return a QR code PNG for the share link.
+    The QR encodes the full public share URL so anyone who scans it goes
+    directly to the selfie-upload page.
+    Requires auth (photographer only) — no QR generation for anonymous callers.
+    """
+    require_auth(request)
+    share = db_get_share(share_id)
+    if not share:
+        raise HTTPException(404, "Share link not found.")
+
+    base_url = str(request.base_url).rstrip("/")
+    share_url = f"{base_url}/share.html?id={share_id}"
+
+    png_bytes = generate_qr_code_png(share_url)
+    return Response(
+        content=png_bytes,
+        media_type="image/png",
+        headers={
+            "Cache-Control": "public, max-age=86400",
+            "Content-Disposition": f'inline; filename="qr-{share_id}.png"',
+        },
+    )
+
+
+# ── Watermarked image download ────────────────────────────────────────────────
+
+@app.get("/api/watermarked/{dataset_id}")
+def serve_image_watermarked(dataset_id: str, image_path: str, share_id: str = None):
+    """
+    Serve an image with the share's watermark text burned in.
+    Called from share.html when user downloads a result.
+    Requires share_id query param to look up watermark settings.
+    """
+    if b2.b2_configured():
+        image_bytes = b2.download_dataset_image(dataset_id, image_path)
+        if image_bytes is None:
+            raise HTTPException(404, "Image not found.")
+    else:
+        full_path = DATASETS_DIR / dataset_id / image_path
+        if not full_path.exists():
+            raise HTTPException(404, "Image not found.")
+        image_bytes = full_path.read_bytes()
+
+    watermark_text = None
+    if share_id:
+        share = db_get_share(share_id)
+        if share:
+            # Record download event
+            record_share_event(share_id, "download")
+            # 1. Prefer watermark set directly on the share
+            watermark_text = share.get("watermark_text") or None
+            # 2. Fall back to the event group's watermark if share has none
+            if not watermark_text:
+                ds = db_get_dataset(share["dataset_id"])
+                if ds and ds.get("group_id"):
+                    group = db_get_group(ds["group_id"])
+                    if group:
+                        watermark_text = group.get("watermark_text") or None
+
+    if watermark_text:
+        try:
+            image_bytes = apply_watermark(image_bytes, watermark_text)
+        except Exception as e:
+            log.error(f"apply_watermark failed for {dataset_id}/{image_path}: {e}", exc_info=True)
+
+    return Response(
+        content=image_bytes,
+        media_type="image/jpeg",
+        headers={
+            "Content-Disposition": f'attachment; filename="{Path(image_path).name}"',
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+# ── Share watermark update ────────────────────────────────────────────────────
+
+@app.patch("/api/shares/{share_id}")
+async def update_share(share_id: str, request: Request):
+    """Update share settings: watermark_text."""
+    user = require_auth(request)
+    share = db_get_share(share_id)
+    if not share:
+        raise HTTPException(404, "Share not found.")
+    ds = db_get_dataset(share["dataset_id"])
+    if not ds or ds["user_id"] != user["id"]:
+        raise HTTPException(403, "Not your share.")
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body.")
+    watermark_text = (body.get("watermark_text") or "").strip()[:80]
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE shares SET watermark_text=%s WHERE share_id=%s",
+                (watermark_text or None, share_id)
+            )
+        conn.commit()
+    cache_delete(f"share:{share_id}")
+    return {"ok": True}
+
+
+# ── Share analytics endpoint ──────────────────────────────────────────────────
+
+@app.get("/api/shares/{share_id}/analytics")
+def get_share_analytics(share_id: str, request: Request):
+    """Return view/download counts for a share link. Owner-only."""
+    user = require_auth(request)
+    share = db_get_share(share_id)
+    if not share:
+        raise HTTPException(404, "Share not found.")
+    ds = db_get_dataset(share["dataset_id"])
+    if not ds or ds["user_id"] != user["id"]:
+        raise HTTPException(403, "Not your share.")
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT view_count, download_count, last_viewed_at FROM shares WHERE share_id=%s",
+                (share_id,)
+            )
+            row = cur.fetchone()
+            # Last 7 days breakdown
+            cur.execute("""
+                SELECT event_type, COUNT(*) as cnt
+                FROM share_analytics
+                WHERE share_id=%s AND created_at > %s
+                GROUP BY event_type
+            """, (share_id, time.time() - 7 * 86400))
+            recent = {r["event_type"]: r["cnt"] for r in cur.fetchall()}
+
+    return {
+        "share_id":      share_id,
+        "view_count":    row["view_count"] if row else 0,
+        "download_count": row["download_count"] if row else 0,
+        "last_viewed_at": row["last_viewed_at"] if row else None,
+        "last_7_days": recent,
+    }
+
+
+# ── Google Drive accessibility check endpoint ─────────────────────────────────
+
+@app.post("/api/gdrive/check")
+async def check_gdrive_access(request: Request):
+    """
+    Pre-flight check: verify a Google Drive folder URL is publicly accessible
+    before the user submits it for processing.
+    Returns {accessible, reason, folder_id}.
+    """
+    require_auth(request)
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body.")
+    folder_url = (body.get("folder_url") or "").strip()
+    if not folder_url:
+        raise HTTPException(400, "folder_url is required.")
+    folder_id = extract_gdrive_folder_id(folder_url)
+    if not folder_id:
+        return {
+            "accessible": False,
+            "reason": "Could not extract a folder ID from the URL. Please paste the full Google Drive folder link.",
+            "folder_id": None,
+        }
+    result = check_gdrive_folder_accessible(folder_id)
+    result["folder_id"] = folder_id
+    return result
+
+
+# ── Discount code endpoints ───────────────────────────────────────────────────
+
+@app.post("/api/discount/validate")
+async def validate_discount_endpoint(request: Request):
+    """Validate a discount code before checkout (no side effects).
+    Rate-limited: max 5 attempts per user per 60 seconds.
+    """
+    user = require_auth(request)
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body.")
+    code = (body.get("code") or "").strip().upper()
+    interval = (body.get("interval") or "monthly").strip()
+    if not code:
+        raise HTTPException(400, "code is required.")
+
+    # ── Rate limit: 5 attempts per user per 60s ──────────────────────────────
+    window_start = time.time() - 60
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT COUNT(*) as n FROM discount_validate_attempts WHERE user_id=%s AND attempted_at > %s",
+                (user["id"], window_start)
+            )
+            row = cur.fetchone()
+            if row and row["n"] >= 5:
+                raise HTTPException(429, "Too many attempts. Please wait a moment before trying again.")
+            # Record this attempt
+            cur.execute(
+                "INSERT INTO discount_validate_attempts (id, user_id, attempted_at) VALUES (%s,%s,%s)",
+                (str(uuid.uuid4()), user["id"], time.time())
+            )
+        conn.commit()
+
+    result = validate_discount_code(code, user["id"], interval)
+    # Never return the raw code in the validate response — frontend already has it
+    result.pop("code", None)
+    return result
+
+
+@app.post("/api/admin/discount/seed")
+async def admin_seed_discounts(request: Request):
+    """
+    Admin-only: idempotently seed the 40 launch discount codes.
+    Safe to run multiple times — uses INSERT ... ON CONFLICT DO NOTHING.
+
+    Generates:
+      - 10 x 50% off monthly  (GP50M_01 … GP50M_10)
+      - 10 x 100% off monthly (GP100M_01 … GP100M_10)
+      - 10 x 50% off annual   (GP50A_01 … GP50A_10)
+      - 10 x 100% off annual  (GP100A_01 … GP100A_10)
+
+    Each code: max 1 use (one redemption per code), valid once per user.
+    No expiry set — revoke individually via the DB if needed.
+    """
+    check_admin_secret(request)
+    now = time.time()
+    codes_to_create = []
+
+    for i in range(1, 11):
+        suffix = f"{i:02d}"
+        codes_to_create += [
+            (f"GP50M_{suffix}",  50,  "monthly", 1, "seed"),
+            (f"GP100M_{suffix}", 100, "monthly", 1, "seed"),
+            (f"GP50A_{suffix}",  50,  "annual",  1, "seed"),
+            (f"GP100A_{suffix}", 100, "annual",  1, "seed"),
+        ]
+
+    created, skipped = 0, 0
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            for code, pct, interval, max_uses, created_by in codes_to_create:
+                cur.execute("""
+                    INSERT INTO discount_codes
+                      (code, discount_pct, interval, max_uses, use_count, expires_at, created_by, created_at)
+                    VALUES (%s, %s, %s, %s, 0, NULL, %s, %s)
+                    ON CONFLICT (code) DO NOTHING
+                """, (code, pct, interval, max_uses, created_by, now))
+                if cur.rowcount > 0:
+                    created += 1
+                else:
+                    skipped += 1
+        conn.commit()
+
+    log.info(f"Discount seed: {created} created, {skipped} already existed")
+    return {
+        "ok": True,
+        "created": created,
+        "skipped": skipped,
+        "total": len(codes_to_create),
+        "codes": [c[0] for c in codes_to_create],
+    }
+
+
+@app.post("/api/admin/discount/create")
+async def admin_create_discount(request: Request):
+    """
+    Admin-only: create a discount code.
+    discount_pct: 50 or 100 (or any 1-100 integer)
+    interval: 'monthly' | 'annual' | 'both'
+    max_uses: how many total redemptions allowed
+    expires_days: optional, days until expiry from now
+    """
+    check_admin_secret(request)
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body.")
+
+    code = (body.get("code") or secrets.token_urlsafe(6).upper()).strip().upper()
+    discount_pct = int(body.get("discount_pct", 50))
+    interval = (body.get("interval") or "both").strip()
+    max_uses = int(body.get("max_uses", 10))
+    expires_days = body.get("expires_days")
+    created_by = (body.get("created_by") or "admin").strip()
+
+    if discount_pct < 1 or discount_pct > 100:
+        raise HTTPException(400, "discount_pct must be 1-100.")
+    if interval not in ("monthly", "annual", "both"):
+        raise HTTPException(400, "interval must be monthly, annual, or both.")
+
+    expires_at = time.time() + int(expires_days) * 86400 if expires_days else None
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO discount_codes (code, discount_pct, interval, max_uses, use_count, expires_at, created_by, created_at)
+                VALUES (%s, %s, %s, %s, 0, %s, %s, %s)
+                ON CONFLICT (code) DO UPDATE SET
+                    discount_pct=EXCLUDED.discount_pct,
+                    interval=EXCLUDED.interval,
+                    max_uses=EXCLUDED.max_uses,
+                    expires_at=EXCLUDED.expires_at
+            """, (code, discount_pct, interval, max_uses, expires_at, created_by, time.time()))
+        conn.commit()
+
+    log.info(f"Discount code created: {code} ({discount_pct}% off, {interval}, max_uses={max_uses})")
+    return {
+        "ok": True,
+        "code": code,
+        "discount_pct": discount_pct,
+        "interval": interval,
+        "max_uses": max_uses,
+        "expires_at": expires_at,
+    }
+
+
+@app.get("/api/admin/discount/list")
+def admin_list_discounts(request: Request):
+    """Admin-only: list all discount codes."""
+    check_admin_secret(request)
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM discount_codes ORDER BY created_at DESC")
+            codes = [dict(r) for r in cur.fetchall()]
+    return codes
+
+
+# ── Admin: one-shot migration from local volume to B2 ────────────────────────
+
+@app.post("/api/admin/migrate-to-b2")
+def admin_migrate_to_b2(request: Request):
+    """
+    Trigger one-shot migration: copies all local volume data into B2.
+    Safe to run multiple times (idempotent — B2 objects are overwritten).
+    """
+    check_admin_secret(request)
+    if not b2.b2_configured():
+        raise HTTPException(503, "B2 is not configured. Set B2_KEY_ID, B2_APPLICATION_KEY, B2_BUCKET_NAME.")
+
+    messages = []
+    summary = b2.migrate_local_to_b2(
+        datasets_dir=DATASETS_DIR,
+        embeddings_dir=EMBEDDINGS_DIR,
+        thumbs_dir=THUMBS_DIR,
+        uploads_dir=UPLOADS_DIR,
+        executable_path=EXECUTABLE_PATH,
+        progress_callback=messages.append,
+    )
+    return {"ok": True, "summary": summary, "log": messages}
+
+
 if FRONTEND_DIR.exists():
     app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app:app", host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))

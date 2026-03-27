@@ -31,11 +31,13 @@ jobs:
         shell: python
         run: |
           code = r'''
-          import os, sys, json, time, hashlib, urllib.request, urllib.error
+          import os, sys, json, time, hashlib, threading, webbrowser, urllib.request, urllib.error
           from pathlib import Path
+          from http.server import HTTPServer, BaseHTTPRequestHandler
 
           VALIDATION_URL = "https://facefind-production.up.railway.app/api/license/validate"
           PORT           = int(os.environ.get("PORT", 8000))
+          ACTIVATE_PORT  = PORT + 1
 
           if getattr(sys, "frozen", False):
               BASE_DIR = Path(sys.executable).parent
@@ -75,64 +77,122 @@ jobs:
               except Exception as e:
                   return None, str(e)
 
+          _activation_done   = threading.Event()
+          _activation_result = {}
+
+          ACTIVATE_HTML_PATH = BUNDLE / "activate.html"
+
+          class ActivationHandler(BaseHTTPRequestHandler):
+              def log_message(self, fmt, *args):
+                  pass
+
+              def _json(self, code, data):
+                  body = json.dumps(data).encode()
+                  self.send_response(code)
+                  self.send_header("Content-Type", "application/json")
+                  self.send_header("Content-Length", str(len(body)))
+                  self.send_header("Access-Control-Allow-Origin", "*")
+                  self.end_headers()
+                  self.wfile.write(body)
+
+              def do_OPTIONS(self):
+                  self.send_response(204)
+                  self.send_header("Access-Control-Allow-Origin", "*")
+                  self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+                  self.send_header("Access-Control-Allow-Headers", "Content-Type")
+                  self.end_headers()
+
+              def do_GET(self):
+                  if self.path in ("/", "/activate", "/activate/"):
+                      html = ACTIVATE_HTML_PATH.read_bytes()
+                      self.send_response(200)
+                      self.send_header("Content-Type", "text/html; charset=utf-8")
+                      self.send_header("Content-Length", str(len(html)))
+                      self.end_headers()
+                      self.wfile.write(html)
+                  elif self.path == "/activate/machine-id":
+                      self._json(200, {"machine_id": get_machine_id()})
+                  else:
+                      self._json(404, {"detail": "not found"})
+
+              def do_POST(self):
+                  if self.path == "/activate/validate":
+                      length = int(self.headers.get("Content-Length", 0))
+                      body   = json.loads(self.rfile.read(length))
+                      key    = body.get("key", "").strip().upper()
+                      mid    = get_machine_id()
+                      data, error = validate_key(key, mid)
+                      if data and data.get("valid"):
+                          KEY_FILE.write_text(key)
+                          _activation_result["key"]  = key
+                          _activation_result["plan"] = data.get("plan", "unknown")
+                          self._json(200, {"ok": True, "plan": data.get("plan", "unknown")})
+                          threading.Timer(3.5, _activation_done.set).start()
+                      elif error and KEY_FILE.exists():
+                          _activation_result["key"] = KEY_FILE.read_text().strip()
+                          self._json(200, {"ok": True, "plan": "offline"})
+                          threading.Timer(3.5, _activation_done.set).start()
+                      else:
+                          reason = error or (data.get("reason") if data else "Unknown error")
+                          self._json(403, {"reason": reason})
+                  else:
+                      self._json(404, {"detail": "not found"})
+
+          def run_activation_server():
+              server = HTTPServer(("127.0.0.1", ACTIVATE_PORT), ActivationHandler)
+              server.timeout = 1
+              while not _activation_done.is_set():
+                  server.handle_request()
+              server.server_close()
+
+          def launch_main_app():
+              os.environ["DATA_DIR"]     = str(DATA_DIR)
+              os.environ["FRONTEND_DIR"] = str(BUNDLE / "frontend")
+              sys.path.insert(0, str(BUNDLE / "backend"))
+              print(f"Starting FaceFind at http://localhost:{PORT}")
+              print("  Press Ctrl+C to stop.")
+              import uvicorn
+              uvicorn.run("app:app", host="0.0.0.0", port=PORT, log_level="warning")
+
           def main():
-              print("\n  FaceFind Self-Hosted")
+              print("FaceFind Self-Hosted")
               print("  -------------------------------------")
 
               DATA_DIR.mkdir(parents=True, exist_ok=True)
-              machine_id = get_machine_id()
 
-              key = ""
-              if KEY_FILE.exists():
-                  key = KEY_FILE.read_text().strip()
+              saved_key = KEY_FILE.read_text().strip() if KEY_FILE.exists() else ""
 
-              if not key:
-                  print("\n  No license key found.")
-                  print("  Get yours at: https://facefind-production.up.railway.app/download.html\n")
-                  key = input("  Enter license key (FF-XXXX-XXXX-XXXX-XXXX): ").strip().upper()
+              if saved_key:
+                  print("  Checking license...")
+                  mid = get_machine_id()
+                  data, error = validate_key(saved_key, mid)
+                  if data and data.get("valid"):
+                      print(f"  License valid - Plan: {data.get('plan', 'unknown')}")
+                  elif error:
+                      print(f"  Could not reach license server ({error})")
+                      print("  Running in offline mode using saved license.")
+                  else:
+                      print("  Saved license key is no longer valid. Launching activation...")
+                      KEY_FILE.unlink(missing_ok=True)
+                      saved_key = ""
 
-              if not key:
-                  print("\n  [ERROR] No license key provided. Exiting.")
-                  input("  Press Enter to exit...")
-                  sys.exit(1)
+              if not saved_key:
+                  print(f"  Opening activation page at http://localhost:{ACTIVATE_PORT}")
+                  print("  Complete activation in your browser to continue.")
+                  t = threading.Thread(target=run_activation_server, daemon=True)
+                  t.start()
+                  threading.Timer(1.0, lambda: webbrowser.open(f"http://localhost:{ACTIVATE_PORT}")).start()
+                  _activation_done.wait()
+                  t.join(timeout=2)
+                  print(f"  Activation complete - Plan: {_activation_result.get('plan', 'unknown')}")
 
-              print("\n  Validating license...")
-              data, error = validate_key(key, machine_id)
-
-              if data and data.get("valid"):
-                  print(f"  License valid - Plan: {data.get('plan', 'unknown')}")
-                  KEY_FILE.write_text(key)
-              elif error and KEY_FILE.exists():
-                  print(f"  Could not reach license server ({error})")
-                  print("  Running in offline mode using saved license.")
-              else:
-                  print(f"\n  [ERROR] License invalid: {error or data.get('reason', 'Unknown')}")
-                  print("  Get your key at: https://facefind-production.up.railway.app/download.html")
-                  KEY_FILE.unlink(missing_ok=True)
-                  input("\n  Press Enter to exit...")
-                  sys.exit(1)
-
-              os.environ["DATA_DIR"]     = str(DATA_DIR)
-              os.environ["FRONTEND_DIR"] = str(BUNDLE / "frontend")
-
-              import threading, webbrowser
-              def open_browser():
-                  time.sleep(3)
-                  webbrowser.open(f"http://localhost:{PORT}")
-              threading.Thread(target=open_browser, daemon=True).start()
-
-              print(f"\n  Starting server at http://localhost:{PORT}")
-              print("  Press Ctrl+C to stop.\n")
-
-              sys.path.insert(0, str(BUNDLE / "backend"))
-
-              import uvicorn
-              uvicorn.run("app:app", host="0.0.0.0", port=PORT, log_level="warning")
+              threading.Timer(3.0, lambda: webbrowser.open(f"http://localhost:{PORT}")).start()
+              launch_main_app()
 
           if __name__ == "__main__":
               main()
           '''
-          with open("facefind_launcher.py", "w") as f:
+          with open("facefind_launcher.py", "w", encoding="utf-8") as f:
               f.write(code)
 
       - name: Build EXE with PyInstaller
@@ -142,6 +202,7 @@ jobs:
             --name "FaceFind" `
             --add-data "frontend;frontend" `
             --add-data "backend/app.py;backend" `
+            --add-data "activate.html;." `
             --hidden-import "uvicorn.logging" `
             --hidden-import "uvicorn.loops" `
             --hidden-import "uvicorn.loops.auto" `
@@ -152,12 +213,33 @@ jobs:
             --hidden-import "uvicorn.lifespan" `
             --hidden-import "uvicorn.lifespan.on" `
             --hidden-import "fastapi" `
+            --hidden-import "fastapi.middleware" `
+            --hidden-import "fastapi.middleware.cors" `
+            --hidden-import "fastapi.middleware.trustedhost" `
+            --hidden-import "fastapi.middleware.gzip" `
+            --hidden-import "fastapi.staticfiles" `
+            --hidden-import "fastapi.responses" `
+            --hidden-import "fastapi.background" `
+            --hidden-import "starlette.middleware" `
+            --hidden-import "starlette.middleware.cors" `
+            --hidden-import "starlette.middleware.base" `
+            --hidden-import "starlette.middleware.trustedhost" `
+            --hidden-import "starlette.staticfiles" `
+            --hidden-import "starlette.responses" `
+            --hidden-import "starlette.background" `
+            --hidden-import "starlette.routing" `
             --hidden-import "psycopg2" `
+            --hidden-import "psycopg2.extras" `
+            --hidden-import "psycopg2.extensions" `
             --hidden-import "insightface" `
+            --hidden-import "insightface.app" `
+            --hidden-import "insightface.model_zoo" `
             --hidden-import "faiss" `
             --hidden-import "cv2" `
             --hidden-import "numpy" `
             --hidden-import "redis" `
+            --hidden-import "redis.client" `
+            --hidden-import "redis.connection" `
             --hidden-import "multipart" `
             --hidden-import "email" `
             --hidden-import "email.mime" `
@@ -169,11 +251,28 @@ jobs:
             --hidden-import "email.parser" `
             --hidden-import "email.header" `
             --hidden-import "smtplib" `
+            --hidden-import "requests" `
+            --hidden-import "requests.adapters" `
+            --hidden-import "requests.auth" `
+            --hidden-import "urllib.request" `
+            --hidden-import "urllib.parse" `
+            --hidden-import "urllib.error" `
+            --hidden-import "gdown" `
+            --hidden-import "google.oauth2" `
             --hidden-import "google.oauth2.credentials" `
+            --hidden-import "google.auth" `
+            --hidden-import "google.auth.transport" `
             --hidden-import "google.auth.transport.requests" `
+            --hidden-import "googleapiclient" `
             --hidden-import "googleapiclient.discovery" `
+            --hidden-import "googleapiclient.errors" `
+            --hidden-import "httplib2" `
             --collect-all "insightface" `
             --collect-all "onnxruntime" `
+            --collect-all "fastapi" `
+            --collect-all "starlette" `
+            --collect-all "google" `
+            --collect-all "googleapiclient" `
             --clean `
             --noconfirm `
             facefind_launcher.py
