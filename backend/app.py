@@ -7,6 +7,8 @@ Pixmatch – Backend API (Railway Edition)
 """
 
 import os, io, re, uuid, time, json, pickle, zipfile, threading, hashlib, secrets, base64
+import sys
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).parent))
 import smtplib, random, hmac
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
