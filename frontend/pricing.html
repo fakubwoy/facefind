@@ -388,6 +388,89 @@
 
     .logo-text { display: inline-flex; align-items: baseline; gap: 0; letter-spacing: normal; }
     .logo-text .logo-serif { font-family: 'Fraunces', serif; font-weight: 800; }
+
+    /* ── Mobile hamburger ── */
+    .nav-toggle {
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      gap: 5px;
+      width: 36px; height: 36px;
+      background: none;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      padding: 8px;
+    }
+    .nav-toggle span {
+      display: block; width: 100%; height: 2px;
+      background: var(--text2); border-radius: 2px;
+      transition: all 0.25s;
+    }
+    .nav-toggle.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+    .nav-toggle.open span:nth-child(2) { opacity: 0; }
+    .nav-toggle.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+    /* ── Mobile responsive ── */
+    @media (max-width: 768px) {
+      .nav-inner { padding: 0 16px; position: relative; }
+      .nav-toggle { display: flex; }
+      .nav-links {
+        display: none;
+        position: absolute;
+        top: 68px; left: 0; right: 0;
+        background: rgba(249,247,244,0.98);
+        backdrop-filter: blur(16px);
+        border-bottom: 1px solid var(--border);
+        flex-direction: column;
+        align-items: stretch;
+        padding: 10px 16px 16px;
+        box-shadow: var(--shadow);
+        gap: 0;
+      }
+      .nav-links.open { display: flex; }
+      .nav-link { padding: 12px 16px; font-size: 15px; border-radius: 10px; }
+      .nav-link.active { background: var(--primary-light); }
+      .nav-cta { margin: 8px 0 0; text-align: center; padding: 12px; font-size: 15px; border-radius: 10px; }
+
+      .page-hero { padding: 44px 16px 32px; }
+      .hero-title { letter-spacing: -1px; }
+      .hero-sub { font-size: 15px; }
+      .billing-row { margin-bottom: 32px; }
+      .save-tag { position: static; transform: none; margin-top: 8px; }
+      .billing-row { flex-direction: column; align-items: center; gap: 8px; }
+
+      .cat-tabs { flex-wrap: wrap; width: 100%; }
+      .cat-btn { flex: 1; min-width: 120px; padding: 10px 12px; }
+      .cat-btn span:not(.cat-icon) { display: none; }
+      .cat-icon { margin: 0; }
+
+      .free-strip {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .free-strip-cta { width: 100%; justify-content: center; }
+
+      .discount-card { flex-direction: column; align-items: flex-start; }
+      .discount-form { width: 100%; }
+      .discount-input { flex: 1; min-width: 0; }
+
+      .tbl-outer { border-radius: var(--r); }
+      table { min-width: 580px; }
+
+      .footer-inner { flex-direction: column; align-items: center; text-align: center; gap: 16px; }
+      .footer-links { justify-content: center; }
+    }
+
+    @media (max-width: 480px) {
+      .page-hero { padding: 36px 16px 28px; }
+      .plan-card { padding: 24px 20px 20px; }
+      .p-num { font-size: 40px; }
+      .compare-section { padding: 0 16px 60px; }
+      .faq-section { padding: 0 16px 60px; }
+      .discount-section { padding: 0 16px; }
+      .cards-area, .cat-tabs-wrap, .free-banner { padding-left: 16px; padding-right: 16px; }
+    }
   </style>
 </head>
 <body>
@@ -438,6 +521,9 @@
       <a href="/#faq"          class="nav-link">FAQ</a>
       <a href="/login.html"    class="nav-cta" id="navCta">Get started free</a>
     </div>
+    <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">
+      <span></span><span></span><span></span>
+    </button>
   </div>
 </nav>
 
@@ -776,6 +862,21 @@
 </footer>
 
 <script>
+  // ── Nav hamburger ──
+  (function() {
+    const toggle = document.getElementById('navToggle');
+    const links  = document.getElementById('navLinks');
+    if (toggle && links) {
+      toggle.addEventListener('click', () => {
+        const open = links.classList.toggle('open');
+        toggle.classList.toggle('open', open);
+      });
+      links.querySelectorAll('a').forEach(a => a.addEventListener('click', () => {
+        links.classList.remove('open'); toggle.classList.remove('open');
+      }));
+    }
+  })();
+
   // ── Plan data and pricing ───────────────────────────────────────────────────
   const P = { p1:{mo:99,  yr:990},  p2:{mo:199, yr:1990}, p3:{mo:349, yr:3490}, ph1:{mo:599, yr:5990}, ph2:{mo:1499,yr:14990} };
   function inr(n){ return n.toLocaleString('en-IN'); }

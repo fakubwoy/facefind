@@ -946,6 +946,182 @@
 
     .logo-text { display: inline-flex; align-items: baseline; gap: 0; letter-spacing: normal; }
     .logo-text .logo-serif { font-family: 'Fraunces', serif; font-weight: 800; }
+
+    /* ── Mobile hamburger menu ── */
+    .nav-toggle {
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      gap: 5px;
+      width: 36px;
+      height: 36px;
+      background: none;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      padding: 8px;
+      transition: border-color 0.2s;
+    }
+    .nav-toggle:hover { border-color: var(--border2, #d4cfc7); }
+    .nav-toggle span {
+      display: block;
+      width: 100%;
+      height: 2px;
+      background: var(--text2);
+      border-radius: 2px;
+      transition: all 0.25s;
+    }
+    .nav-toggle.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+    .nav-toggle.open span:nth-child(2) { opacity: 0; }
+    .nav-toggle.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+    /* ── Mobile responsive breakpoints ── */
+    @media (max-width: 768px) {
+      /* Nav */
+      .nav-inner {
+        padding: 0 20px;
+        height: 60px;
+        position: relative;
+      }
+      .nav-toggle { display: flex; }
+      .nav-links {
+        display: none;
+        position: absolute;
+        top: 60px;
+        left: 0;
+        right: 0;
+        background: rgba(249, 247, 244, 0.98);
+        backdrop-filter: blur(16px);
+        border-bottom: 1px solid var(--border);
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0;
+        padding: 12px 16px 16px;
+        box-shadow: var(--shadow);
+      }
+      .nav-links.open { display: flex; }
+      .nav-link {
+        padding: 12px 16px;
+        font-size: 15px;
+        border-radius: 10px;
+      }
+      .nav-cta {
+        margin: 8px 0 0;
+        text-align: center;
+        padding: 12px 20px;
+        border-radius: 10px;
+        font-size: 15px;
+      }
+
+      /* Hero */
+      .hero {
+        padding: 48px 20px 40px;
+        gap: 36px;
+      }
+      .hero-title {
+        font-size: clamp(30px, 8vw, 42px);
+        letter-spacing: -1px;
+      }
+      .hero-desc { font-size: 15px; }
+      .hero-actions {
+        flex-direction: column;
+        gap: 10px;
+      }
+      .hero-actions .btn-primary,
+      .hero-actions .btn-secondary {
+        width: 100%;
+        justify-content: center;
+        padding: 14px 20px;
+        font-size: 15px;
+      }
+
+      /* How It Works animation — single-card carousel on mobile */
+      .hiw-wrap { align-items: center; }
+      .hiw-dots { justify-content: center; padding-right: 0; }
+      .hiw-toast { align-self: center; width: 100%; max-width: 320px; }
+      .hiw-arr { display: none; }
+
+      /* Row becomes a clipping viewport — height managed by JS */
+      .hiw-row {
+        position: relative;
+        width: 100%;
+        max-width: 320px;
+        overflow: hidden;
+        align-items: flex-start;
+        justify-content: flex-start;
+        gap: 0;
+        flex-direction: row;
+      }
+
+      /* All cards layer on top of each other absolutely */
+      .hiw-card {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        max-width: 100%;
+        opacity: 0;
+        transform: translateX(50px);
+        transition: opacity 0.32s ease, transform 0.32s cubic-bezier(0.34, 1.1, 0.64, 1);
+        pointer-events: none;
+      }
+      /* Active card slides in and takes up natural space */
+      .hiw-card.show.active {
+        position: relative;
+        opacity: 1;
+        transform: translateX(0);
+        pointer-events: auto;
+      }
+      /* Previously-shown (outgoing) cards slide to the left */
+      .hiw-card.show:not(.active) {
+        opacity: 0;
+        transform: translateX(-50px);
+      }
+
+      /* Sections */
+      .section { padding: 56px 20px; }
+      .section-title { letter-spacing: -1px; }
+      .section-sub { font-size: 14px; margin-bottom: 36px; }
+
+      /* Privacy strip */
+      .privacy-strip {
+        padding: 36px 24px;
+        flex-direction: column;
+        gap: 24px;
+        text-align: center;
+      }
+      .privacy-title { font-size: 22px; }
+      .btn-white { width: 100%; justify-content: center; }
+
+      /* Footer */
+      .footer-inner {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        padding: 36px 20px;
+        gap: 20px;
+      }
+      .footer-links { flex-wrap: wrap; justify-content: center; gap: 16px; }
+      .footer-copy { margin-left: 0; }
+
+      /* Stats */
+      .stats-strip { padding: 28px 20px; }
+      .stat-num { font-size: 30px; }
+    }
+
+    @media (max-width: 480px) {
+      .hero-title { font-size: clamp(26px, 9vw, 36px); }
+      .hero-badge { font-size: 12px; padding: 6px 14px; }
+      .hero-social-proof { flex-direction: column; align-items: flex-start; gap: 8px; }
+      .section { padding: 48px 16px; }
+      .stats-inner { gap: 20px; }
+      .stat-num { font-size: 26px; }
+      .step-card { padding: 24px 20px; }
+      .usecase-card { padding: 22px; }
+      .privacy-strip { padding: 28px 20px; }
+      .faq-q { font-size: 14px; padding: 16px 18px; }
+      .faq-a-inner { padding: 0 18px 18px; }
+    }
   </style>
 </head>
 <body>
@@ -963,13 +1139,16 @@
         </svg>
         <span class="logo-text"><span class="logo-serif">Lens</span><span class="cursive">tagram</span></span>
       </a>
-      <div class="nav-links">
+      <div class="nav-links" id="navLinks">
         <a href="#how-it-works" class="nav-link">How it works</a>
         <a href="#use-cases" class="nav-link">Moments</a>
         <a href="/pricing.html" class="nav-link">Pricing</a>
         <a href="#faq" class="nav-link">FAQ</a>
         <a href="/login.html" class="nav-cta">Get Started Free</a>
       </div>
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">
+        <span></span><span></span><span></span>
+      </button>
     </div>
   </nav>
 
@@ -1350,6 +1529,19 @@
   </footer>
 
   <script>
+    // ── Nav hamburger ──
+    const navToggle = document.getElementById('navToggle');
+    const navLinks = document.getElementById('navLinks');
+    if (navToggle && navLinks) {
+      navToggle.addEventListener('click', () => {
+        const open = navLinks.classList.toggle('open');
+        navToggle.classList.toggle('open', open);
+      });
+      navLinks.querySelectorAll('a').forEach(a => {
+        a.addEventListener('click', () => { navLinks.classList.remove('open'); navToggle.classList.remove('open'); });
+      });
+    }
+
     // ── How It Works Animation ──
     (function() {
       const qr = document.getElementById('hiwQr');
@@ -1375,8 +1567,14 @@
       let hiwCur = 0, hiwTicker = null;
       window.hiwGoTo = function(i) { hiwCur = i; hiwApply(i); };
 
+      function isMobileHiw() { return window.innerWidth <= 768; }
+
       function hiwApply(idx) {
-        ['hiwC1','hiwC2','hiwC3'].forEach(id => {
+        const mobile = isMobileHiw();
+        const cardIds = ['hiwC1','hiwC2','hiwC3'];
+
+        // Reset all cards
+        cardIds.forEach(id => {
           const el = document.getElementById(id);
           if (!el) return;
           el.classList.remove('show','active');
@@ -1387,38 +1585,66 @@
         const toast = document.getElementById('hiwToast');
         if (toast) toast.classList.remove('show');
 
-        ['hiwC1','hiwC2','hiwC3'].forEach((id, i) => {
-          if (i > idx) return;
-          const el = document.getElementById(id);
-          if (!el) return;
-          el.classList.add('show');
-          if (i === idx) setTimeout(() => el.classList.add('active'), 30); // was 50
-        });
-
-        if (idx >= 1) setTimeout(() => { const el = document.getElementById('hiwA1'); if (el) el.classList.add('show'); }, 70);  // was 120
-        if (idx >= 2) setTimeout(() => { const el = document.getElementById('hiwA2'); if (el) el.classList.add('show'); }, 70);  // was 120
-
-        if (idx === 0) {
-          // Faster thumb stagger: 30ms delay between thumbs, start at 130ms (was 220ms + 55ms stagger)
-          document.querySelectorAll('.hiw-thumb').forEach((t, i) => setTimeout(() => t.classList.add('in'), 130 + i * 30));
-          const lbl = document.getElementById('hiwCntLbl');
-          if (lbl) { lbl.textContent = '0 photos ready'; setTimeout(() => hiwAnimCount(lbl, 247, 650), 160); } // was 280ms start, 1100ms duration
+        if (mobile) {
+          // Mobile: only show the single active card — others stay hidden
+          const activeEl = document.getElementById(cardIds[idx]);
+          if (activeEl) {
+            activeEl.classList.add('show');
+            setTimeout(() => activeEl.classList.add('active'), 30);
+          }
+        } else {
+          // Desktop: show all cards up to idx (original stacked behaviour)
+          cardIds.forEach((id, i) => {
+            if (i > idx) return;
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.classList.add('show');
+            if (i === idx) setTimeout(() => el.classList.add('active'), 30);
+          });
+          if (idx >= 1) setTimeout(() => { const el = document.getElementById('hiwA1'); if (el) el.classList.add('show'); }, 70);
+          if (idx >= 2) setTimeout(() => { const el = document.getElementById('hiwA2'); if (el) el.classList.add('show'); }, 70);
         }
 
+        // Shared per-slide effects
+        if (idx === 0) {
+          document.querySelectorAll('.hiw-thumb').forEach((t, i) => setTimeout(() => t.classList.add('in'), 130 + i * 30));
+          const lbl = document.getElementById('hiwCntLbl');
+          if (lbl) { lbl.textContent = '0 photos ready'; setTimeout(() => hiwAnimCount(lbl, 247, 650), 160); }
+        }
         if (idx === 2) {
-          setTimeout(() => {
-            const t = document.getElementById('hiwToast');
-            if (t) t.classList.add('show');
-          }, 1100);
+          setTimeout(() => { const t = document.getElementById('hiwToast'); if (t) t.classList.add('show'); }, 1100);
         }
       }
 
-      function hiwStartTimer() { hiwTicker = setInterval(() => { hiwCur = (hiwCur + 1) % 3; hiwApply(hiwCur); }, 2400); } // was 3600
+      function hiwStartTimer() { hiwTicker = setInterval(() => { hiwCur = (hiwCur + 1) % 3; hiwApply(hiwCur); }, 2400); }
       const row = document.getElementById('hiwRow');
       if (row) {
         row.addEventListener('mouseenter', () => clearInterval(hiwTicker));
         row.addEventListener('mouseleave', hiwStartTimer);
+
+        // Touch swipe support for mobile
+        let tsX = 0, tsY = 0;
+        row.addEventListener('touchstart', e => { tsX = e.touches[0].clientX; tsY = e.touches[0].clientY; }, { passive: true });
+        row.addEventListener('touchend', e => {
+          if (!isMobileHiw()) return;
+          const dx = e.changedTouches[0].clientX - tsX;
+          const dy = e.changedTouches[0].clientY - tsY;
+          if (Math.abs(dx) < 30 || Math.abs(dx) < Math.abs(dy)) return; // ignore taps & vertical scrolls
+          clearInterval(hiwTicker);
+          if (dx < 0) hiwCur = Math.min(hiwCur + 1, 2); // swipe left → next
+          else         hiwCur = Math.max(hiwCur - 1, 0); // swipe right → prev
+          hiwApply(hiwCur);
+          hiwStartTimer();
+        }, { passive: true });
       }
+
+      // Re-apply on resize so desktop↔mobile switch works cleanly
+      let hiwResizeTimer;
+      window.addEventListener('resize', () => {
+        clearTimeout(hiwResizeTimer);
+        hiwResizeTimer = setTimeout(() => hiwApply(hiwCur), 120);
+      });
+
       hiwApply(0);
       hiwStartTimer();
     })();

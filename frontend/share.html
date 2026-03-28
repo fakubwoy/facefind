@@ -979,6 +979,64 @@
 
     .logo-text { display: inline-flex; align-items: baseline; gap: 0; letter-spacing: normal; }
     .logo-text .logo-serif { font-family: 'Fraunces', serif; font-weight: 800; }
+
+    /* ── Enhanced mobile responsive ── */
+    @media (max-width: 768px) {
+      .header-inner { padding: 0 16px; height: 56px; }
+      .layout { padding: 0 16px 60px; }
+
+      .hero { padding: 40px 0 32px; }
+      .hero-title { font-size: clamp(28px, 8vw, 42px); letter-spacing: -0.5px; }
+      .hero-desc { font-size: 14px; }
+
+      /* Steps — stack on very small screens */
+      .steps { flex-wrap: wrap; gap: 8px; justify-content: center; }
+      .step-line { display: none; }
+      .step { gap: 6px; }
+
+      /* Cards */
+      .card { padding: 24px 20px; border-radius: var(--radius); }
+      .card-title { font-size: 20px; }
+      .card-sub { font-size: 13px; margin-bottom: 20px; }
+
+      /* Input tabs */
+      .input-tabs { gap: 2px; }
+      .tab-btn { font-size: 12px; padding: 9px 10px; gap: 5px; }
+
+      /* Drop zone */
+      .drop-zone { padding: 32px 16px; }
+
+      /* Photo grid results */
+      .photos-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 6px !important;
+      }
+
+      /* Results header */
+      .results-header {
+        flex-direction: column;
+        align-items: flex-start !important;
+        gap: 12px;
+      }
+      .results-header .btn { width: 100%; justify-content: center; }
+
+      /* Share / action buttons */
+      .action-row {
+        flex-direction: column;
+        gap: 10px;
+      }
+      .action-row .btn { width: 100%; justify-content: center; }
+
+      /* Album pill */
+      .album-pill { font-size: 13px; padding: 8px 16px; }
+    }
+
+    @media (max-width: 400px) {
+      .card { padding: 20px 16px; }
+      .hero-title { font-size: clamp(24px, 9vw, 32px); }
+      .photos-grid { grid-template-columns: repeat(2, 1fr) !important; }
+      input[type="file"], input[type="text"], input[type="email"] { font-size: 16px; } /* prevent iOS zoom */
+    }
   </style>
 </head>
 <body>

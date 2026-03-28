@@ -476,6 +476,31 @@
 
     .logo-text { display: inline-flex; align-items: baseline; gap: 0; letter-spacing: normal; }
     .logo-text .logo-serif { font-family: 'Fraunces', serif; font-weight: 800; }
+
+    /* ── Mobile responsive ── */
+    @media (max-width: 480px) {
+      .topbar {
+        padding: 14px 16px;
+      }
+      .page {
+        padding: 16px 16px 48px;
+      }
+      .card {
+        padding: 24px 20px;
+        border-radius: 16px;
+      }
+      .card-header h1 { font-size: 22px; }
+      .card-header-icon { width: 60px; height: 60px; border-radius: 18px; }
+      .field input { font-size: 16px; } /* prevent iOS zoom on focus */
+      .btn { font-size: 15px; padding: 14px; }
+      .tab-btn { font-size: 13px; padding: 10px 6px; }
+      .google-btn { font-size: 14px; }
+    }
+
+    @media (max-width: 360px) {
+      .card { padding: 20px 16px; }
+      .tabs { gap: 2px; }
+    }
   </style>
 </head>
 <body>

@@ -1101,6 +1101,85 @@
 
     .logo-text { display: inline-flex; align-items: baseline; gap: 0; letter-spacing: normal; }
     .logo-text .logo-serif { font-family: 'Fraunces', serif; font-weight: 800; }
+
+    /* ── Mobile responsive ── */
+    @media (max-width: 900px) {
+      header { padding: 0 20px; }
+      .header-nav-link span { display: none; }
+      .layout { padding: 20px 16px; }
+      .welcome h1 { font-size: 22px; }
+    }
+
+    @media (max-width: 640px) {
+      header {
+        padding: 0 14px;
+        height: 56px;
+        gap: 8px;
+      }
+      .header-left { gap: 8px; }
+      .header-badge { display: none; }
+      .header-right { gap: 8px; }
+      .header-nav-link {
+        padding: 6px 10px;
+        font-size: 12px;
+      }
+      .layout { padding: 16px 12px; }
+      .welcome h1 { font-size: 20px; }
+      .welcome p { font-size: 13px; }
+
+      /* Section nav tabs — scroll horizontally */
+      .section-nav {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        gap: 0;
+        padding-bottom: 0;
+      }
+      .section-nav::-webkit-scrollbar { display: none; }
+      .section-tab {
+        white-space: nowrap;
+        font-size: 12px;
+        padding: 10px 12px 12px;
+      }
+
+      /* Cards */
+      .card { padding: 18px 16px; }
+      .card-title { font-size: 14px; margin-bottom: 16px; }
+
+      /* Inner tabs */
+      .tabs { gap: 2px; }
+      .tab-btn { font-size: 12px; padding: 8px 10px; gap: 5px; }
+
+      /* Drop zone */
+      .drop-zone { padding: 32px 16px; }
+
+      /* Grid */
+      .grid { gap: 16px; }
+
+      /* Stats / kpi rows */
+      .kpi-grid, .stats-row {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 10px !important;
+      }
+      .kpi-card { padding: 16px 14px !important; }
+      .kpi-num  { font-size: 24px !important; }
+
+      /* Gallery grid */
+      .gallery-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 8px !important;
+      }
+
+      /* Events table / list */
+      .events-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    }
+
+    @media (max-width: 400px) {
+      header { padding: 0 10px; }
+      .logo { font-size: 16px; }
+      .layout { padding: 12px 10px; }
+      .section-tab { font-size: 11px; padding: 9px 10px 11px; }
+    }
   </style>
 </head>
 <body>

@@ -519,6 +519,65 @@
 
     .logo-text { display: inline-flex; align-items: baseline; gap: 0; letter-spacing: normal; }
     .logo-text .logo-serif { font-family: 'Fraunces', serif; font-weight: 800; }
+
+    /* ── Mobile responsive ── */
+    @media (max-width: 768px) {
+      header { padding: 0 16px; }
+      .header-badge { display: none; }
+      .header-nav-link span { display: none; }
+      .layout { padding: 24px 16px 60px; }
+      .welcome h1 { font-size: 22px; }
+      .welcome p { font-size: 13px; }
+    }
+
+    @media (max-width: 640px) {
+      header {
+        padding: 0 12px;
+        height: 56px;
+      }
+      .header-left { gap: 8px; }
+      .header-right { gap: 8px; }
+      .header-nav-link { padding: 6px 10px; font-size: 12px; }
+
+      .layout { padding: 16px 12px 48px; }
+      .welcome h1 { font-size: 20px; }
+
+      /* Main grid already responsive at 860px, just tighten spacing */
+      .grid { gap: 14px; }
+
+      /* Cards */
+      .card { border-radius: var(--radius); }
+      .card-title { font-size: 14px; padding: 14px 16px 12px; }
+      .card-body { padding: 14px 16px; }
+
+      /* Key box */
+      .key-box { flex-direction: column; align-items: flex-start; gap: 10px; }
+      .key-value { font-size: 11px; word-break: break-all; }
+
+      /* Photo grid in results */
+      .photo-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 8px !important;
+      }
+
+      /* Selfie upload card */
+      .upload-area { padding: 32px 16px; }
+
+      /* Locked card */
+      .locked-card { padding: 36px 20px; }
+      .locked-title { font-size: 20px; }
+      .plan-pills { gap: 6px; }
+
+      /* Modal */
+      .modal-box { padding: 24px 20px; margin: 0 16px; }
+      .modal-actions { flex-direction: column; }
+      .modal-actions button { width: 100%; justify-content: center; }
+    }
+
+    @media (max-width: 400px) {
+      .photo-grid { grid-template-columns: repeat(2, 1fr) !important; }
+      .header-nav-link { display: none; }
+    }
   </style>
 </head>
 <body>
