@@ -1569,6 +1569,39 @@
 
       function isMobileHiw() { return window.innerWidth <= 768; }
 
+      // Lock the row to the tallest card's height so the page never jumps
+      function hiwLockHeight() {
+        const row = document.getElementById('hiwRow');
+        if (!row || !isMobileHiw()) { if (row) row.style.minHeight = ''; return; }
+        const cardIds = ['hiwC1','hiwC2','hiwC3'];
+        // Temporarily make all cards position:relative + visible so we can measure them
+        cardIds.forEach(id => {
+          const el = document.getElementById(id);
+          if (!el) return;
+          el.style.position = 'relative';
+          el.style.opacity  = '0';
+          el.style.visibility = 'hidden';
+          el.style.transform = 'none';
+          el.style.pointerEvents = 'none';
+        });
+        // Read heights
+        const tallest = cardIds.reduce((max, id) => {
+          const el = document.getElementById(id);
+          return el ? Math.max(max, el.offsetHeight) : max;
+        }, 0);
+        // Restore absolute positioning on non-active cards
+        cardIds.forEach(id => {
+          const el = document.getElementById(id);
+          if (!el) return;
+          el.style.position = '';
+          el.style.opacity  = '';
+          el.style.visibility = '';
+          el.style.transform = '';
+          el.style.pointerEvents = '';
+        });
+        row.style.minHeight = tallest + 'px';
+      }
+
       function hiwApply(idx) {
         const mobile = isMobileHiw();
         const cardIds = ['hiwC1','hiwC2','hiwC3'];
@@ -1638,13 +1671,15 @@
         }, { passive: true });
       }
 
-      // Re-apply on resize so desktop↔mobile switch works cleanly
+      // Re-apply + re-lock on resize so desktop↔mobile switch works cleanly
       let hiwResizeTimer;
       window.addEventListener('resize', () => {
         clearTimeout(hiwResizeTimer);
-        hiwResizeTimer = setTimeout(() => hiwApply(hiwCur), 120);
+        hiwResizeTimer = setTimeout(() => { hiwLockHeight(); hiwApply(hiwCur); }, 120);
       });
 
+      // Lock height first (needs all cards briefly visible to measure), then animate
+      hiwLockHeight();
       hiwApply(0);
       hiwStartTimer();
     })();
