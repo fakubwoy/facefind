@@ -2,8 +2,8 @@ name: Build Windows Executable
 
 on:
   push:
-    tags:
-      - 'v*'           # Trigger on version tags like v1.0.0
+    branches:
+      - selfhosted      # fires on every push to this branch
   workflow_dispatch:   # Allow manual trigger from GitHub UI
     inputs:
       version:
@@ -69,6 +69,8 @@ jobs:
           "
 
       # ── 5. Copy frontend files into build folder ─────────────────────────────
+      # activate.html is already inside frontend/ in your repo
+      # pricing.html and download.html are excluded from the local build
       - name: Prepare frontend directory
         shell: pwsh
         run: |
@@ -78,8 +80,10 @@ jobs:
           Get-ChildItem -Path frontend\*.html |
             Where-Object { $_.Name -notin $exclude } |
             ForEach-Object { Copy-Item $_.FullName build_staging\frontend\ }
-          # Copy activate.html (local-only page)
-          Copy-Item activate.html build_staging\frontend\
+          # Copy local_patch.js from repo root into the frontend bundle
+          if (Test-Path local_patch.js) {
+            Copy-Item local_patch.js build_staging\frontend\local_patch.js
+          }
           # Copy any static assets (css/, js/, images/, etc.)
           if (Test-Path frontend\static) {
             Copy-Item -Recurse frontend\static build_staging\frontend\static
@@ -103,7 +107,6 @@ jobs:
 
           block_cipher = None
 
-          # InsightFace model path
           model_src = r'$modelPath'
           model_dst = os.path.join('.insightface', 'models', 'buffalo_sc')
 
@@ -206,14 +209,12 @@ jobs:
       - name: Create release ZIP
         shell: pwsh
         run: |
-          # Determine version
           if ("${{ github.ref_type }}" -eq "tag") {
             $version = "${{ github.ref_name }}"
           } else {
             $version = "v${{ github.event.inputs.version || 'dev' }}"
           }
 
-          # Write a README into the package
           $readmeContent = @"
           Lenstagram Desktop — $version
           ==============================
@@ -235,7 +236,6 @@ jobs:
           "@
           $readmeContent | Out-File "dist\Lenstagram\README.txt" -Encoding UTF8
 
-          # Zip it
           $zipName = "Lenstagram-Desktop-Windows-$version.zip"
           Compress-Archive -Path "dist\Lenstagram\*" -DestinationPath $zipName -Force
           Write-Host "Package created: $zipName"
@@ -244,7 +244,7 @@ jobs:
           echo "ZIP_NAME=$zipName" >> $env:GITHUB_ENV
           echo "VERSION=$version" >> $env:GITHUB_ENV
 
-      # ── 10. Upload artifact ───────────────────────────────────────────────────
+      # ── 10. Upload artifact (available under Actions → run → Artifacts) ───────
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
@@ -274,19 +274,3 @@ jobs:
           prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # ── 12. Upload ZIP to cloud (optional) ───────────────────────────────────
-      # Uncomment and configure if you want the build auto-uploaded to your
-      # Railway backend so users can download it from the web dashboard.
-      #
-      # - name: Upload to Railway backend
-      #   if: github.ref_type == 'tag'
-      #   shell: pwsh
-      #   run: |
-      #     $headers = @{ "X-Admin-Secret" = "${{ secrets.ADMIN_SECRET }}" }
-      #     Invoke-RestMethod `
-      #       -Uri "https://facefind-production.up.railway.app/api/admin/upload-executable" `
-      #       -Method POST `
-      #       -Headers $headers `
-      #       -InFile $env:ZIP_NAME `
-      #       -ContentType "application/zip"
