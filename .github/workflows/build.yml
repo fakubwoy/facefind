@@ -111,8 +111,8 @@ jobs:
           model_dst = os.path.join('.insightface', 'models', 'buffalo_sc')
 
           a = Analysis(
-              ['app_local.py'],
-              pathex=[],
+              ['backend/app_local.py'],
+              pathex=['backend'],
               binaries=[],
               datas=[
                   ('build_staging/frontend', 'frontend'),
