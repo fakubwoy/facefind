@@ -2499,17 +2499,21 @@ async def validate_license(request: Request):
     key_data = db_get_license_key(key_str)
 
     if not key_data:
+        log.warning(f"License validate failed: key not found: {key_str[:12]}…")
         return JSONResponse({"valid": False, "reason": "License key not found."}, status_code=403)
 
     if key_data["revoked"]:
+        log.warning(f"License validate failed: key revoked: {key_str[:12]}…")
         return JSONResponse({"valid": False, "reason": "License key has been revoked."}, status_code=403)
 
     if time.time() > key_data["expires_at"]:
+        log.warning(f"License validate failed: key expired: {key_str[:12]}… expires_at={key_data['expires_at']} now={time.time()}")
         return JSONResponse({"valid": False, "reason": "License key has expired. Please renew your subscription."}, status_code=403)
 
     plan   = key_data["plan"]
     limits = SELF_HOSTED_PLAN_LIMITS.get(plan)
     if not limits:
+        log.warning(f"License validate failed: plan '{plan}' not in SELF_HOSTED_PLAN_LIMITS for key {key_str[:12]}…")
         return JSONResponse({"valid": False, "reason": "This plan does not include self-hosted access."}, status_code=403)
 
     client_ip = request.client.host if request.client else "unknown"
