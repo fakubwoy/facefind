@@ -48,7 +48,7 @@ for d in [DATASETS_DIR, EMBEDDINGS_DIR, UPLOADS_DIR, THUMBS_DIR]:
     d.mkdir(parents=True, exist_ok=True)
 
 # Cloud API base URL for license validation
-CLOUD_API_URL = os.environ.get("CLOUD_API_URL", "https://facefind-production.up.railway.app")
+CLOUD_API_URL = os.environ.get("CLOUD_API_URL", "https://www.lenstagram.com")
 
 # ── Plan limits (mirrors cloud SELF_HOSTED_PLAN_LIMITS) ──────────────────────
 PLAN_LIMITS = {
