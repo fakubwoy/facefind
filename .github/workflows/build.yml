@@ -249,16 +249,15 @@ jobs:
 
           echo "VERSION=$version" >> $env:GITHUB_ENV
 
-      # ── 11. Package into ZIP (single zip, no nesting) ─────────────────────────
+      # ── 11. Package into ZIP (for GitHub Release attachment only) ─────────────
       - name: Create release ZIP
         shell: pwsh
         run: |
           $version = "${{ env.VERSION }}"
           $zipName = "Lenstagram-Desktop-Windows-$version.zip"
 
-          # cd into the output folder so Compress-Archive captures contents only,
-          # not the parent folder — this prevents a zip-inside-zip when GitHub
-          # Actions downloads the artifact.
+          # cd into the output folder so zip contains files at the root,
+          # not inside a subfolder.
           Push-Location dist\Lenstagram
           Compress-Archive -Path * -DestinationPath "..\..\$zipName" -Force
           Pop-Location
@@ -269,14 +268,17 @@ jobs:
           echo "ZIP_NAME=$zipName" >> $env:GITHUB_ENV
 
       # ── 12. Upload artifact ───────────────────────────────────────────────────
+      # Upload the dist folder directly — Actions will zip it once on download.
+      # Do NOT upload the hand-made zip here or the user gets a zip-inside-zip.
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: lenstagram-desktop-windows
-          path: ${{ env.ZIP_NAME }}
+          path: dist\Lenstagram\
           retention-days: 30
 
       # ── 13. Create GitHub Release (on tag push only) ──────────────────────────
+      # For releases we attach the hand-made zip so the filename is versioned.
       - name: Create GitHub Release
         if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2

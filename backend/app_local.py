@@ -40,7 +40,9 @@ EMBEDDINGS_DIR = DATA_DIR / "embeddings"
 UPLOADS_DIR    = DATA_DIR / "uploads"
 THUMBS_DIR     = DATA_DIR / "thumbs"
 DB_PATH        = DATA_DIR / "local.db"
-FRONTEND_DIR   = BASE_DIR / "frontend"
+# Frontend HTML/JS assets are bundled inside _MEIPASS when frozen,
+# NOT next to the exe — so we must look there first.
+FRONTEND_DIR   = Path(getattr(sys, "_MEIPASS", BASE_DIR)) / "frontend"
 
 for d in [DATASETS_DIR, EMBEDDINGS_DIR, UPLOADS_DIR, THUMBS_DIR]:
     d.mkdir(parents=True, exist_ok=True)
@@ -975,7 +977,10 @@ def billing_info_stub(request: Request):
 # ── Static frontend ───────────────────────────────────────────────────────────
 
 if FRONTEND_DIR.exists():
+    log.info("Serving frontend from %s", FRONTEND_DIR)
     app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
+else:
+    log.warning("FRONTEND_DIR not found: %s — static files will not be served", FRONTEND_DIR)
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
