@@ -69,8 +69,6 @@ jobs:
           "
 
       # ── 5. Copy frontend files into build folder ─────────────────────────────
-      # activate.html is already inside frontend/ in your repo
-      # pricing.html and download.html are excluded from the local build
       - name: Prepare frontend directory
         shell: pwsh
         run: |
@@ -94,7 +92,20 @@ jobs:
           Write-Host "Frontend files staged:"
           Get-ChildItem build_staging\frontend
 
-      # ── 6. Write PyInstaller spec ─────────────────────────────────────────────
+      # ── 6. Write runtime hook (fixes uvicorn logging crash in windowed mode) ──
+      - name: Write runtime hook
+        shell: pwsh
+        run: |
+          $hook = @"
+          import sys, os
+          if sys.stdout is None:
+              sys.stdout = open(os.devnull, 'w')
+          if sys.stderr is None:
+              sys.stderr = open(os.devnull, 'w')
+          "@
+          $hook | Out-File -FilePath runtime_hook_stdio.py -Encoding UTF8
+
+      # ── 7. Write PyInstaller spec ─────────────────────────────────────────────
       - name: Write PyInstaller spec file
         shell: pwsh
         run: |
@@ -144,7 +155,7 @@ jobs:
               ],
               hookspath=[],
               hooksconfig={},
-              runtime_hooks=[],
+              runtime_hooks=['runtime_hook_stdio.py'],
               excludes=['tkinter', 'matplotlib', 'scipy', 'pandas', 'psycopg2', 'redis', 'b2sdk'],
               win_no_prefer_redirects=False,
               win_private_assemblies=False,
@@ -186,7 +197,7 @@ jobs:
           "@
           $specContent | Out-File -FilePath lenstagram.spec -Encoding UTF8
 
-      # ── 7. Build the executable ───────────────────────────────────────────────
+      # ── 8. Build the executable ───────────────────────────────────────────────
       - name: Build with PyInstaller
         shell: pwsh
         run: |
@@ -194,7 +205,7 @@ jobs:
           Write-Host "Build complete. Output:"
           Get-ChildItem dist\Lenstagram\ | Select-Object Name, Length | Format-Table
 
-      # ── 8. Verify the build ───────────────────────────────────────────────────
+      # ── 9. Verify the build ───────────────────────────────────────────────────
       - name: Verify executable exists
         shell: pwsh
         run: |
@@ -205,8 +216,8 @@ jobs:
           $size = (Get-Item "dist\Lenstagram\Lenstagram.exe").Length / 1MB
           Write-Host "Lenstagram.exe size: $([math]::Round($size, 1)) MB"
 
-      # ── 9. Package into ZIP ───────────────────────────────────────────────────
-      - name: Create release ZIP
+      # ── 10. Determine version & write README ──────────────────────────────────
+      - name: Prepare release assets
         shell: pwsh
         run: |
           if ("${{ github.ref_type }}" -eq "tag") {
@@ -236,15 +247,28 @@ jobs:
           "@
           $readmeContent | Out-File "dist\Lenstagram\README.txt" -Encoding UTF8
 
+          echo "VERSION=$version" >> $env:GITHUB_ENV
+
+      # ── 11. Package into ZIP (single zip, no nesting) ─────────────────────────
+      - name: Create release ZIP
+        shell: pwsh
+        run: |
+          $version = "${{ env.VERSION }}"
           $zipName = "Lenstagram-Desktop-Windows-$version.zip"
-          Compress-Archive -Path "dist\Lenstagram\*" -DestinationPath $zipName -Force
+
+          # cd into the output folder so Compress-Archive captures contents only,
+          # not the parent folder — this prevents a zip-inside-zip when GitHub
+          # Actions downloads the artifact.
+          Push-Location dist\Lenstagram
+          Compress-Archive -Path * -DestinationPath "..\..\$zipName" -Force
+          Pop-Location
+
           Write-Host "Package created: $zipName"
           $zipSize = (Get-Item $zipName).Length / 1MB
           Write-Host "ZIP size: $([math]::Round($zipSize, 1)) MB"
           echo "ZIP_NAME=$zipName" >> $env:GITHUB_ENV
-          echo "VERSION=$version" >> $env:GITHUB_ENV
 
-      # ── 10. Upload artifact (available under Actions → run → Artifacts) ───────
+      # ── 12. Upload artifact ───────────────────────────────────────────────────
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
@@ -252,7 +276,7 @@ jobs:
           path: ${{ env.ZIP_NAME }}
           retention-days: 30
 
-      # ── 11. Create GitHub Release (on tag push only) ──────────────────────────
+      # ── 13. Create GitHub Release (on tag push only) ──────────────────────────
       - name: Create GitHub Release
         if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
