@@ -366,7 +366,7 @@
 
     <p class="help-text">
       Need a license key? <a href="https://lenstagram.app/download.html" target="_blank">Visit your dashboard</a> to get one.<br>
-      Questions? <a href="mailto:support@lenstagram.app">Contact support</a>
+      Questions? <a href="/cdn-cgi/l/email-protection#f0838580809f8284b09c959e8384919782919dde918080">Contact support</a>
     </p>
   </div>
 
@@ -412,25 +412,60 @@
   </button>
 </div>
 
-<script>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
 const API = '';  // relative to localhost
 
 // Auto-format the key input as FF-XXXX-XXXX-XXXX-XXXX
 const keyInput = document.getElementById('licenseKey');
+// Format raw hex body (without FF prefix) into FF-XXXX-XXXX-XXXX-XXXX
+function formatKeyBody(hex) {
+  const parts = [];
+  if (hex.length > 0)  parts.push(hex.slice(0, 4));
+  if (hex.length > 4)  parts.push(hex.slice(4, 8));
+  if (hex.length > 8)  parts.push(hex.slice(8, 12));
+  if (hex.length > 12) parts.push(hex.slice(12, 16));
+  return parts.length ? 'FF-' + parts.join('-') : '';
+}
+
 keyInput.addEventListener('input', () => {
-  let val = keyInput.value.toUpperCase().replace(/[^A-F0-9]/g, '');
-  // Build formatted string
-  let parts = [];
-  if (val.length > 0)  parts.push(val.slice(0, 4));
-  if (val.length > 4)  parts.push(val.slice(4, 8));
-  if (val.length > 8)  parts.push(val.slice(8, 12));
-  if (val.length > 12) parts.push(val.slice(12, 16));
-  const formatted = parts.length ? 'FF-' + parts.join('-') : '';
-  keyInput.value = formatted;
+  const start = keyInput.selectionStart;
+  const oldVal = keyInput.value;
+
+  // Strip all non-hex chars, remove leading FF prefix if already present
+  // so pasting "FF-8D0D-..." doesn't double-prefix to "FF-FF8D-..."
+  let hex = oldVal.toUpperCase().replace(/[^A-F0-9]/g, '');
+  if (hex.startsWith('FF')) hex = hex.slice(2);
+  hex = hex.slice(0, 16); // max 16 hex chars for the body
+
+  const formatted = formatKeyBody(hex);
+  if (keyInput.value !== formatted) {
+    keyInput.value = formatted;
+    // Restore cursor: count how many non-dash chars were before cursor in old value,
+    // then find that position in the new formatted string
+    const hexBefore = oldVal.slice(0, start).toUpperCase().replace(/[^A-F0-9]/g, '');
+    // Account for FF prefix being stripped
+    const bodyBefore = hexBefore.startsWith('FF') ? hexBefore.slice(2) : hexBefore;
+    let newPos = 0, count = 0;
+    // Skip past "FF-" prefix (3 chars)
+    if (formatted.length > 0) newPos = 3;
+    for (let i = 3; i < formatted.length && count < bodyBefore.length; i++) {
+      if (formatted[i] !== '-') count++;
+      newPos = i + 1;
+    }
+    keyInput.setSelectionRange(newPos, newPos);
+  }
 });
 
 keyInput.addEventListener('keydown', e => {
-  if (e.key === 'Enter') doActivate();
+  if (e.key === 'Enter') { doActivate(); return; }
+  // When backspacing onto a dash, skip over it so it feels natural
+  if (e.key === 'Backspace') {
+    const pos = keyInput.selectionStart;
+    if (keyInput.selectionStart === keyInput.selectionEnd && pos > 0 && keyInput.value[pos - 1] === '-') {
+      e.preventDefault();
+      keyInput.setSelectionRange(pos - 1, pos - 1);
+    }
+  }
 });
 
 function planLabel(plan) {
@@ -506,9 +541,10 @@ async function doDeactivate() {
   await fetch(`${API}/api/activation/deactivate`, { method: 'POST' });
   document.getElementById('alreadyView').style.display = 'none';
   document.getElementById('formView').style.display = 'block';
+  keyInput.value = '';
+  showMsg('App deactivated. Enter a new license key to reactivate.', 'success');
 }
 
-// On load
 checkExistingActivation();
 </script>
 </body>
