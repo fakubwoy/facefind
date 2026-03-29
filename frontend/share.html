@@ -3,21 +3,18 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FaceFind — Find Your Photos</title>
-  <meta name="description" content="Upload a selfie to instantly find every photo you appear in. AI-powered face recognition search — no account needed." />
+  <title>Lenstagram — Find Your Photos</title>
+  <meta name="description" content="Upload a selfie to instantly find every photo you appear in from this event. No sign-up needed — AI-powered face search for weddings, events & conferences." />
+  <meta name="robots" content="noindex" />
 
   <meta property="og:type"        content="website" />
-  <meta property="og:title"       content="Find Yourself in the Photos — FaceFind" />
-  <meta property="og:description" content="Upload a selfie and instantly find every photo you appear in from this event. Powered by FaceFind face recognition." />
-  <meta property="og:image"       content="https://facefind-production.up.railway.app/og-image.jpg" />
-  <meta property="og:site_name"   content="FaceFind" />
-  <meta name="twitter:card"        content="summary_large_image" />
-  <meta name="twitter:title"       content="Find Yourself in the Photos — FaceFind" />
-  <meta name="twitter:description" content="Upload a selfie and find every photo you appear in. Powered by FaceFind." />
-  <meta name="twitter:image"       content="https://facefind-production.up.railway.app/og-image.jpg" />
+  <meta property="og:title"       content="Find Yourself in the Photos — Lenstagram" />
+  <meta property="og:description" content="Upload a selfie and instantly find every photo you appear in from this event. Powered by Lenstagram AI face search." />
+  <meta property="og:image"       content="https://lenstagram.app/og-image.jpg" />
+  <meta property="og:site_name"   content="Lenstagram" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,700;9..144,800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700;9..144,800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Kaushan+Script&display=swap" rel="stylesheet">
 
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -25,243 +22,304 @@
     :root {
       --bg: #f9f7f4;
       --surface: #ffffff;
+      --surface2: #f2efe9;
       --border: #e8e3db;
+      --border2: #d4cfc7;
       --primary: #4f46e5;
       --primary-dark: #3730a3;
       --primary-light: #eef2ff;
-      --accent: #f43f5e;
+      --accent: #f97373;
       --text: #1c1917;
       --text2: #44403c;
       --muted: #78716c;
       --success: #059669;
+      --warn: #d97706;
       --error: #dc2626;
-      --shadow: 0 4px 16px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.05);
-      --shadow-lg: 0 20px 60px rgba(0,0,0,0.1), 0 4px 16px rgba(0,0,0,0.06);
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.04);
+      --shadow: 0 4px 12px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.05);
+      --shadow-lg: 0 12px 32px rgba(0,0,0,0.09), 0 4px 8px rgba(0,0,0,0.05);
+      --radius-sm: 8px;
       --radius: 14px;
       --radius-lg: 20px;
     }
 
+    html { scroll-behavior: smooth; }
+
     body {
       background: var(--bg);
       color: var(--text);
-      font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
+      font-family: 'Plus Jakarta Sans', sans-serif;
       min-height: 100vh;
       -webkit-font-smoothing: antialiased;
       overflow-x: hidden;
     }
 
-    /* Ambient background blobs */
-    body::before {
-      content: '';
-      position: fixed;
-      top: -200px; left: -200px;
-      width: 600px; height: 600px;
-      border-radius: 50%;
-      background: radial-gradient(circle, rgba(79,70,229,0.07) 0%, transparent 70%);
-      pointer-events: none; z-index: 0;
+    /* ── Header ── */
+    .site-header {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
     }
-    body::after {
-      content: '';
-      position: fixed;
-      bottom: -100px; right: -150px;
-      width: 500px; height: 500px;
+
+    .header-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 64px;
+    }
+
+    .logo {
+      font-family: 'Fraunces', serif;
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--primary);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      letter-spacing: -0.5px;
+    }
+
+    .logo .cursive {
+      font-family: 'Kaushan Script', cursive;
+      font-size: 20px;
+      color: var(--accent);
+    }
+
+    .header-badge {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      background: var(--bg);
+      border: 1px solid var(--border);
+      padding: 4px 12px;
+      border-radius: 100px;
+      display: flex; align-items: center; gap: 8px;
+    }
+
+    .event-dot {
+      width: 6px; height: 6px;
       border-radius: 50%;
-      background: radial-gradient(circle, rgba(244,63,94,0.06) 0%, transparent 70%);
-      pointer-events: none; z-index: 0;
+      background: var(--success);
+      box-shadow: 0 0 0 2px rgba(5,150,105,0.2);
     }
 
     /* ── Layout ── */
     .layout {
       position: relative; z-index: 1;
-      max-width: 1100px;
+      max-width: 720px;
       margin: 0 auto;
-      padding: 0 28px 80px;
-    }
-
-    /* Content inside the layout stays centred and readable */
-    .hero, .upload-card, .results-section,
-    #facePickerSection, #loadingState, #noFaceState {
-      max-width: 680px;
-      margin-left: auto;
-      margin-right: auto;
-    }
-
-    /* ── Header ── */
-    header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 22px 0;
-      border-bottom: 1px solid var(--border);
-      margin-bottom: 0;
-      max-width: none;
-    }
-
-    .logo-link {
-      display: flex; align-items: center; gap: 8px;
-      text-decoration: none;
-    }
-
-    .logo-text {
-      font-family: 'Fraunces', Georgia, 'Times New Roman', serif;
-      font-weight: 800;
-      font-size: 20px;
-      color: var(--primary);
-      letter-spacing: -0.5px;
-    }
-
-    .shared-badge {
-      display: flex; align-items: center; gap: 6px;
-      padding: 5px 12px;
-      background: var(--primary-light);
-      border: 1px solid rgba(79,70,229,0.15);
-      border-radius: 20px;
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--primary);
+      padding: 0 24px 80px;
     }
 
     /* ── Hero ── */
     .hero {
       text-align: center;
-      padding: 52px 0 40px;
+      padding: 60px 0 44px;
     }
 
-    .hero-eyebrow {
-      display: inline-flex; align-items: center; gap: 8px;
-      padding: 6px 16px;
-      background: #fff;
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--muted);
-      margin-bottom: 22px;
-      box-shadow: var(--shadow);
+    .hero-pre {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--primary-light);
+      color: var(--primary);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      padding: 5px 14px;
+      border-radius: 100px;
+      margin-bottom: 20px;
+      border: 1px solid rgba(79, 70, 229, 0.15);
     }
-
-    .hero-eyebrow svg { color: var(--primary); }
 
     .hero-title {
-      font-family: 'Fraunces', Georgia, 'Times New Roman', serif;
-      font-size: clamp(32px, 6vw, 54px);
+      font-family: 'Fraunces', serif;
+      font-size: clamp(34px, 6vw, 56px);
       font-weight: 800;
-      line-height: 1.1;
-      letter-spacing: -1.5px;
+      line-height: 1.08;
+      letter-spacing: -1px;
       color: var(--text);
-      margin-bottom: 14px;
+      margin-bottom: 18px;
     }
 
     .hero-title em {
-      font-style: normal;
+      font-style: italic;
       color: var(--primary);
     }
 
     .hero-desc {
       font-size: 15px;
       color: var(--muted);
-      line-height: 1.7;
-      max-width: 420px;
-      margin: 0 auto 20px;
+      line-height: 1.75;
+      max-width: 440px;
+      margin: 0 auto 28px;
     }
 
-    .dataset-pill {
-      display: inline-flex; align-items: center; gap: 8px;
-      padding: 8px 18px;
+    .album-pill {
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 10px 20px;
       background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 24px;
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--text2);
-      box-shadow: var(--shadow);
-      transition: transform 0.2s;
+      border: 1.5px solid var(--border);
+      border-radius: 30px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      box-shadow: var(--shadow-sm);
+      transition: transform 0.2s, box-shadow 0.2s;
     }
 
-    .dataset-pill:hover { transform: translateY(-1px); }
+    .album-pill:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
 
-    .dataset-dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      background: var(--success);
+    .album-icon {
+      width: 28px; height: 28px;
+      background: var(--primary-light);
+      color: var(--primary);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
       flex-shrink: 0;
-      box-shadow: 0 0 0 3px rgba(5,150,105,0.15);
-      animation: pulse-dot 2s ease-in-out infinite;
     }
 
-    @keyframes pulse-dot {
-      0%, 100% { box-shadow: 0 0 0 3px rgba(5,150,105,0.15); }
-      50%       { box-shadow: 0 0 0 6px rgba(5,150,105,0.08); }
+    /* ── Steps indicator ── */
+    .steps {
+      display: flex; align-items: center; justify-content: center; gap: 0;
+      margin-bottom: 36px;
     }
 
-    /* ── Main card ── */
-    .upload-card {
+    .step {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+    }
+
+    .step-num {
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      border: 1.5px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+      background: var(--bg);
+      transition: all 0.3s;
+    }
+
+    .step.active .step-num {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+
+    .step.done .step-num {
+      background: var(--success);
+      border-color: var(--success);
+      color: #fff;
+    }
+
+    .step-line {
+      width: 40px; height: 1.5px;
+      background: var(--border);
+      margin: 0 6px;
+    }
+
+    /* ── Card ── */
+    .card {
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius-lg);
-      padding: 32px;
-      box-shadow: var(--shadow-lg);
-      margin-bottom: 32px;
+      padding: 36px;
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 20px;
+      position: relative;
+      overflow: hidden;
     }
 
-    .card-heading {
-      font-family: 'Fraunces', Georgia, 'Times New Roman', serif;
-      font-size: 18px;
-      font-weight: 700;
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, var(--primary), var(--accent));
+    }
+
+    .card-title {
+      font-family: 'Fraunces', serif;
+      font-size: 22px;
+      font-weight: 800;
       color: var(--text);
       margin-bottom: 6px;
+      letter-spacing: -0.5px;
     }
 
     .card-sub {
-      font-size: 13px;
+      font-size: 14px;
       color: var(--muted);
-      margin-bottom: 24px;
+      margin-bottom: 28px;
     }
 
-    /* ── Input Mode Tabs ── */
+    /* ── Error banner ── */
+    .error-banner {
+      display: none;
+      align-items: flex-start; gap: 10px;
+      background: rgba(220,38,38,0.06);
+      border: 1.5px solid rgba(220,38,38,0.25);
+      border-radius: var(--radius-sm);
+      color: var(--error);
+      padding: 12px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+    .error-banner.show { display: flex; }
+
+    /* ── Input tabs ── */
     .input-tabs {
       display: flex;
       background: var(--bg);
-      border: 1px solid var(--border);
       border-radius: 10px;
       padding: 4px;
       gap: 4px;
       margin-bottom: 24px;
-      position: relative;
     }
 
-    .input-tab-btn {
+    .tab-btn {
       flex: 1;
       display: flex; align-items: center; justify-content: center; gap: 7px;
       background: none;
       border: none;
       border-radius: 7px;
       color: var(--muted);
-      font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
+      font-family: 'Plus Jakarta Sans', sans-serif;
       font-size: 13px;
       font-weight: 600;
-      padding: 9px 16px;
+      padding: 10px 14px;
       cursor: pointer;
       transition: all 0.2s;
-      position: relative; z-index: 1;
     }
 
-    .input-tab-btn:hover:not(.active) { color: var(--text); }
-
-    .input-tab-btn.active {
-      color: var(--primary);
+    .tab-btn.active {
       background: var(--surface);
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      color: var(--text);
+      box-shadow: var(--shadow-sm);
     }
 
-    .input-tab-panel { display: none; }
-    .input-tab-panel.active { display: block; }
+    .tab-btn:hover:not(.active) { color: var(--text2); }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
 
     /* ── Drop zone ── */
-    .selfie-drop {
-      border: 2px dashed var(--border);
+    .drop-zone {
+      border: 2px dashed var(--border2);
       border-radius: var(--radius);
-      padding: 40px 24px;
+      padding: 44px 24px;
       text-align: center;
       cursor: pointer;
       position: relative;
@@ -269,56 +327,58 @@
       background: var(--bg);
     }
 
-    .selfie-drop:hover, .selfie-drop.dragover {
+    .drop-zone:hover, .drop-zone.dragover {
       border-color: var(--primary);
       background: var(--primary-light);
     }
 
-    .selfie-drop input {
+    .drop-zone input {
       position: absolute; inset: 0;
       opacity: 0; cursor: pointer;
       width: 100%; height: 100%;
     }
 
-    .drop-icon-wrap {
+    .drop-icon {
       width: 56px; height: 56px;
       background: var(--primary-light);
-      border-radius: 14px;
+      color: var(--primary);
+      border-radius: 16px;
       display: flex; align-items: center; justify-content: center;
       margin: 0 auto 16px;
       transition: transform 0.2s;
     }
 
-    .selfie-drop:hover .drop-icon-wrap { transform: translateY(-3px); }
+    .drop-zone:hover .drop-icon { transform: translateY(-3px); }
 
     .selfie-preview {
-      width: 110px; height: 110px;
+      width: 120px; height: 120px;
       border-radius: 50%;
       object-fit: cover;
       display: none;
-      margin: 0 auto 14px;
+      margin: 0 auto 16px;
       border: 3px solid var(--primary);
-      box-shadow: 0 0 0 5px var(--primary-light);
+      box-shadow: 0 0 0 6px var(--primary-light), var(--shadow-sm);
     }
 
     .selfie-preview.show { display: block; }
 
-    .drop-text {
+    .drop-label {
       font-size: 14px;
       font-weight: 600;
       color: var(--text2);
-      margin-bottom: 4px;
+      margin-bottom: 5px;
     }
+    .drop-label span { color: var(--primary); }
 
     .drop-hint {
       font-size: 12px;
       color: var(--muted);
     }
 
-    /* ── Camera zone ── */
+    /* ── Camera ── */
     .camera-zone {
       position: relative;
-      background: #111;
+      background: #000;
       border-radius: var(--radius);
       overflow: hidden;
       aspect-ratio: 4/3;
@@ -346,163 +406,134 @@
 
     .camera-placeholder {
       text-align: center;
-      color: #888;
-      font-size: 14px;
+      color: rgba(255,255,255,0.6);
+      font-size: 13px;
       padding: 32px;
       line-height: 1.7;
     }
 
-    .cam-placeholder-icon {
-      width: 52px; height: 52px;
-      background: rgba(255,255,255,0.08);
-      border-radius: 14px;
-      display: flex; align-items: center; justify-content: center;
-      margin: 0 auto 14px;
+    .cam-controls {
+      display: flex; align-items: center; justify-content: center; gap: 12px;
+      margin-top: 16px;
     }
 
-    .camera-controls {
-      display: flex; align-items: center; justify-content: center;
-      gap: 12px;
-      margin-top: 14px;
-    }
-
-    .cam-btn {
-      font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    .btn-cam {
+      font-family: 'Plus Jakarta Sans', sans-serif;
       font-size: 13px;
       font-weight: 600;
       padding: 10px 22px;
-      border-radius: 10px;
+      border-radius: var(--radius-sm);
       cursor: pointer;
       border: none;
       transition: all 0.2s;
       display: flex; align-items: center; gap: 7px;
     }
 
-    .cam-btn-start {
-      background: var(--primary);
+    .btn-cam-primary {
+      background: var(--text);
       color: #fff;
       width: 100%;
       justify-content: center;
     }
 
-    .cam-btn-start:hover { background: var(--primary-dark); transform: translateY(-1px); }
+    .btn-cam-primary:hover { background: var(--text2); transform: translateY(-1px); }
 
-    .cam-btn-capture {
-      background: var(--primary);
+    .btn-cam-shoot {
+      background: var(--accent);
       color: #fff;
       border-radius: 50%;
-      width: 60px; height: 60px;
+      width: 62px; height: 62px;
       padding: 0;
       justify-content: center;
       flex-shrink: 0;
-      box-shadow: 0 0 0 4px rgba(79,70,229,0.2);
+      box-shadow: 0 0 0 4px rgba(249,115,115,0.2);
     }
 
-    .cam-btn-capture:hover { background: var(--primary-dark); transform: scale(1.05); }
+    .btn-cam-shoot:hover { background: var(--accent-dark); transform: scale(1.05); }
 
-    .cam-btn-secondary {
+    .btn-cam-ghost {
       background: var(--bg);
-      border: 1px solid var(--border);
+      border: 1.5px solid var(--border);
       color: var(--muted);
       padding: 8px 16px;
-      font-size: 12px;
-    }
-
-    .cam-btn-secondary:hover { border-color: var(--primary); color: var(--primary); }
-
-    .cam-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; }
-
-    /* ── Error banner ── */
-    .error-banner {
-      display: none;
-      align-items: flex-start; gap: 10px;
-      background: #fff5f5;
-      border: 1px solid rgba(220,38,38,0.2);
-      border-radius: 10px;
-      color: var(--error);
-      padding: 12px 16px;
       font-size: 13px;
-      margin-bottom: 18px;
     }
 
-    .error-banner.show { display: flex; }
+    .btn-cam-ghost:hover { border-color: var(--text2); color: var(--text); }
+    .btn-cam:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; }
 
-    /* ── Search button ── */
-    .search-btn {
+    /* ── Primary CTA button ── */
+    .btn-primary {
       width: 100%;
-      margin-top: 20px;
-      padding: 15px;
-      background: var(--primary);
+      margin-top: 22px;
+      padding: 14px 26px;
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
       color: #fff;
-      font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
+      font-family: 'Plus Jakarta Sans', sans-serif;
       font-size: 15px;
       font-weight: 700;
       border: none;
-      border-radius: var(--radius);
+      border-radius: var(--radius-sm);
       cursor: pointer;
       transition: all 0.2s;
       display: flex; align-items: center; justify-content: center; gap: 9px;
     }
 
-    .search-btn:hover:not(:disabled) {
-      background: var(--primary-dark);
-      transform: translateY(-1px);
-      box-shadow: 0 6px 20px rgba(79,70,229,0.3);
+    .btn-primary:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(79, 70, 229, 0.35);
     }
 
-    .search-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+    .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; transform: none; box-shadow: none; }
 
-    .btn-ghost {
+    .btn-outline {
       width: 100%;
-      margin-top: 10px;
+      margin-top: 12px;
       padding: 12px;
       background: none;
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      color: var(--muted);
-      font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
-      font-size: 13px;
-      font-weight: 500;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text2);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
       cursor: pointer;
       transition: all 0.2s;
       display: flex; align-items: center; justify-content: center; gap: 7px;
     }
 
-    .btn-ghost:hover { border-color: var(--primary); color: var(--primary); }
+    .btn-outline:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-light); }
 
-    /* ── Spinner / Loading ── */
-    .spinner {
-      display: inline-block;
-      width: 20px; height: 20px;
-      border: 2.5px solid rgba(79,70,229,0.2);
-      border-top-color: var(--primary);
-      border-radius: 50%;
-      animation: spin 0.7s linear infinite;
-    }
-
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    .loading {
+    /* ── Loading ── */
+    .loading-state {
       display: none;
       text-align: center;
-      padding: 52px 32px;
+      padding: 60px 32px;
     }
 
-    .loading.show { display: block; }
+    .loading-state.show { display: block; animation: fadeIn 0.3s ease; }
 
     .loading-ring {
-      width: 56px; height: 56px;
-      border: 3px solid var(--primary-light);
-      border-top-color: var(--primary);
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-      margin: 0 auto 20px;
+      position: relative;
+      width: 64px; height: 64px;
+      margin: 0 auto 24px;
     }
 
+    .loading-ring svg {
+      animation: spin 1.2s linear infinite;
+      width: 64px; height: 64px;
+    }
+
+    .loading-ring .ring-track { stroke: var(--border2); }
+    .loading-ring .ring-arc   { stroke: var(--primary); }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
     .loading-title {
-      font-family: 'Fraunces', Georgia, 'Times New Roman', serif;
-      font-size: 22px;
-      font-weight: 700;
+      font-family: 'Fraunces', serif;
+      font-size: 26px;
+      font-weight: 800;
       color: var(--text);
       margin-bottom: 6px;
     }
@@ -512,77 +543,61 @@
       color: var(--muted);
     }
 
-    /* ── No-face state ── */
-    .no-face {
+    /* ── No face ── */
+    .no-face-state {
       display: none;
       text-align: center;
-      padding: 48px 32px;
+      padding: 56px 32px;
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius-lg);
-      box-shadow: var(--shadow);
+      box-shadow: var(--shadow-sm);
+      position: relative; overflow: hidden;
     }
 
-    .no-face.show { display: block; }
+    .no-face-state::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 4px;
+      background: linear-gradient(90deg, var(--primary), var(--accent));
+    }
 
-    .no-face-icon-wrap {
-      width: 64px; height: 64px;
-      background: #fff5f5;
+    .no-face-state.show { display: block; animation: fadeIn 0.3s ease; }
+
+    .no-face-icon {
+      width: 68px; height: 68px;
+      background: rgba(220,38,38,0.1);
       border-radius: 50%;
+      color: var(--error);
       display: flex; align-items: center; justify-content: center;
-      margin: 0 auto 18px;
+      margin: 0 auto 20px;
     }
 
     .no-face-title {
-      font-family: 'Fraunces', Georgia, 'Times New Roman', serif;
-      font-size: 20px;
-      font-weight: 700;
+      font-family: 'Fraunces', serif;
+      font-size: 24px;
+      font-weight: 800;
       color: var(--text);
-      margin-bottom: 8px;
+      margin-bottom: 10px;
     }
 
     .no-face-text {
       font-size: 14px;
       color: var(--muted);
-      line-height: 1.65;
-      max-width: 320px;
-      margin: 0 auto 24px;
+      line-height: 1.7;
+      max-width: 360px;
+      margin: 0 auto 28px;
     }
 
-    .no-face .search-btn { max-width: 220px; margin: 0 auto; }
+    .no-face-state .btn-primary { max-width: 220px; margin: 0 auto; }
 
-    /* ── Face Picker ── */
-    .face-picker-section {
+    /* ── Face picker ── */
+    .face-picker-state {
       display: none;
-      margin-bottom: 32px;
-    }
-
-    .face-picker-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-lg);
-      padding: 32px;
-      box-shadow: var(--shadow-lg);
-    }
-
-    .face-picker-title {
-      font-family: 'Fraunces', Georgia, 'Times New Roman', serif;
-      font-size: 20px;
-      font-weight: 700;
-      color: var(--text);
-      margin-bottom: 4px;
-    }
-
-    .face-picker-sub {
-      font-size: 13px;
-      color: var(--muted);
-      margin-bottom: 24px;
+      margin-bottom: 20px;
     }
 
     .face-picker-grid {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 14px;
+      display: flex; flex-wrap: wrap; justify-content: center; gap: 16px;
       margin-bottom: 24px;
     }
 
@@ -590,98 +605,96 @@
       cursor: pointer;
       flex-shrink: 0;
       text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
       transition: transform 0.2s;
     }
 
     .face-chip:hover { transform: translateY(-2px); }
 
-    .face-chip-img-wrap {
+    .face-chip-wrap {
       position: relative;
-      width: 90px; height: 90px;
+      width: 88px; height: 88px;
       border-radius: 50%;
       overflow: hidden;
       border: 3px solid var(--border);
       transition: border-color 0.2s, box-shadow 0.2s;
+      background: var(--surface2);
     }
 
-    .face-chip:hover .face-chip-img-wrap {
-      border-color: rgba(79,70,229,0.4);
-    }
-
-    .face-chip.selected .face-chip-img-wrap {
+    .face-chip.selected .face-chip-wrap {
       border-color: var(--primary);
       box-shadow: 0 0 0 4px var(--primary-light);
     }
 
-    .face-chip img {
-      width: 100%; height: 100%;
-      object-fit: cover;
-      display: block;
-    }
+    .face-chip img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
     .face-chip-check {
-      position: absolute;
-      bottom: 2px; right: 2px;
-      width: 22px; height: 22px;
+      position: absolute; bottom: 2px; right: 2px;
+      width: 24px; height: 24px;
       border-radius: 50%;
       background: var(--primary);
       color: #fff;
       display: none;
       align-items: center; justify-content: center;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
     }
 
     .face-chip.selected .face-chip-check { display: flex; }
 
     .face-chip-label {
-      font-size: 11px;
-      font-weight: 600;
+      font-size: 12px; font-weight: 600;
       color: var(--muted);
-      margin-top: 6px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
+      margin-top: 8px;
     }
 
-    .face-picker-hint {
+    .picker-hint {
       font-size: 13px;
       color: var(--muted);
-      margin-bottom: 12px;
+      margin-bottom: 16px;
+      text-align: center;
       transition: color 0.2s;
     }
 
-    .face-picker-hint.has-selection { color: var(--primary); font-weight: 600; }
+    .picker-hint.has-sel { color: var(--primary); font-weight: 700; }
 
     /* ── Results ── */
-    .results-section { display: none; }
-    .results-section.show { display: block; }
+    .results-state { display: none; }
+    .results-state.show { display: block; animation: fadeIn 0.4s ease; }
 
     .results-header {
-      display: flex; align-items: baseline; justify-content: space-between;
-      flex-wrap: wrap; gap: 12px;
-      margin-bottom: 24px;
+      display: flex; align-items: flex-start; justify-content: space-between;
+      flex-wrap: wrap; gap: 14px;
+      margin-bottom: 28px;
     }
 
     .results-title {
-      font-family: 'Fraunces', Georgia, 'Times New Roman', serif;
-      font-size: 26px;
+      font-family: 'Fraunces', serif;
+      font-size: 32px;
       font-weight: 800;
       color: var(--text);
       letter-spacing: -0.5px;
+      line-height: 1.1;
+    }
+
+    .results-title em {
+      font-style: italic;
+      color: var(--primary);
     }
 
     .results-meta {
       display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      margin-top: 6px;
     }
 
-    .results-count {
-      font-size: 13px;
-      color: var(--muted);
-    }
+    .results-count { font-size: 13px; color: var(--muted); font-weight: 500; }
 
-    .latency-badge {
+    .speed-badge {
       display: inline-flex; align-items: center; gap: 5px;
-      padding: 4px 10px;
+      padding: 3px 10px;
       background: var(--primary-light);
-      border: 1px solid rgba(79,70,229,0.15);
+      border: 1px solid rgba(79,70,229,0.25);
       border-radius: 20px;
       font-size: 11px;
       font-weight: 700;
@@ -695,42 +708,43 @@
     .btn-sm {
       display: flex; align-items: center; gap: 6px;
       padding: 8px 16px;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--muted);
-      font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
-      font-size: 12px;
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text2);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 13px;
       font-weight: 600;
       cursor: pointer;
       transition: all 0.2s;
+      white-space: nowrap;
     }
 
-    .btn-sm:hover { border-color: var(--primary); color: var(--primary); }
+    .btn-sm:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-light); }
 
     /* ── Photo grid ── */
     .photo-grid {
       columns: 3;
-      gap: 10px;
+      gap: 12px;
     }
 
-    @media (max-width: 500px) { .photo-grid { columns: 2; } }
+    @media (max-width: 480px) { .photo-grid { columns: 2; } }
 
     .photo-item {
       break-inside: avoid;
-      margin-bottom: 10px;
+      margin-bottom: 12px;
       position: relative;
       overflow: hidden;
       cursor: pointer;
-      border-radius: 10px;
-      background: var(--surface);
-      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      border-radius: 12px;
+      background: var(--surface2);
+      box-shadow: var(--shadow-sm);
       transition: transform 0.25s, box-shadow 0.25s;
     }
 
     .photo-item:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+      transform: translateY(-4px);
+      box-shadow: var(--shadow);
     }
 
     .photo-item img {
@@ -738,66 +752,114 @@
       transition: transform 0.4s;
     }
 
-    .photo-item:hover img { transform: scale(1.05); }
+    .photo-item:hover img { transform: scale(1.04); }
 
     .photo-overlay {
       position: absolute; bottom: 0; left: 0; right: 0;
-      padding: 20px 10px 10px;
+      padding: 24px 12px 12px;
       background: linear-gradient(transparent, rgba(28,25,23,0.8));
-      font-size: 11px;
-      font-weight: 500;
+      font-size: 11px; font-weight: 600;
       color: rgba(255,255,255,0.9);
       opacity: 0;
       transition: opacity 0.25s;
+      display: flex; align-items: flex-end; justify-content: space-between;
     }
 
     .photo-item:hover .photo-overlay { opacity: 1; }
 
+    .photo-dl-btn {
+      background: rgba(255,255,255,0.2);
+      border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 6px;
+      color: #fff;
+      padding: 4px 10px;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+
+    .photo-dl-btn:hover { background: rgba(255,255,255,0.35); }
+
     .score-bar {
       position: absolute; top: 0; left: 0;
       height: 3px;
-      background: var(--primary);
+      background: linear-gradient(90deg, var(--primary), var(--accent));
       border-radius: 0 3px 0 0;
+      z-index: 2;
     }
 
-    /* ── Empty results ── */
+    /* ── Select all bar ── */
+    .select-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 18px;
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      margin-bottom: 16px;
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    .select-bar strong { color: var(--text); font-weight: 700; }
+
+    .btn-dl-all {
+      display: flex; align-items: center; gap: 6px;
+      padding: 8px 18px;
+      background: var(--primary);
+      color: #fff;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      border: none;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-dl-all:hover { background: var(--primary-dark); transform: translateY(-1px); }
+
     .no-results {
       text-align: center;
       padding: 48px;
       color: var(--muted);
       font-size: 14px;
-      grid-column: 1/-1;
+      font-weight: 500;
     }
 
     /* ── Lightbox ── */
     .lightbox {
       position: fixed; inset: 0;
-      background: rgba(28,25,23,0.92);
-      backdrop-filter: blur(6px);
+      background: rgba(28,25,23,0.95);
+      backdrop-filter: blur(8px);
       display: none; align-items: center; justify-content: center;
-      z-index: 300;
+      z-index: 500;
       padding: 24px;
       animation: lb-in 0.2s ease;
     }
 
-    @keyframes lb-in {
-      from { opacity: 0; }
-      to   { opacity: 1; }
-    }
+    @keyframes lb-in { from { opacity: 0; } to { opacity: 1; } }
 
     .lightbox.show { display: flex; }
 
     .lightbox-inner {
       position: relative;
       max-width: 90vw; max-height: 90vh;
-      display: flex; flex-direction: column; align-items: center; gap: 14px;
+      display: flex; flex-direction: column; align-items: center; gap: 16px;
     }
 
     .lightbox img {
-      max-width: 90vw; max-height: 80vh;
+      max-width: 90vw; max-height: 78vh;
       object-fit: contain;
       border-radius: 12px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+      box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+    }
+
+    .lightbox-footer {
+      display: flex; align-items: center; gap: 12px;
     }
 
     .lightbox-label {
@@ -806,12 +868,28 @@
       font-weight: 500;
     }
 
-    .lightbox-close {
-      position: fixed;
-      top: 20px; right: 20px;
-      width: 40px; height: 40px;
+    .lightbox-dl {
+      display: flex; align-items: center; gap: 6px;
+      padding: 9px 18px;
       background: rgba(255,255,255,0.1);
-      border: 1px solid rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 8px;
+      color: #fff;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+      text-decoration: none;
+    }
+
+    .lightbox-dl:hover { background: rgba(255,255,255,0.2); }
+
+    .lightbox-close {
+      position: fixed; top: 20px; right: 20px;
+      width: 44px; height: 44px;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
       border-radius: 50%;
       color: #fff;
       cursor: pointer;
@@ -819,7 +897,7 @@
       transition: background 0.2s;
     }
 
-    .lightbox-close:hover { background: rgba(255,255,255,0.2); }
+    .lightbox-close:hover { background: rgba(255,255,255,0.25); }
 
     /* ── Footer ── */
     footer {
@@ -829,110 +907,168 @@
       margin-top: 48px;
     }
 
-    .footer-link {
-      display: inline-flex; align-items: center; gap: 8px;
-      font-size: 13px;
-      font-weight: 500;
+    .footer-brand {
+      font-family: 'Fraunces', serif;
+      font-size: 16px;
+      font-weight: 800;
       color: var(--muted);
       text-decoration: none;
       transition: color 0.2s;
+      display: inline-block;
+      margin-bottom: 6px;
     }
 
-    .footer-link:hover { color: var(--primary); }
+    .footer-brand:hover { color: var(--primary); }
+    .footer-brand span { font-family: 'Kaushan Script', cursive; color: var(--accent); font-weight: 400; }
+    .footer-brand .logo-serif { font-family: 'Fraunces', serif; color: var(--muted); font-weight: 800; }
 
-    .footer-dot {
-      width: 7px; height: 7px;
-      border-radius: 50%;
-      background: var(--primary);
-    }
-
-    .footer-sub {
-      margin-top: 6px;
-      font-size: 11px;
+    .footer-tagline {
+      font-size: 12px;
       color: var(--muted);
-      opacity: 0.5;
+      font-weight: 500;
     }
 
-    /* ── Fade-up animation ── */
+    /* ── Animations ── */
     .fade-up {
       opacity: 0;
-      transform: translateY(16px);
+      transform: translateY(18px);
       transition: opacity 0.5s ease, transform 0.5s ease;
     }
 
-    .fade-up.visible {
-      opacity: 1;
-      transform: translateY(0);
+    .fade-up.visible { opacity: 1; transform: translateY(0); }
+
+    /* ── Toast ── */
+    .toast-container {
+      position: fixed; bottom: 28px; right: 28px;
+      display: flex; flex-direction: column; gap: 10px;
+      z-index: 900;
+      pointer-events: none;
+    }
+
+    .toast {
+      padding: 13px 20px;
+      background: var(--text);
+      color: #fff;
+      border-radius: var(--radius-sm);
+      font-size: 14px;
+      font-weight: 600;
+      box-shadow: var(--shadow-lg);
+      pointer-events: all;
+      animation: toast-in 0.3s cubic-bezier(0.4,0,0.2,1);
+      display: flex; align-items: center; gap: 8px;
+    }
+
+    @keyframes toast-in {
+      from { transform: translateY(20px); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
+    }
+
+    .toast.fade-out {
+      animation: toast-out 0.3s cubic-bezier(0.4,0,0.2,1) forwards;
+    }
+
+    @keyframes toast-out {
+      to { transform: translateY(20px); opacity: 0; }
     }
 
     /* ── Responsive ── */
-    @media (max-width: 480px) {
-      .upload-card { padding: 22px; }
-      .face-picker-card { padding: 22px; }
+    @media (max-width: 520px) {
+      .card { padding: 24px 20px; }
+      .header-inner { padding: 0 20px; }
     }
+
+    .logo-text { display: inline-flex; align-items: baseline; gap: 0; letter-spacing: normal; }
+    .logo-text .logo-serif { font-family: 'Fraunces', serif; font-weight: 800; }
   </style>
+  <script src="/local_patch.js"></script>   ← ADD THIS
 </head>
 <body>
-<div class="layout">
 
-  <!-- Header -->
-  <header>
-    <a href="https://facefind-production.up.railway.app" class="logo-link">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="10" r="3"/><path d="M9 16c0-1.7 1.3-3 3-3s3 1.3 3 3"/></svg>
-      <span class="logo-text">FaceFind</span>
-    </a>
-    <div class="shared-badge">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3" y="3" width="18" height="18" rx="2"/>
-        <path d="M3 9h18M9 21V9"/>
+<!-- Header -->
+<header class="site-header">
+  <div class="header-inner">
+    <a href="https://lenstagram.app" class="logo">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/>
+        <path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/>
+        <circle cx="12" cy="10" r="3"/><path d="M9 16c0-1.7 1.3-3 3-3s3 1.3 3 3"/>
       </svg>
-      Shared Album
+      <span class="logo-text"><span class="logo-serif">Lens</span><span class="cursive">tagram</span></span>
+    </a>
+    <div class="header-badge">
+      <div class="event-dot"></div>
+      <span id="headerAlbumName">Shared Album</span>
     </div>
-  </header>
+  </div>
+</header>
+
+<!-- Toast container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<div class="layout">
 
   <!-- Hero -->
   <section class="hero fade-up">
-    <div class="hero-eyebrow">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-        <circle cx="9" cy="7" r="4"/>
-        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+    <div class="hero-pre">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
       </svg>
-      You've been invited
+      You're invited
     </div>
-    <h1 class="hero-title">Find <em>yourself</em><br>in the collection</h1>
-    <p class="hero-desc">Upload a clear selfie and we'll scan the entire photo collection to find every image you appear in — instantly.</p>
-    <div class="dataset-pill" id="datasetBadge">
-      <div class="dataset-dot"></div>
-      <span id="datasetName">Loading collection...</span>
+    <h1 class="hero-title">Find <em>yourself</em><br>in every photo</h1>
+    <p class="hero-desc">Upload one selfie — our AI instantly searches the entire collection and delivers every photo you're in. No account. No waiting.</p>
+    <div class="album-pill" id="albumPill">
+      <div class="album-icon">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>
+        </svg>
+      </div>
+      <span id="albumName">Loading collection…</span>
     </div>
   </section>
 
+  <!-- Steps -->
+  <div class="steps fade-up" id="stepsBar" style="transition-delay:0.05s;">
+    <div class="step active" id="step1">
+      <div class="step-num">1</div>
+      <span>Upload selfie</span>
+    </div>
+    <div class="step-line"></div>
+    <div class="step" id="step2">
+      <div class="step-num">2</div>
+      <span>AI searches</span>
+    </div>
+    <div class="step-line"></div>
+    <div class="step" id="step3">
+      <div class="step-num">3</div>
+      <span>Your photos</span>
+    </div>
+  </div>
+
   <!-- Upload card -->
-  <div class="upload-card fade-up" style="transition-delay:0.1s;">
-    <div class="card-heading">Step 1 — Provide your selfie</div>
-    <div class="card-sub">Use a clear, forward-facing photo for best results</div>
+  <div class="card fade-up" id="uploadCard" style="transition-delay:0.1s;">
+    <div class="card-title">Upload your selfie</div>
+    <div class="card-sub">Use a clear, well-lit front-facing photo for best results</div>
 
     <div class="error-banner" id="errorBanner">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px;">
         <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
       </svg>
       <span id="errorText"></span>
     </div>
 
-    <!-- Mode tabs -->
+    <!-- Tabs -->
     <div class="input-tabs">
-      <button class="input-tab-btn active" onclick="switchInputTab('upload', this)">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <button class="tab-btn active" onclick="switchTab('upload', this)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="17 8 12 3 7 8"/>
-          <line x1="12" y1="3" x2="12" y2="15"/>
+          <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
         </svg>
         Upload Photo
       </button>
-      <button class="input-tab-btn" onclick="switchInputTab('camera', this)">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <button class="tab-btn" onclick="switchTab('camera', this)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
           <circle cx="12" cy="13" r="4"/>
         </svg>
@@ -940,59 +1076,56 @@
       </button>
     </div>
 
-    <!-- Upload tab -->
-    <div class="input-tab-panel active" id="itab-upload">
-      <div class="selfie-drop" id="selfieZone">
+    <!-- Upload panel -->
+    <div class="tab-panel active" id="tab-upload">
+      <div class="drop-zone" id="dropZone">
         <input type="file" id="selfieFile" accept="image/*" />
         <img class="selfie-preview" id="selfiePreview" alt="Your selfie" />
         <div id="dropInner">
-          <div class="drop-icon-wrap">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="8" r="4"/>
-              <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+          <div class="drop-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
             </svg>
           </div>
-          <div class="drop-text">Drop your photo here, or <span style="color:var(--primary);font-weight:700;">browse</span></div>
-          <div class="drop-hint">JPG, PNG · Works best with a clear front-facing photo</div>
+          <div class="drop-label">Drop your photo here, or <span>browse</span></div>
+          <div class="drop-hint">JPG or PNG · Clear, front-facing selfie works best</div>
         </div>
       </div>
     </div>
 
-    <!-- Camera tab -->
-    <div class="input-tab-panel" id="itab-camera">
+    <!-- Camera panel -->
+    <div class="tab-panel" id="tab-camera">
       <div class="camera-zone" id="cameraZone">
         <div class="camera-placeholder" id="cameraPlaceholder">
-          <div class="cam-placeholder-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-              <circle cx="12" cy="13" r="4"/>
-            </svg>
-          </div>
-          Click <strong style="color:rgba(255,255,255,0.8)">Start Camera</strong> below to take a selfie.<br>
-          <span style="font-size:12px;opacity:0.5;margin-top:4px;display:block;">Your camera feed stays on-device.</span>
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:12px;">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+            <circle cx="12" cy="13" r="4"/>
+          </svg><br>
+          Click <strong>Start Camera</strong> to take a selfie.<br>
+          <span style="font-size:12px;opacity:0.6;margin-top:6px;display:block;">Your feed stays on-device — never uploaded.</span>
         </div>
         <video id="cameraVideo" autoplay playsinline></video>
         <img class="captured-preview" id="capturedPreview" alt="Captured selfie" />
         <canvas id="cameraCanvas"></canvas>
       </div>
 
-      <div class="camera-controls" id="camCtrlStart">
-        <button class="cam-btn cam-btn-start" onclick="startCamera()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <div class="cam-controls" id="ctrlStart">
+        <button class="btn-cam btn-cam-primary" onclick="startCamera()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <polygon points="5 3 19 12 5 21 5 3"/>
           </svg>
           Start Camera
         </button>
       </div>
 
-      <div class="camera-controls" id="camCtrlLive" style="display:none;">
-        <button class="cam-btn cam-btn-secondary" onclick="stopCamera()">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <div class="cam-controls" id="ctrlLive" style="display:none;">
+        <button class="btn-cam btn-cam-ghost" onclick="stopCamera()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
           </svg>
           Cancel
         </button>
-        <button class="cam-btn cam-btn-capture" onclick="capturePhoto()" title="Take photo">
+        <button class="btn-cam btn-cam-shoot" onclick="capturePhoto()" title="Take photo">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" fill="currentColor"/>
           </svg>
@@ -1000,16 +1133,15 @@
         <div style="width:80px;"></div>
       </div>
 
-      <div class="camera-controls" id="camCtrlCaptured" style="display:none;">
-        <button class="cam-btn cam-btn-secondary" onclick="retakePhoto()">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="1 4 1 10 7 10"/>
-            <path d="M3.51 15a9 9 0 1 0 .49-4.95"/>
+      <div class="cam-controls" id="ctrlCaptured" style="display:none;">
+        <button class="btn-cam btn-cam-ghost" onclick="retakePhoto()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/>
           </svg>
           Retake
         </button>
-        <span style="font-size:12px;font-weight:600;color:var(--success);display:flex;align-items:center;gap:6px;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <span style="font-size:13px;font-weight:700;color:var(--success);display:flex;align-items:center;gap:6px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="20 6 9 17 4 12"/>
           </svg>
           Photo captured
@@ -1018,56 +1150,60 @@
       </div>
     </div>
 
-    <button class="search-btn" id="searchBtn" disabled>
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <button class="btn-primary" id="searchBtn" disabled>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
       </svg>
-      Search the Collection
+      Find My Photos
     </button>
   </div>
 
-  <!-- Loading state -->
-  <div class="loading" id="loadingState">
-    <div class="loading-ring"></div>
-    <div class="loading-title">Searching...</div>
+  <!-- Loading -->
+  <div class="loading-state" id="loadingState">
+    <div class="loading-ring">
+      <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="32" cy="32" r="28" stroke-width="4" class="ring-track"/>
+        <path d="M32 4 A28 28 0 0 1 60 32" stroke-width="4" stroke-linecap="round" class="ring-arc"/>
+      </svg>
+    </div>
+    <div class="loading-title">Searching…</div>
     <div class="loading-sub" id="loadingText">Detecting face &amp; scanning collection</div>
   </div>
 
-  <!-- No face state -->
-  <div class="no-face" id="noFaceState">
-    <div class="no-face-icon-wrap">
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--error)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <!-- No face -->
+  <div class="no-face-state" id="noFaceState">
+    <div class="no-face-icon">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="10"/>
         <path d="M8 15s1.5-2 4-2 4 2 4 2"/>
-        <line x1="9" y1="9" x2="9.01" y2="9"/>
-        <line x1="15" y1="9" x2="15.01" y2="9"/>
+        <line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/>
       </svg>
     </div>
     <div class="no-face-title">No face detected</div>
-    <p class="no-face-text">We couldn't detect a face in your photo. Try a clearer, well-lit front-facing photo.</p>
-    <button class="search-btn" onclick="reset()">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <p class="no-face-text">We couldn't find a clear face in your photo. Try a well-lit, front-facing selfie without sunglasses.</p>
+    <button class="btn-primary" onclick="reset()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
         <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/>
       </svg>
       Try Again
     </button>
   </div>
 
-  <!-- Face picker (multi-face) -->
-  <div class="face-picker-section" id="facePickerSection">
-    <div class="face-picker-card">
-      <div class="face-picker-title">Multiple faces detected</div>
-      <div class="face-picker-sub">Tap the face(s) you want to search for</div>
+  <!-- Face picker -->
+  <div class="face-picker-state" id="facePickerState">
+    <div class="card">
+      <div class="card-title">Multiple faces detected</div>
+      <div class="card-sub">Tap the face you want to search for</div>
       <div class="face-picker-grid" id="facePickerGrid"></div>
-      <div class="face-picker-hint" id="facePickerHint">Select at least one face</div>
-      <button class="search-btn" id="facePickerSearchBtn" onclick="doFaceSearch()" disabled>
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <div class="picker-hint" id="pickerHint">Select at least one face to continue</div>
+      <button class="btn-primary" id="pickerSearchBtn" onclick="doFaceSearch()" disabled>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
         </svg>
         Search Selected Faces
       </button>
-      <button class="btn-ghost" onclick="reset()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <button class="btn-outline" onclick="reset()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/>
         </svg>
         Start Over
@@ -1076,15 +1212,15 @@
   </div>
 
   <!-- Results -->
-  <div class="results-section" id="resultsSection">
+  <div class="results-state" id="resultsState">
     <div class="results-header">
       <div>
-        <div class="results-title">Your Photos</div>
+        <div class="results-title">Your <em>photos</em></div>
         <div class="results-meta">
           <span class="results-count" id="resultsCount"></span>
-          <span class="latency-badge" id="latencyBadge">
+          <span class="speed-badge" id="speedBadge">
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="13 2 13 9 22 9"/><polygon points="22 2 13 2 2 13 11 22 22 11 22 2"/>
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
             </svg>
             <span id="latencyMs"></span>
           </span>
@@ -1092,13 +1228,26 @@
       </div>
       <div class="results-actions">
         <button class="btn-sm" onclick="reset()">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/>
           </svg>
           New Search
         </button>
       </div>
     </div>
+
+    <!-- Select all / download all bar (shown when results > 0) -->
+    <div class="select-bar" id="dlBar" style="display:none;">
+      <span><strong id="dlCount">0</strong> photos found</span>
+      <button class="btn-dl-all" id="dlAllBtn" onclick="downloadAll()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Download All
+      </button>
+    </div>
+
     <div class="photo-grid" id="photoGrid"></div>
   </div>
 
@@ -1106,189 +1255,215 @@
 
 <!-- Footer -->
 <footer>
-  <a href="https://facefind-production.up.railway.app" class="footer-link">
-    <div class="footer-dot"></div>
-    Powered by FaceFind — face search for events
-  </a>
-  <div class="footer-sub">Let anyone find their photos at facefind-production.up.railway.app</div>
+  <a href="https://lenstagram.app" class="footer-brand"><span class="logo-text"><span class="logo-serif">Lens</span><span>tagram</span></span></a>
+  <div class="footer-tagline">AI photo search for weddings &amp; events</div>
 </footer>
 
 <!-- Lightbox -->
 <div class="lightbox" id="lightbox" onclick="closeLightbox()">
   <div class="lightbox-inner" onclick="event.stopPropagation()">
     <img id="lightboxImg" alt="Full photo" />
-    <div class="lightbox-label" id="lightboxLabel"></div>
+    <div class="lightbox-footer">
+      <div class="lightbox-label" id="lightboxLabel"></div>
+      <a class="lightbox-dl" id="lightboxDl" href="#" download>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Download
+      </a>
+    </div>
   </div>
   <button class="lightbox-close" onclick="closeLightbox()">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
       <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
     </svg>
   </button>
 </div>
 
 <script>
-  const API = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  /* ── Config ─────────────────────────────────────────────── */
+  const API = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
     ? 'http://localhost:8000'
-    : window.location.origin;
+    : location.origin;
+
   const params  = new URLSearchParams(location.search);
   const shareId = params.get('id');
 
-  // ── Scroll animations ──────────────────────────────────────────────────────
-  const observer = new IntersectionObserver(entries => {
+  /* ── Scroll animations ─────────────────────────────────── */
+  const obs = new IntersectionObserver(entries => {
     entries.forEach(e => {
-      if (e.isIntersecting) {
-        e.target.classList.add('visible');
-        observer.unobserve(e.target);
-      }
+      if (e.isIntersecting) { e.target.classList.add('visible'); obs.unobserve(e.target); }
     });
-  }, { threshold: 0.12 });
+  }, { threshold: 0.1 });
+  document.querySelectorAll('.fade-up').forEach(el => obs.observe(el));
 
-  document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+  /* ── Toast ─────────────────────────────────────────────── */
+  function toast(msg, icon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>') {
+    const c = document.getElementById('toastContainer');
+    const t = document.createElement('div');
+    t.className = 'toast';
+    t.innerHTML = `<span>${icon}</span><span>${msg}</span>`;
+    c.appendChild(t);
+    setTimeout(() => {
+      t.classList.add('fade-out');
+      setTimeout(() => t.remove(), 350);
+    }, 3200);
+  }
 
-  // ── Load share info ────────────────────────────────────────────────────────
+  /* ── Load share info ────────────────────────────────────── */
+  let shareData = null;
+
   async function loadShare() {
     if (!shareId) {
-      document.getElementById('datasetName').textContent = 'Invalid share link';
+      setAlbumName('Invalid share link');
       return;
     }
     try {
       const r = await fetch(`${API}/api/shares/${shareId}`);
-      if (!r.ok) throw new Error('Share not found');
-      const d = await r.json();
-      document.getElementById('datasetName').textContent = d.dataset_name || 'Photo Collection';
-      document.title = `FaceFind — ${d.dataset_name || 'Photo Collection'}`;
-    } catch(e) {
-      document.getElementById('datasetName').textContent = 'Share link not found';
+      if (!r.ok) throw new Error('Not found');
+      shareData = await r.json();
+      const name = shareData.dataset_name || 'Photo Collection';
+      setAlbumName(name);
+      document.title = `Lenstagram — ${name}`;
+    } catch {
+      setAlbumName('Link not found');
       showError('This share link is invalid or has expired.');
     }
   }
 
-  // ── Input tab switching ────────────────────────────────────────────────────
-  function switchInputTab(name, btn) {
-    document.querySelectorAll('.input-tab-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.input-tab-panel').forEach(p => p.classList.remove('active'));
+  function setAlbumName(name) {
+    document.getElementById('albumName').textContent = name;
+    document.getElementById('headerAlbumName').textContent = name;
+  }
+
+  /* ── Tab switching ──────────────────────────────────────── */
+  function switchTab(name, btn) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
     btn.classList.add('active');
-    document.getElementById('itab-' + name).classList.add('active');
+    document.getElementById('tab-' + name).classList.add('active');
     if (name !== 'camera') stopCamera();
   }
 
-  // ── File upload handling ───────────────────────────────────────────────────
+  /* ── Step indicator ─────────────────────────────────────── */
+  function setStep(n) {
+    for (let i = 1; i <= 3; i++) {
+      const s = document.getElementById('step' + i);
+      s.classList.remove('active', 'done');
+      if (i < n) s.classList.add('done');
+      else if (i === n) s.classList.add('active');
+    }
+  }
+
+  /* ── File upload ────────────────────────────────────────── */
   let uploadedFile = null;
+  let capturedBlob = null;
 
   const selfieFile    = document.getElementById('selfieFile');
   const selfiePreview = document.getElementById('selfiePreview');
   const dropInner     = document.getElementById('dropInner');
-  const selfieZone    = document.getElementById('selfieZone');
+  const dropZone      = document.getElementById('dropZone');
   const searchBtn     = document.getElementById('searchBtn');
 
   selfieFile.addEventListener('change', () => handleFile(selfieFile.files[0]));
 
-  selfieZone.addEventListener('dragover', e => { e.preventDefault(); selfieZone.classList.add('dragover'); });
-  selfieZone.addEventListener('dragleave', () => selfieZone.classList.remove('dragover'));
-  selfieZone.addEventListener('drop', e => {
-    e.preventDefault();
-    selfieZone.classList.remove('dragover');
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault(); dropZone.classList.remove('dragover');
     handleFile(e.dataTransfer.files[0]);
   });
 
   function handleFile(file) {
     if (!file || !file.type.startsWith('image/')) return;
-    uploadedFile = file;
-    capturedBlob = null;
-    const url = URL.createObjectURL(file);
-    selfiePreview.src = url;
+    uploadedFile = file; capturedBlob = null;
+    selfiePreview.src = URL.createObjectURL(file);
     selfiePreview.classList.add('show');
     dropInner.style.display = 'none';
     searchBtn.disabled = false;
+    hideError();
   }
 
-  // ── Camera handling ────────────────────────────────────────────────────────
+  /* ── Camera ─────────────────────────────────────────────── */
   let cameraStream = null;
-  let capturedBlob = null;
 
-  const video             = document.getElementById('cameraVideo');
-  const canvas            = document.getElementById('cameraCanvas');
-  const capturedPreview   = document.getElementById('capturedPreview');
-  const camCtrlStart      = document.getElementById('camCtrlStart');
-  const camCtrlLive       = document.getElementById('camCtrlLive');
-  const camCtrlCaptured   = document.getElementById('camCtrlCaptured');
-  const cameraPlaceholder = document.getElementById('cameraPlaceholder');
+  const video           = document.getElementById('cameraVideo');
+  const canvas          = document.getElementById('cameraCanvas');
+  const capturedPrev    = document.getElementById('capturedPreview');
+  const ctrlStart       = document.getElementById('ctrlStart');
+  const ctrlLive        = document.getElementById('ctrlLive');
+  const ctrlCaptured    = document.getElementById('ctrlCaptured');
+  const cameraPlacehold = document.getElementById('cameraPlaceholder');
 
   async function startCamera() {
     try {
       cameraStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: false
+        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false
       });
       video.srcObject = cameraStream;
       video.classList.add('active');
-      cameraPlaceholder.style.display = 'none';
-      capturedPreview.classList.remove('show');
-      camCtrlStart.style.display = 'none';
-      camCtrlLive.style.display = 'flex';
-      camCtrlCaptured.style.display = 'none';
+      cameraPlacehold.style.display = 'none';
+      capturedPrev.classList.remove('show');
+      ctrlStart.style.display = 'none';
+      ctrlLive.style.display = 'flex';
+      ctrlCaptured.style.display = 'none';
       searchBtn.disabled = true;
-    } catch(e) {
-      showError('Camera access denied or unavailable. Please allow camera permission and try again.');
+    } catch {
+      showError('Camera access denied. Please allow camera permissions and try again, or upload a photo instead.');
     }
   }
 
   function stopCamera() {
-    if (cameraStream) {
-      cameraStream.getTracks().forEach(t => t.stop());
-      cameraStream = null;
-    }
-    video.srcObject = null;
-    video.classList.remove('active');
-    cameraPlaceholder.style.display = '';
-    camCtrlStart.style.display = 'flex';
-    camCtrlLive.style.display = 'none';
-    camCtrlCaptured.style.display = 'none';
+    if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; }
+    video.srcObject = null; video.classList.remove('active');
+    cameraPlacehold.style.display = '';
+    ctrlStart.style.display = 'flex';
+    ctrlLive.style.display = 'none';
+    ctrlCaptured.style.display = 'none';
   }
 
   function capturePhoto() {
     if (!cameraStream) return;
-    canvas.width  = video.videoWidth;
-    canvas.height = video.videoHeight;
+    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
     const ctx = canvas.getContext('2d');
-    ctx.translate(canvas.width, 0);
-    ctx.scale(-1, 1);
+    ctx.translate(canvas.width, 0); ctx.scale(-1, 1);
     ctx.drawImage(video, 0, 0);
-
     canvas.toBlob(blob => {
-      capturedBlob = blob;
-      uploadedFile = null;
-      const url = URL.createObjectURL(blob);
-      capturedPreview.src = url;
-      capturedPreview.classList.add('show');
+      capturedBlob = blob; uploadedFile = null;
+      capturedPrev.src = URL.createObjectURL(blob);
+      capturedPrev.classList.add('show');
       video.classList.remove('active');
-      camCtrlLive.style.display = 'none';
-      camCtrlCaptured.style.display = 'flex';
+      ctrlLive.style.display = 'none';
+      ctrlCaptured.style.display = 'flex';
       searchBtn.disabled = false;
     }, 'image/jpeg', 0.92);
   }
 
   function retakePhoto() {
     capturedBlob = null;
-    capturedPreview.classList.remove('show');
+    capturedPrev.classList.remove('show');
     video.classList.add('active');
-    camCtrlLive.style.display = 'flex';
-    camCtrlCaptured.style.display = 'none';
+    ctrlLive.style.display = 'flex';
+    ctrlCaptured.style.display = 'none';
     searchBtn.disabled = true;
   }
 
-  // ── Search ─────────────────────────────────────────────────────────────────
+  /* ── Search flow ────────────────────────────────────────── */
   let currentFile = null;
-  let selectedFaceIndices = new Set();
+  let selectedFaces = new Set();
+  let currentResults = null; // store for download-all
 
-  searchBtn.addEventListener('click', async () => {
+  searchBtn.addEventListener('click', startSearch);
+
+  async function startSearch() {
     const payload = capturedBlob || uploadedFile;
     if (!payload || !shareId) return;
     currentFile = payload;
-
     hideError();
-    showState('loading');
-    document.getElementById('loadingText').textContent = 'Detecting faces in your photo...';
+    setStep(2);
+    setState('loading');
+    document.getElementById('loadingText').textContent = 'Detecting faces in your photo…';
 
     const fd = new FormData();
     fd.append('file', capturedBlob
@@ -1297,85 +1472,103 @@
     );
 
     try {
-      const r = await fetch(`${API}/api/shares/${shareId}/detect-faces`, { method: 'POST', body: fd });
+      const r = await fetchWithRetry(`${API}/api/shares/${shareId}/detect-faces`, { method: 'POST', body: fd });
       const d = await r.json();
       if (!r.ok) throw new Error(d.detail || 'Detection failed');
 
-      if (!d.face_detected || d.faces.length === 0) {
-        showState('noface');
-        return;
-      }
+      if (!d.face_detected || d.faces.length === 0) { setState('noface'); setStep(1); return; }
 
       if (d.faces.length === 1) {
         await runSearch([0]);
       } else {
         buildFacePicker(d.faces);
-        showState('facepicker');
+        setState('facepicker');
       }
-    } catch(e) {
-      showState('upload');
-      showError(`Detection failed: ${e.message}`);
+    } catch (e) {
+      setState('upload'); setStep(1);
+      showError(`Search failed: ${e.message}. Please check your connection and try again.`);
     }
-  });
+  }
 
+  /* ── fetchWithRetry: basic resilience ── */
+  async function fetchWithRetry(url, opts = {}, retries = 2, delay = 1200) {
+    for (let i = 0; i <= retries; i++) {
+      try {
+        const r = await fetch(url, opts);
+        return r;
+      } catch (e) {
+        if (i === retries) throw e;
+        await new Promise(res => setTimeout(res, delay));
+        document.getElementById('loadingText').textContent = `Retrying… (attempt ${i + 2})`;
+      }
+    }
+  }
+
+  /* ── Face picker ────────────────────────────────────────── */
   function buildFacePicker(faces) {
-    selectedFaceIndices = new Set();
+    selectedFaces = new Set();
     const grid = document.getElementById('facePickerGrid');
     grid.innerHTML = '';
-    faces.forEach(f => {
+    
+    faces.forEach((f, i) => {
+      // Safely determine the face identifier/index provided by backend
+      const idx = f.face_id !== undefined ? f.face_id : (f.index !== undefined ? f.index : i);
+      
+      // Ensure raw base64 data strings are properly structured for the `img src`
+      const thumbUrl = f.thumbnail 
+        ? (f.thumbnail.startsWith('data:') || f.thumbnail.startsWith('http') ? f.thumbnail : `data:image/jpeg;base64,${f.thumbnail}`) 
+        : ''; // Will trigger the SVG fallback via onerror
+
       const chip = document.createElement('div');
       chip.className = 'face-chip';
-      chip.dataset.index = f.index;
+      chip.dataset.index = idx;
+      
       chip.innerHTML = `
-        <div class="face-chip-img-wrap">
-          <img src="${f.thumbnail}" alt="Face ${f.index + 1}" />
+        <div class="face-chip-wrap">
+          <img src="${thumbUrl}" alt="Face ${i + 1}" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZDRjZmM3IiBzdHJva2Utd2lkdGg9IjIiPjxjaXJjbGUgY3g9IjEyIiBjeT0iOCIgcj0iNCIvPjxwYXRoIGQ9Ik00IDIwYzAtNCAzLjYtNyA4LTdzOCAzIDggNyIvPjwvc3ZnPg=='" />
           <div class="face-chip-check">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="20 6 9 17 4 12"/>
             </svg>
           </div>
         </div>
-        <div class="face-chip-label">Face ${f.index + 1}</div>
+        <div class="face-chip-label">Face ${i + 1}</div>
       `;
-      chip.addEventListener('click', () => toggleFace(chip, f.index));
+      chip.addEventListener('click', () => toggleFace(chip, idx));
       grid.appendChild(chip);
     });
     updatePickerBtn();
   }
 
-  function toggleFace(chip, index) {
-    if (selectedFaceIndices.has(index)) {
-      selectedFaceIndices.delete(index);
+  function toggleFace(chip, idx) {
+    if (selectedFaces.has(idx)) {
+      selectedFaces.delete(idx);
       chip.classList.remove('selected');
     } else {
-      selectedFaceIndices.add(index);
+      selectedFaces.add(idx);
       chip.classList.add('selected');
     }
     updatePickerBtn();
   }
 
   function updatePickerBtn() {
-    const btn  = document.getElementById('facePickerSearchBtn');
-    const hint = document.getElementById('facePickerHint');
-    const count = selectedFaceIndices.size;
-    btn.disabled = count === 0;
-    if (count === 0) {
-      hint.textContent = 'Select at least one face';
-      hint.classList.remove('has-selection');
-    } else {
-      hint.textContent = `${count} face${count > 1 ? 's' : ''} selected`;
-      hint.classList.add('has-selection');
-    }
+    const btn  = document.getElementById('pickerSearchBtn');
+    const hint = document.getElementById('pickerHint');
+    const n    = selectedFaces.size;
+    btn.disabled = n === 0;
+    if (n === 0) { hint.textContent = 'Select at least one face to continue'; hint.classList.remove('has-sel'); }
+    else         { hint.textContent = `${n} face${n > 1 ? 's' : ''} selected`; hint.classList.add('has-sel'); }
   }
 
   async function doFaceSearch() {
-    if (selectedFaceIndices.size === 0) return;
-    await runSearch([...selectedFaceIndices]);
+    if (!selectedFaces.size) return;
+    await runSearch([...selectedFaces]);
   }
 
-  async function runSearch(faceIndices) {
-    showState('loading');
-    document.getElementById('loadingText').textContent = 'Scanning collection...';
+  /* ── Run search ─────────────────────────────────────────── */
+  async function runSearch(indices) {
+    setState('loading');
+    document.getElementById('loadingText').textContent = 'Scanning the entire collection…';
 
     const payload = currentFile || capturedBlob || uploadedFile;
     const fd = new FormData();
@@ -1383,60 +1576,116 @@
       ? new File([payload], 'selfie.jpg', { type: 'image/jpeg' })
       : payload
     );
-    fd.append('face_indices', faceIndices.join(','));
+    fd.append('face_indices', indices.join(','));
 
     try {
-      const r = await fetch(`${API}/api/shares/${shareId}/search`, { method: 'POST', body: fd });
+      const r = await fetchWithRetry(`${API}/api/shares/${shareId}/search`, { method: 'POST', body: fd });
       const d = await r.json();
       if (!r.ok) throw new Error(d.detail || 'Search failed');
-      if (!d.face_detected) { showState('noface'); return; }
+      if (!d.face_detected) { setState('noface'); setStep(1); return; }
       renderResults(d);
-    } catch(e) {
-      showState('upload');
-      showError(`Search failed: ${e.message}`);
+    } catch (e) {
+      setState('upload'); setStep(1);
+      showError(`Search failed: ${e.message}. Please check your connection and try again.`);
     }
   }
 
-  // ── Results ────────────────────────────────────────────────────────────────
+  /* ── Render results ─────────────────────────────────────── */
   function renderResults(data) {
+    currentResults = data;
     const matches = data.matches || [];
+    setStep(3);
+
     document.getElementById('latencyMs').textContent = `${data.latency_ms}ms`;
     document.getElementById('resultsCount').textContent =
-      `${matches.length} photo${matches.length !== 1 ? 's' : ''} found · searched ${selectedFaceIndices.size || 1} face${(selectedFaceIndices.size || 1) !== 1 ? 's' : ''}`;
+      `${matches.length} photo${matches.length !== 1 ? 's' : ''} · ${selectedFaces.size || 1} face${(selectedFaces.size || 1) > 1 ? 's' : ''} searched`;
 
-    const grid = document.getElementById('photoGrid');
+    const dlBar = document.getElementById('dlBar');
+    const grid  = document.getElementById('photoGrid');
     grid.innerHTML = '';
 
     if (matches.length === 0) {
-      grid.innerHTML = '<div class="no-results">No matching photos found. Try a different photo.</div>';
+      dlBar.style.display = 'none';
+      grid.innerHTML = '<div class="no-results">No matching photos found. Try a clearer, front-facing selfie.</div>';
     } else {
+      dlBar.style.display = 'flex';
+      document.getElementById('dlCount').textContent = matches.length;
+
       matches.forEach((m, i) => {
-        const item = document.createElement('div');
-        item.className = 'photo-item';
-        item.style.animationDelay = `${i * 40}ms`;
-        const scoreWidth = Math.round(m.score * 100);
+        const item       = document.createElement('div');
+        item.className   = 'photo-item';
+        item.style.animationDelay = `${i * 35}ms`;
+        const scoreW  = Math.round(m.score * 100);
         const thumbSrc = `${API}/api/thumb/${data.dataset_id}/${m.image_path}`;
         const fullSrc  = `${API}/api/image/${data.dataset_id}/${m.image_path}`;
+        const dlSrc    = `${API}/api/watermarked/${data.dataset_id}?image_path=${encodeURIComponent(m.image_path)}&share_id=${shareId}`;
+        const label    = (m.label || '').replace(/_/g, ' ');
+
         item.innerHTML = `
-          <div class="score-bar" style="width:${scoreWidth}%"></div>
-          <img src="${thumbSrc}" loading="lazy" alt="${m.label}"
+          <div class="score-bar" style="width:${scoreW}%"></div>
+          <img src="${thumbSrc}" loading="lazy" alt="${label}"
                onerror="this.closest('.photo-item').style.display='none'" />
           <div class="photo-overlay">
-            ${m.label.replace(/_/g,' ')} &nbsp;·&nbsp; ${Math.round(m.score*100)}% match
+            <span>${label} &nbsp;·&nbsp; ${scoreW}% match</span>
+            <button class="photo-dl-btn" onclick="event.stopPropagation(); downloadPhoto('${dlSrc}', '${m.image_path}')">
+              ↓ Save
+            </button>
           </div>
         `;
-        item.addEventListener('click', () => openLightbox(fullSrc, m));
+        item.addEventListener('click', () => openLightbox(fullSrc, dlSrc, m));
         grid.appendChild(item);
       });
     }
-    showState('results');
+    setState('results');
   }
 
-  // ── Lightbox ───────────────────────────────────────────────────────────────
-  function openLightbox(src, meta) {
-    document.getElementById('lightboxImg').src = src;
+  /* ── Download ───────────────────────────────────────────── */
+  async function downloadPhoto(dlSrc, path) {
+    try {
+      const r = await fetch(dlSrc);
+      if (!r.ok) throw new Error('Download failed');
+      const blob = await r.blob();
+      const a    = document.createElement('a');
+      a.href     = URL.createObjectURL(blob);
+      a.download = path.split('/').pop() || 'photo.jpg';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(a.href), 100);
+      toast('Photo saved!');
+    } catch {
+      toast('Download failed — try right-clicking the image.', '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>');
+    }
+  }
+
+  async function downloadAll() {
+    if (!currentResults) return;
+    const matches = currentResults.matches || [];
+    if (!matches.length) return;
+    const btn = document.getElementById('dlAllBtn');
+    btn.disabled = true;
+    btn.innerHTML = `<span>Preparing ${matches.length} photos…</span>`;
+    let done = 0;
+    for (const m of matches) {
+      const dlSrc = `${API}/api/image/${currentResults.dataset_id}/${m.image_path}/watermarked?share_id=${shareId}`;
+      await downloadPhoto(dlSrc, m.image_path).catch(() => {});
+      done++;
+      btn.innerHTML = `<span>Downloading ${done}/${matches.length}…</span>`;
+      await new Promise(res => setTimeout(res, 300));
+    }
+    btn.disabled = false;
+    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download All`;
+    toast('All photos saved!');
+  }
+
+  /* ── Lightbox ───────────────────────────────────────────── */
+  function openLightbox(src, dlSrc, meta) {
+    document.getElementById('lightboxImg').src = dlSrc;
     document.getElementById('lightboxLabel').textContent =
-      `${meta.label.replace(/_/g,' ')} — ${Math.round(meta.score*100)}% match`;
+      `${(meta.label || '').replace(/_/g, ' ')} — ${Math.round(meta.score * 100)}% match`;
+    const dl = document.getElementById('lightboxDl');
+    dl.href = '#';
+    dl.onclick = e => { e.preventDefault(); downloadPhoto(dlSrc, meta.image_path || 'photo.jpg'); };
     document.getElementById('lightbox').classList.add('show');
     document.body.style.overflow = 'hidden';
   }
@@ -1448,47 +1697,51 @@
 
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
 
-  // ── State management ───────────────────────────────────────────────────────
-  function showState(state) {
+  /* ── State management ───────────────────────────────────── */
+  function setState(state) {
+    document.getElementById('uploadCard').style.display = state === 'upload' ? '' : 'none';
     document.getElementById('loadingState').classList.toggle('show', state === 'loading');
     document.getElementById('noFaceState').classList.toggle('show', state === 'noface');
-    document.getElementById('resultsSection').classList.toggle('show', state === 'results');
-    document.getElementById('facePickerSection').style.display = (state === 'facepicker') ? 'block' : 'none';
-    const uploadCard = document.querySelector('.upload-card');
-    uploadCard.style.display = (state === 'upload') ? 'block' : 'none';
-    // Ensure upload card is visible (fade-up may have kept it hidden)
-    if (state === 'upload') uploadCard.classList.add('visible');
+    document.getElementById('facePickerState').style.display = state === 'facepicker' ? 'block' : 'none';
+    document.getElementById('resultsState').classList.toggle('show', state === 'results');
+
+    if (state === 'upload' || state === 'results') {
+      document.getElementById('stepsBar').style.display = 'flex';
+      document.getElementById('uploadCard').classList.add('visible');
+    } else {
+      document.getElementById('stepsBar').style.display = 'none';
+    }
   }
 
   function reset() {
     selfieFile.value = '';
-    uploadedFile = null;
-    currentFile = null;
+    uploadedFile = null; currentFile = null; currentResults = null;
     selfiePreview.classList.remove('show');
     dropInner.style.display = '';
     capturedBlob = null;
     stopCamera();
-    capturedPreview.classList.remove('show');
-    selectedFaceIndices = new Set();
+    capturedPrev.classList.remove('show');
+    selectedFaces = new Set();
     document.getElementById('facePickerGrid').innerHTML = '';
     searchBtn.disabled = true;
     hideError();
-    showState('upload');
+    setStep(1);
+    setState('upload');
   }
 
   function showError(msg) {
     const b = document.getElementById('errorBanner');
     document.getElementById('errorText').textContent = msg;
     b.classList.add('show');
+    b.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
-  function hideError() {
-    document.getElementById('errorBanner').classList.remove('show');
-  }
+  function hideError() { document.getElementById('errorBanner').classList.remove('show'); }
 
-  // ── Init ───────────────────────────────────────────────────────────────────
+  /* ── Init ───────────────────────────────────────────────── */
   loadShare();
-  showState('upload');
+  setState('upload');
+  setStep(1);
 </script>
 </body>
 </html>
