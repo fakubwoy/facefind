@@ -1,0 +1,16 @@
+# Pinned dependencies for the Windows desktop (PyInstaller) build.
+# Keep versions in sync with what Railway runs in production.
+# Add new runtime deps here AND in requirements.txt.
+
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+python-multipart==0.0.9
+requests==2.32.3
+numpy==1.26.4
+opencv-python-headless==4.10.0.84
+Pillow==10.4.0
+qrcode[pil]==7.4.2
+insightface==0.7.3
+onnxruntime==1.19.2
+faiss-cpu==1.8.0.post1
+scipy
