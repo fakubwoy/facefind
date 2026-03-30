@@ -49,7 +49,7 @@ THUMBS_DIR     = DATA_DIR / "thumbs"      # not used (B2 caches thumbs)
 FRONTEND_DIR   = Path(__file__).parent.parent / "frontend"
 
 # Executable ZIP is now served from B2 — local path only used for migration
-EXECUTABLE_PATH = Path(os.environ.get("EXECUTABLE_PATH", "/data/releases/facefind-selfhosted.zip"))
+EXECUTABLE_PATH = Path(os.environ.get("EXECUTABLE_PATH", "/data/releases/lenstagram-selfhosted.zip"))
 
 for d in [DATASETS_DIR, EMBEDDINGS_DIR, UPLOADS_DIR, THUMBS_DIR]:
     d.mkdir(parents=True, exist_ok=True)
