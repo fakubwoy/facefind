@@ -9,6 +9,10 @@ Pixmatch – Local Desktop Backend
 
 import os, io, re, uuid, time, json, pickle, zipfile, threading, hashlib, secrets, base64
 import sys, sqlite3
+from concurrent.futures import ThreadPoolExecutor
+
+# Single-thread executor so only one embedding job runs at a time (CPU-bound)
+_embed_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="embed")
 from pathlib import Path
 from typing import Optional
 import logging
@@ -331,6 +335,7 @@ def get_face_model():
 # ── Embedding job ─────────────────────────────────────────────────────────────
 
 def run_embedding_job(dataset_id: str):
+    global _face_model  # declared at top of function to avoid UnboundLocalError
     ds = db_get_dataset(dataset_id)
     if not ds:
         return
@@ -343,24 +348,30 @@ def run_embedding_job(dataset_id: str):
     log.info(f"[{dataset_id}] Embedding {total} images")
     db_update_dataset_fields(dataset_id, status="processing", total=total, processed=0)
     embeddings, metadata = [], []
-    model = get_face_model()
-    for i, item in enumerate(image_paths):
-        try:
-            img = cv2.imread(str(item))
-            if img is None:
-                continue
-            rel_path = str(item.relative_to(dataset_dir))
-            label = item.parent.name
-            for face in model.get(img):
-                emb = face.normed_embedding.astype("float32")
-                bbox = [int(x) for x in face.bbox.tolist()]
-                embeddings.append(emb)
-                metadata.append({"image_path": rel_path, "label": label, "bbox": bbox})
-        except Exception as exc:
-            log.warning(f"[{dataset_id}] item {i}: {exc}")
-        update_freq = 1 if total < 50 else 5
-        if (i + 1) % update_freq == 0 or i == total - 1:
-            db_update_dataset_fields(dataset_id, processed=i+1)
+    try:
+        model = get_face_model()
+        for i, item in enumerate(image_paths):
+            try:
+                img = cv2.imread(str(item))
+                if img is None:
+                    log.warning(f"[{dataset_id}] Could not read image: {item.name}")
+                    continue
+                rel_path = str(item.relative_to(dataset_dir))
+                label = item.parent.name
+                for face in model.get(img):
+                    emb = face.normed_embedding.astype("float32")
+                    bbox = [int(x) for x in face.bbox.tolist()]
+                    embeddings.append(emb)
+                    metadata.append({"image_path": rel_path, "label": label, "bbox": bbox})
+            except Exception as exc:
+                log.warning(f"[{dataset_id}] item {i} ({item.name}): {exc}")
+            update_freq = 1 if total < 50 else 5
+            if (i + 1) % update_freq == 0 or i == total - 1:
+                db_update_dataset_fields(dataset_id, processed=i+1)
+    except Exception as fatal:
+        log.error(f"[{dataset_id}] Fatal error in embedding job: {fatal}", exc_info=True)
+        db_update_dataset_fields(dataset_id, status="error", error=str(fatal))
+        return
     if embeddings:
         emb_matrix = np.stack(embeddings).astype("float32")
         np.save(str(emb_dir / "embeddings.npy"), emb_matrix)
@@ -370,11 +381,12 @@ def run_embedding_job(dataset_id: str):
         idx = faiss.IndexFlatIP(emb_matrix.shape[1])
         idx.add(emb_matrix)
         faiss.write_index(idx, str(emb_dir / "face_index.faiss"))
+    else:
+        log.warning(f"[{dataset_id}] No faces found in {total} images — status set to ready with 0 embeddings.")
     db_update_dataset_fields(dataset_id, status="ready", face_count=len(embeddings))
-    log.info(f"[{dataset_id}] Done — {len(embeddings)} face embeddings")
+    log.info(f"[{dataset_id}] Done — {len(embeddings)} face embeddings from {total} images")
     # Unload model to free RAM
     if os.environ.get("UNLOAD_MODEL_AFTER_EMBED", "true").lower() == "true":
-        global _face_model
         with _model_lock:
             _face_model = None
         import gc; gc.collect()
@@ -571,12 +583,18 @@ def logout():
 # ── Background task: compress then embed ─────────────────────────────────────
 
 def compress_and_embed(dataset_id: str, dataset_dir: Path):
-    """Run image compression followed by face embedding in the background thread."""
+    """Run image compression followed by face embedding. Runs in _embed_executor thread."""
+    log.info(f"[{dataset_id}] Starting compress+embed pipeline")
     try:
         compress_images_in_dir(dataset_dir)
+        log.info(f"[{dataset_id}] Compression done, starting embedding")
     except Exception as exc:
-        log.warning(f"[{dataset_id}] compress step failed: {exc}")
-    run_embedding_job(dataset_id)
+        log.warning(f"[{dataset_id}] compress step failed (continuing to embed): {exc}")
+    try:
+        run_embedding_job(dataset_id)
+    except Exception as exc:
+        log.error(f"[{dataset_id}] Embedding pipeline crashed: {exc}", exc_info=True)
+        db_update_dataset_fields(dataset_id, status="error", error=str(exc))
 
 # ── Dataset endpoints ─────────────────────────────────────────────────────────
 
@@ -638,7 +656,7 @@ async def upload_zip(
     db_upsert_dataset(ds)
     # Run compress + embed together in the background so the response
     # returns immediately and the event loop is never blocked.
-    background_tasks.add_task(compress_and_embed, dataset_id, dataset_dir)
+    _embed_executor.submit(compress_and_embed, dataset_id, dataset_dir)
     return {"dataset_id": dataset_id, "status": "compressing"}
 
 @app.get("/api/datasets/{dataset_id}/status")
@@ -709,7 +727,7 @@ async def add_images_to_dataset(
             shutil.move(str(item), str(target))
     shutil.rmtree(temp_dir)
     db_update_dataset_fields(dataset_id, status="queued")
-    background_tasks.add_task(run_embedding_job, dataset_id)
+    _embed_executor.submit(run_embedding_job, dataset_id)
     return {"ok": True, "dataset_id": dataset_id, "status": "queued"}
 
 # ── Share endpoints ───────────────────────────────────────────────────────────
@@ -1004,7 +1022,7 @@ def launch():
         webbrowser.open(f"http://localhost:{port}/{page}")
     
     threading.Thread(target=_open_browser, daemon=True).start()
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+    uvicorn.run(app, host="127.0.0.1", port=port, log_level="info")
 
 if __name__ == "__main__":
     launch()
