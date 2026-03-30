@@ -2449,7 +2449,7 @@ def download_file(token: str, request: Request):
     if b2.b2_configured() and b2.executable_exists():
         log.info(f"Executable streamed from B2 by user {user_id}")
         size = b2.get_executable_size()
-        headers = {"Content-Disposition": 'attachment; filename="facefind-selfhosted.zip"'}
+        headers = {"Content-Disposition": 'attachment; filename="lenstagram-selfhosted.zip"'}
         if size:
             headers["Content-Length"] = str(size)
         return StreamingResponse(
@@ -2465,8 +2465,8 @@ def download_file(token: str, request: Request):
     return FileResponse(
         str(EXECUTABLE_PATH),
         media_type="application/zip",
-        filename="facefind-selfhosted.zip",
-        headers={"Content-Disposition": 'attachment; filename="facefind-selfhosted.zip"'},
+        filename="lenstagram-selfhosted.zip",
+        headers={"Content-Disposition": 'attachment; filename="lenstagram-selfhosted.zip"'},
     )
 
 
