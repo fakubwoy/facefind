@@ -111,19 +111,25 @@ jobs:
           model_src = r'$modelPath'
           model_dst = os.path.join('.insightface', 'models', 'buffalo_sc')
 
-          # Collect all of scipy's binaries, datas, and hidden imports explicitly.
-          # This is necessary on Windows because scipy's .pyd extension modules
-          # are not detected automatically by PyInstaller's static analysis.
-          scipy_datas, scipy_binaries, scipy_hiddenimports = collect_all('scipy')
+          # collect_all is required for packages with binary .pyd extension modules
+          # on Windows. hiddenimports alone only handles pure-Python imports and
+          # cannot pull in compiled extensions, causing "No module named X" errors
+          # at runtime even when the package is installed.
+          scipy_datas, scipy_binaries, scipy_hiddenimports         = collect_all('scipy')
+          mpl_datas,   mpl_binaries,   mpl_hiddenimports           = collect_all('matplotlib')
 
           a = Analysis(
               ['backend/app_local.py'],
               pathex=['backend'],
-              binaries=[] + scipy_binaries,
+              binaries=[]
+                  + scipy_binaries
+                  + mpl_binaries,
               datas=[
                   ('build_staging/frontend', 'frontend'),
                   (model_src, model_dst),
-              ] + scipy_datas,
+              ]
+                  + scipy_datas
+                  + mpl_datas,
               hiddenimports=[
                   'uvicorn.logging',
                   'uvicorn.loops',
@@ -147,11 +153,13 @@ jobs:
                   'PIL',
                   'qrcode',
                   'sqlite3',
-              ] + scipy_hiddenimports,
+              ]
+                  + scipy_hiddenimports
+                  + mpl_hiddenimports,
               hookspath=[],
               hooksconfig={},
               runtime_hooks=['runtime_hook_stdio.py'],
-              excludes=['tkinter', 'matplotlib', 'pandas', 'psycopg2', 'redis', 'b2sdk'],
+              excludes=['tkinter', 'pandas', 'psycopg2', 'redis', 'b2sdk'],
               win_no_prefer_redirects=False,
               win_private_assemblies=False,
               cipher=block_cipher,
@@ -251,8 +259,6 @@ jobs:
           $version = "${{ env.VERSION }}"
           $zipName = "Lenstagram-Desktop-Windows-$version.zip"
 
-          # cd into the output folder so zip contains files at the root,
-          # not inside a subfolder.
           Push-Location dist\Lenstagram
           Compress-Archive -Path * -DestinationPath "..\..\$zipName" -Force
           Pop-Location
@@ -263,8 +269,6 @@ jobs:
           echo "ZIP_NAME=$zipName" >> $env:GITHUB_ENV
 
       # ── 12. Upload artifact ───────────────────────────────────────────────────
-      # Upload the dist folder directly — Actions will zip it once on download.
-      # Do NOT upload the hand-made zip here or the user gets a zip-inside-zip.
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
@@ -273,7 +277,6 @@ jobs:
           retention-days: 30
 
       # ── 13. Create GitHub Release (on tag push only) ──────────────────────────
-      # For releases we attach the hand-made zip so the filename is versioned.
       - name: Create GitHub Release
         if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
