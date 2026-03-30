@@ -29,25 +29,14 @@ jobs:
           cache: 'pip'
 
       # ── 3. Install build dependencies ────────────────────────────────────────
+      # Deps are read from requirements-desktop.txt — add new runtime packages
+      # there (and in requirements.txt) rather than editing this step directly.
       - name: Install Python dependencies
         shell: pwsh
         run: |
           python -m pip install --upgrade pip wheel setuptools
           pip install pyinstaller==6.10.0
-
-          # Core runtime dependencies
-          pip install `
-            fastapi==0.115.0 `
-            uvicorn[standard]==0.30.6 `
-            python-multipart==0.0.9 `
-            requests==2.32.3 `
-            numpy==1.26.4 `
-            opencv-python-headless==4.10.0.84 `
-            Pillow==10.4.0 `
-            qrcode[pil]==7.4.2 `
-            insightface==0.7.3 `
-            onnxruntime==1.19.2 `
-            faiss-cpu==1.8.0.post1
+          pip install -r requirements-desktop.txt
 
       # ── 4. Download InsightFace model weights ────────────────────────────────
       - name: Cache InsightFace models
@@ -152,11 +141,14 @@ jobs:
                   'PIL',
                   'qrcode',
                   'sqlite3',
+                  'scipy',
+                  'scipy.spatial',
+                  'scipy.spatial.distance',
               ],
               hookspath=[],
               hooksconfig={},
               runtime_hooks=['runtime_hook_stdio.py'],
-              excludes=['tkinter', 'matplotlib', 'scipy', 'pandas', 'psycopg2', 'redis', 'b2sdk'],
+              excludes=['tkinter', 'matplotlib', 'pandas', 'psycopg2', 'redis', 'b2sdk'],
               win_no_prefer_redirects=False,
               win_private_assemblies=False,
               cipher=block_cipher,
