@@ -568,6 +568,16 @@ def logout():
     # Local app: logout deactivates the session state but keeps activation
     return {"ok": True}
 
+# ── Background task: compress then embed ─────────────────────────────────────
+
+def compress_and_embed(dataset_id: str, dataset_dir: Path):
+    """Run image compression followed by face embedding in the background thread."""
+    try:
+        compress_images_in_dir(dataset_dir)
+    except Exception as exc:
+        log.warning(f"[{dataset_id}] compress step failed: {exc}")
+    run_embedding_job(dataset_id)
+
 # ── Dataset endpoints ─────────────────────────────────────────────────────────
 
 @app.get("/api/datasets")
@@ -590,6 +600,13 @@ async def upload_zip(
     act = require_activation(request)
     if not file.filename.lower().endswith(".zip"):
         raise HTTPException(400, "Please upload a .zip file.")
+
+    # Accept name / group_id from query params too (frontend sends them that way)
+    qp = request.query_params
+    if not name:
+        name = qp.get("name", "")
+    if not group_id:
+        group_id = qp.get("group_id", "")
 
     limits = get_plan_limits(act["plan"])
     existing = db_list_datasets()
@@ -619,8 +636,9 @@ async def upload_zip(
         "group_id": group_id or None, "created_at": time.time(),
     }
     db_upsert_dataset(ds)
-    compress_images_in_dir(dataset_dir)
-    background_tasks.add_task(run_embedding_job, dataset_id)
+    # Run compress + embed together in the background so the response
+    # returns immediately and the event loop is never blocked.
+    background_tasks.add_task(compress_and_embed, dataset_id, dataset_dir)
     return {"dataset_id": dataset_id, "status": "compressing"}
 
 @app.get("/api/datasets/{dataset_id}/status")

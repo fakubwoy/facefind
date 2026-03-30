@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Activate Lenstagram Desktop</title>
+  <title>Activate · Lenstagram</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,700;9..144,800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,700;9..144,800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Kaushan+Script&display=swap" rel="stylesheet">
 
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -14,16 +14,19 @@
     :root {
       --bg:           #f9f7f4;
       --surface:      #ffffff;
+      --surface2:     #f2efe9;
       --border:       #e8e3db;
+      --border2:      #d4cfc7;
       --primary:      #4f46e5;
       --primary-dark: #3730a3;
       --primary-light:#eef2ff;
+      --accent:       #e85d4a;
       --text:         #1c1917;
       --text2:        #44403c;
       --muted:        #78716c;
       --success:      #059669;
       --error:        #dc2626;
-      --shadow:       0 4px 16px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.05);
+      --shadow:       0 4px 20px rgba(0,0,0,0.07), 0 1px 4px rgba(0,0,0,0.05);
       --radius:       16px;
     }
 
@@ -35,279 +38,283 @@
       font-family: 'Plus Jakarta Sans', sans-serif;
       min-height: 100vh;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
       -webkit-font-smoothing: antialiased;
+      padding: 24px 16px;
     }
 
-    /* Background blobs */
     body::before {
       content: '';
-      position: fixed; top: -160px; left: -160px;
-      width: 500px; height: 500px; border-radius: 50%;
-      background: radial-gradient(circle, rgba(79,70,229,0.09) 0%, transparent 70%);
-      pointer-events: none;
+      position: fixed; top: -180px; left: -180px;
+      width: 560px; height: 560px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(79,70,229,0.07) 0%, transparent 70%);
+      pointer-events: none; z-index: 0;
     }
     body::after {
       content: '';
-      position: fixed; bottom: -100px; right: -100px;
-      width: 400px; height: 400px; border-radius: 50%;
-      background: radial-gradient(circle, rgba(249,115,115,0.07) 0%, transparent 70%);
-      pointer-events: none;
+      position: fixed; bottom: -120px; right: -120px;
+      width: 440px; height: 440px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(232,93,74,0.06) 0%, transparent 70%);
+      pointer-events: none; z-index: 0;
+    }
+
+    .page-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 32px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      text-decoration: none;
+    }
+    .logo-serif {
+      font-family: 'Fraunces', serif;
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--primary);
+      letter-spacing: -0.5px;
+      line-height: 1;
+    }
+    .logo-cursive {
+      font-family: 'Kaushan Script', cursive;
+      font-size: 22px;
+      color: var(--accent);
+      line-height: 1;
     }
 
     .card {
       background: var(--surface);
       border-radius: var(--radius);
       box-shadow: var(--shadow);
-      padding: 48px 44px;
+      border: 1px solid var(--border);
+      padding: 44px 40px;
       width: 100%;
       max-width: 460px;
       position: relative;
       z-index: 1;
-      animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+      animation: slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
     }
 
     @keyframes slideUp {
-      from { opacity: 0; transform: translateY(24px); }
+      from { opacity: 0; transform: translateY(20px); }
       to   { opacity: 1; transform: translateY(0); }
     }
 
-    .logo {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 32px;
-      justify-content: center;
-    }
-    .logo-icon {
-      width: 40px; height: 40px;
-      background: var(--primary);
-      border-radius: 10px;
-      display: flex; align-items: center; justify-content: center;
-    }
-    .logo-icon svg { width: 22px; height: 22px; }
-    .logo-name {
-      font-family: 'Fraunces', serif;
-      font-size: 22px;
-      font-weight: 800;
-      color: var(--primary);
-      letter-spacing: -0.5px;
-    }
-
-    .badge {
+    .page-badge {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      background: var(--primary-light);
-      color: var(--primary-dark);
       font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
+      font-weight: 600;
+      color: var(--muted);
+      background: var(--bg);
+      border: 1px solid var(--border);
       border-radius: 20px;
       padding: 4px 10px;
       margin-bottom: 20px;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
     }
-    .badge svg { width: 12px; height: 12px; }
 
-    h1 {
+    .card-title {
       font-family: 'Fraunces', serif;
       font-size: 26px;
       font-weight: 800;
       color: var(--text);
+      letter-spacing: -0.5px;
       margin-bottom: 8px;
       line-height: 1.2;
     }
-    .subtitle {
+    .card-subtitle {
       font-size: 14px;
       color: var(--muted);
-      margin-bottom: 32px;
       line-height: 1.6;
+      margin-bottom: 28px;
     }
-    .subtitle a {
-      color: var(--primary);
-      text-decoration: none;
-      font-weight: 600;
-    }
-    .subtitle a:hover { text-decoration: underline; }
+    .card-subtitle a { color: var(--primary); text-decoration: none; font-weight: 600; }
+    .card-subtitle a:hover { text-decoration: underline; }
 
-    .field {
-      margin-bottom: 20px;
-    }
-    label {
+    .field { margin-bottom: 18px; }
+    .field label {
       display: block;
-      font-size: 13px;
-      font-weight: 600;
+      font-size: 12px;
+      font-weight: 700;
       color: var(--text2);
-      margin-bottom: 8px;
+      margin-bottom: 7px;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
     }
-
-    .key-input-wrap {
-      position: relative;
-    }
-    input[type="text"] {
-      width: 100%;
-      padding: 13px 16px 13px 44px;
-      border: 1.5px solid var(--border);
-      border-radius: 10px;
-      font-size: 15px;
-      font-family: 'Plus Jakarta Sans', monospace;
-      font-weight: 600;
-      letter-spacing: 0.08em;
-      color: var(--text);
-      background: var(--bg);
-      transition: border-color 0.18s, box-shadow 0.18s;
-      outline: none;
-    }
-    input[type="text"]::placeholder {
-      letter-spacing: 0.04em;
-      font-weight: 400;
-      color: #b8b0a8;
-    }
-    input[type="text"]:focus {
-      border-color: var(--primary);
-      box-shadow: 0 0 0 3px rgba(79,70,229,0.12);
-      background: #fff;
-    }
-    .field-icon {
+    .input-wrap { position: relative; }
+    .input-icon {
       position: absolute;
-      left: 14px;
-      top: 50%;
+      left: 13px; top: 50%;
       transform: translateY(-50%);
       color: var(--muted);
+      display: flex;
       pointer-events: none;
     }
-    .field-icon svg { width: 16px; height: 16px; display: block; }
+    .field input {
+      width: 100%;
+      padding: 11px 14px 11px 40px;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 500;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      color: var(--text);
+      background: var(--surface);
+      transition: border-color 0.15s, box-shadow 0.15s;
+      letter-spacing: 0.04em;
+    }
+    .field input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(79,70,229,0.12);
+    }
+    .field input::placeholder { color: var(--border2); font-weight: 400; letter-spacing: 0; }
 
     .btn {
       width: 100%;
-      padding: 14px;
-      background: var(--primary);
-      color: #fff;
-      border: none;
+      padding: 13px 20px;
       border-radius: 10px;
-      font-size: 15px;
+      border: none;
+      font-size: 14px;
       font-weight: 700;
-      font-family: inherit;
+      font-family: 'Plus Jakarta Sans', sans-serif;
       cursor: pointer;
-      transition: background 0.18s, transform 0.1s, box-shadow 0.18s;
-      display: flex;
+      display: inline-flex;
       align-items: center;
       justify-content: center;
       gap: 8px;
-      box-shadow: 0 2px 8px rgba(79,70,229,0.25);
+      transition: box-shadow 0.18s, opacity 0.15s, transform 0.12s;
     }
-    .btn:hover:not(:disabled) {
-      background: var(--primary-dark);
-      box-shadow: 0 4px 16px rgba(79,70,229,0.35);
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(79,70,229,0.28);
     }
-    .btn:active:not(:disabled) { transform: scale(0.98); }
-    .btn:disabled {
-      opacity: 0.65;
-      cursor: not-allowed;
+    .btn-primary:hover:not(:disabled) {
+      box-shadow: 0 4px 16px rgba(79,70,229,0.38);
+      transform: translateY(-1px);
     }
-    .btn .spinner {
-      width: 18px; height: 18px;
-      border: 2.5px solid rgba(255,255,255,0.35);
+    .btn-primary:active:not(:disabled) { transform: translateY(0); }
+    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--error);
+      border: 1.5px solid #fca5a5;
+      box-shadow: none;
+      margin-top: 8px;
+    }
+    .btn-ghost:hover:not(:disabled) { background: #fff5f5; }
+
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.35);
       border-top-color: #fff;
       border-radius: 50%;
       animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
     .msg {
       display: none;
+      align-items: flex-start;
+      gap: 9px;
       margin-top: 14px;
-      padding: 12px 16px;
+      padding: 12px 14px;
       border-radius: 10px;
-      font-size: 13.5px;
+      font-size: 13px;
       font-weight: 500;
       line-height: 1.5;
-      animation: fadeIn 0.25s ease both;
     }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; } }
-    .msg.error {
-      display: flex; gap: 10px; align-items: flex-start;
-      background: #fff5f5;
-      border: 1px solid #fca5a5;
-      color: var(--error);
-    }
-    .msg.success {
-      display: flex; gap: 10px; align-items: flex-start;
-      background: #f0fdf4;
-      border: 1px solid #86efac;
-      color: var(--success);
-    }
+    .msg.error   { display: flex; background: #fef2f2; color: var(--error);   border: 1px solid #fecaca; }
+    .msg.success { display: flex; background: #f0fdf4; color: var(--success); border: 1px solid #bbf7d0; }
     .msg svg { flex-shrink: 0; margin-top: 1px; }
 
-    /* Success state */
-    .success-card {
-      display: none;
-      text-align: center;
-      animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
-    }
-    .success-card .icon-wrap {
-      width: 72px; height: 72px;
-      background: #f0fdf4;
-      border-radius: 50%;
+    .divider { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+
+    .alt-view { display: none; flex-direction: column; }
+
+    .status-icon-wrap {
+      width: 56px; height: 56px;
+      border-radius: 14px;
       display: flex; align-items: center; justify-content: center;
-      margin: 0 auto 24px;
+      margin: 0 auto 20px;
     }
-    .success-card h2 {
+    .status-icon-wrap.success-bg { background: #f0fdf4; }
+    .status-icon-wrap.primary-bg { background: var(--primary-light); }
+
+    .alt-title {
       font-family: 'Fraunces', serif;
-      font-size: 24px;
+      font-size: 22px;
       font-weight: 800;
-      margin-bottom: 8px;
+      color: var(--text);
+      text-align: center;
+      margin-bottom: 6px;
+      letter-spacing: -0.3px;
     }
-    .success-card p {
-      font-size: 14px;
-      color: var(--muted);
-      margin-bottom: 24px;
-      line-height: 1.6;
-    }
-    .user-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      background: var(--bg);
-      border: 1.5px solid var(--border);
-      border-radius: 40px;
-      padding: 8px 16px;
+    .alt-sub {
       font-size: 13px;
-      font-weight: 600;
-      color: var(--text2);
-      margin-bottom: 28px;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.6;
+      margin-bottom: 20px;
     }
-    .user-pill .dot {
+
+    .user-pill {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      margin-bottom: 20px;
+    }
+    .user-dot {
       width: 8px; height: 8px;
       background: var(--success);
       border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .user-email {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      flex: 1;
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .plan-chip {
-      display: inline-block;
-      background: var(--primary-light);
-      color: var(--primary-dark);
       font-size: 11px;
       font-weight: 700;
-      border-radius: 20px;
-      padding: 2px 8px;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-    }
-
-    .divider {
-      border: none;
-      border-top: 1px solid var(--border);
-      margin: 28px 0;
+      background: var(--primary-light);
+      color: var(--primary);
+      border-radius: 6px;
+      padding: 3px 8px;
+      white-space: nowrap;
+      flex-shrink: 0;
     }
 
     .help-text {
       font-size: 12px;
       color: var(--muted);
       text-align: center;
-      line-height: 1.6;
-      margin-top: 20px;
+      line-height: 1.7;
+      margin-top: 18px;
     }
     .help-text a { color: var(--primary); text-decoration: none; font-weight: 600; }
     .help-text a:hover { text-decoration: underline; }
@@ -315,36 +322,34 @@
 </head>
 <body>
 
-<div class="card" id="mainCard">
-  <div class="logo">
-    <div class="logo-icon">
-      <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-        <circle cx="11" cy="9" r="2.5" fill="white" stroke="none"/>
-      </svg>
-    </div>
-    <span class="logo-name">Lenstagram</span>
-  </div>
+<div class="page-header">
+  <a class="logo" href="#">
+    <span class="logo-serif">Lens</span><span class="logo-cursive">tagram</span>
+  </a>
+</div>
 
-  <!-- Activation form -->
+<!-- Main card -->
+<div class="card" id="mainCard">
+
+  <!-- Form view -->
   <div id="formView">
-    <div class="badge">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    <div class="page-badge">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
       Desktop App
     </div>
 
-    <h1>Activate your copy</h1>
-    <p class="subtitle">
+    <h1 class="card-title">Activate your copy</h1>
+    <p class="card-subtitle">
       Enter the license key from your
       <a href="https://lenstagram.app/download.html" target="_blank">Lenstagram account</a>
-      to link this installation to your account.
+      to link this installation.
     </p>
 
     <div class="field">
       <label for="licenseKey">License Key</label>
-      <div class="key-input-wrap">
-        <span class="field-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+      <div class="input-wrap">
+        <span class="input-icon">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
         </span>
         <input
           type="text"
@@ -357,67 +362,67 @@
       </div>
     </div>
 
-    <button class="btn" id="activateBtn" onclick="doActivate()">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    <button class="btn btn-primary" id="activateBtn" onclick="doActivate()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
       Activate License
     </button>
 
     <div class="msg" id="msgBox"></div>
 
     <p class="help-text">
-      Need a license key? <a href="https://lenstagram.app/download.html" target="_blank">Visit your dashboard</a> to get one.<br>
-      Questions? <a href="/cdn-cgi/l/email-protection#f0838580809f8284b09c959e8384919782919dde918080">Contact support</a>
+      Need a key? <a href="https://lenstagram.app/download.html" target="_blank">Visit your dashboard</a> to get one.<br>
+      Questions? <a href="mailto:support@lenstagram.app">Contact support</a>
     </p>
   </div>
 
   <!-- Already activated view -->
-  <div class="success-card" id="alreadyView">
-    <div class="icon-wrap">
-      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+  <div class="alt-view" id="alreadyView">
+    <div class="status-icon-wrap primary-bg">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
     </div>
-    <h2>Already Activated</h2>
-    <p>This installation is linked to your account.</p>
-    <div class="user-pill" id="userPill">
-      <span class="dot"></span>
-      <span id="userEmail">—</span>
+    <h2 class="alt-title">Already Activated</h2>
+    <p class="alt-sub">This installation is linked to your account.</p>
+    <div class="user-pill">
+      <span class="user-dot"></span>
+      <span class="user-email" id="userEmail">—</span>
       <span class="plan-chip" id="userPlan">—</span>
     </div>
-    <button class="btn" onclick="window.location.href='admin.html'">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    <button class="btn btn-primary" onclick="window.location.href='admin.html'">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
       Open Dashboard
     </button>
     <hr class="divider">
-    <p style="font-size:13px;color:var(--muted);margin-bottom:12px;">Want to activate with a different key?</p>
-    <button class="btn" style="background:transparent;color:var(--error);box-shadow:none;border:1.5px solid #fca5a5;" onclick="doDeactivate()">
+    <p style="font-size:13px;color:var(--muted);text-align:center;margin-bottom:12px;">Want to use a different license key?</p>
+    <button class="btn btn-ghost" onclick="doDeactivate()">
       Deactivate this installation
     </button>
   </div>
+
 </div>
 
-<!-- Post-activation success -->
-<div class="card success-card" id="successCard" style="display:none;">
-  <div class="icon-wrap">
-    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+<!-- Post-activation success card -->
+<div class="card" id="successCard" style="display:none;text-align:center;">
+  <div class="status-icon-wrap success-bg">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
   </div>
-  <h2>Activation Successful!</h2>
-  <p id="successMsg">Your copy is now linked and ready to use.</p>
-  <div class="user-pill" id="successPill" style="margin-bottom:28px;">
-    <span class="dot"></span>
-    <span id="successEmail">—</span>
+  <h2 class="alt-title">Activation Successful!</h2>
+  <p class="alt-sub" id="successMsg">Your copy is now linked and ready to use.</p>
+  <div class="user-pill" style="max-width:340px;margin:0 auto 24px;">
+    <span class="user-dot"></span>
+    <span class="user-email" id="successEmail">—</span>
     <span class="plan-chip" id="successPlan">—</span>
   </div>
-  <button class="btn" onclick="window.location.href='admin.html'">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+  <button class="btn btn-primary" onclick="window.location.href='admin.html'">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
     Go to Dashboard
   </button>
 </div>
 
-<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-const API = '';  // relative to localhost
+<script>
+const API = '';
 
-// Auto-format the key input as FF-XXXX-XXXX-XXXX-XXXX
 const keyInput = document.getElementById('licenseKey');
-// Format raw hex body (without FF prefix) into FF-XXXX-XXXX-XXXX-XXXX
+
 function formatKeyBody(hex) {
   const parts = [];
   if (hex.length > 0)  parts.push(hex.slice(0, 4));
@@ -428,25 +433,17 @@ function formatKeyBody(hex) {
 }
 
 keyInput.addEventListener('input', () => {
-  const start = keyInput.selectionStart;
+  const start  = keyInput.selectionStart;
   const oldVal = keyInput.value;
-
-  // Strip all non-hex chars, remove leading FF prefix if already present
-  // so pasting "FF-8D0D-..." doesn't double-prefix to "FF-FF8D-..."
   let hex = oldVal.toUpperCase().replace(/[^A-F0-9]/g, '');
   if (hex.startsWith('FF')) hex = hex.slice(2);
-  hex = hex.slice(0, 16); // max 16 hex chars for the body
-
+  hex = hex.slice(0, 16);
   const formatted = formatKeyBody(hex);
   if (keyInput.value !== formatted) {
     keyInput.value = formatted;
-    // Restore cursor: count how many non-dash chars were before cursor in old value,
-    // then find that position in the new formatted string
-    const hexBefore = oldVal.slice(0, start).toUpperCase().replace(/[^A-F0-9]/g, '');
-    // Account for FF prefix being stripped
+    const hexBefore  = oldVal.slice(0, start).toUpperCase().replace(/[^A-F0-9]/g, '');
     const bodyBefore = hexBefore.startsWith('FF') ? hexBefore.slice(2) : hexBefore;
     let newPos = 0, count = 0;
-    // Skip past "FF-" prefix (3 chars)
     if (formatted.length > 0) newPos = 3;
     for (let i = 3; i < formatted.length && count < bodyBefore.length; i++) {
       if (formatted[i] !== '-') count++;
@@ -458,7 +455,6 @@ keyInput.addEventListener('input', () => {
 
 keyInput.addEventListener('keydown', e => {
   if (e.key === 'Enter') { doActivate(); return; }
-  // When backspacing onto a dash, skip over it so it feels natural
   if (e.key === 'Backspace') {
     const pos = keyInput.selectionStart;
     if (keyInput.selectionStart === keyInput.selectionEnd && pos > 0 && keyInput.value[pos - 1] === '-') {
@@ -480,7 +476,7 @@ function planLabel(plan) {
 }
 
 function showMsg(text, type) {
-  const box = document.getElementById('msgBox');
+  const box  = document.getElementById('msgBox');
   const icon = type === 'error'
     ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`
     : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
@@ -490,57 +486,56 @@ function showMsg(text, type) {
 
 async function checkExistingActivation() {
   try {
-    const res = await fetch(`${API}/api/activation/status`);
+    const res  = await fetch(`${API}/api/activation/status`);
     const data = await res.json();
     if (data.activated) {
-      document.getElementById('formView').style.display = 'none';
-      document.getElementById('alreadyView').style.display = 'block';
+      document.getElementById('formView').style.display    = 'none';
+      const av = document.getElementById('alreadyView');
+      av.style.display = 'flex';
       document.getElementById('userEmail').textContent = data.user_email;
-      document.getElementById('userPlan').textContent = planLabel(data.plan);
+      document.getElementById('userPlan').textContent  = planLabel(data.plan);
     }
-  } catch(e) { /* not activated or offline */ }
+  } catch(e) {}
 }
 
 async function doActivate() {
-  const btn = document.getElementById('activateBtn');
+  const btn    = document.getElementById('activateBtn');
   const rawKey = keyInput.value.trim();
   if (!rawKey || rawKey.length < 10) {
     showMsg('Please enter a valid license key.', 'error');
     return;
   }
-  btn.disabled = true;
+  btn.disabled  = true;
   btn.innerHTML = '<div class="spinner"></div> Activating…';
 
   try {
-    const res = await fetch(`${API}/api/activation/activate`, {
-      method: 'POST',
+    const res  = await fetch(`${API}/api/activation/activate`, {
+      method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ license_key: rawKey }),
+      body:    JSON.stringify({ license_key: rawKey }),
     });
     const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.detail || 'Activation failed.');
-    }
-    // Show success card
+    if (!res.ok) throw new Error(data.detail || 'Activation failed.');
+
     document.getElementById('mainCard').style.display = 'none';
     const sc = document.getElementById('successCard');
     sc.style.display = 'block';
     document.getElementById('successEmail').textContent = data.user_email;
-    document.getElementById('successPlan').textContent = planLabel(data.plan);
-    document.getElementById('successMsg').textContent =
+    document.getElementById('successPlan').textContent  = planLabel(data.plan);
+    document.getElementById('successMsg').textContent   =
       `Welcome, ${data.user_name}! Your ${planLabel(data.plan)} licence is active.`;
   } catch (err) {
     showMsg(err.message, 'error');
-    btn.disabled = false;
-    btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Activate License`;
+    btn.disabled  = false;
+    btn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Activate License`;
   }
 }
 
 async function doDeactivate() {
-  if (!confirm('This will unlink the app from your account. You will need to enter your license key again next time.')) return;
+  if (!confirm('This will unlink the app from your account. You will need to enter your license key again.')) return;
   await fetch(`${API}/api/activation/deactivate`, { method: 'POST' });
   document.getElementById('alreadyView').style.display = 'none';
-  document.getElementById('formView').style.display = 'block';
+  document.getElementById('formView').style.display    = 'block';
   keyInput.value = '';
   showMsg('App deactivated. Enter a new license key to reactivate.', 'success');
 }
