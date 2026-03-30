@@ -156,15 +156,9 @@ def update_last_validated():
     conn.close()
 
 def is_license_valid_offline() -> bool:
-    """Allow offline use within grace period."""
+    """Return True if the app has ever been activated (local-first: no online re-check needed)."""
     act = get_activation()
-    if not act:
-        return False
-    if act["expires_at"] and time.time() > act["expires_at"]:
-        return False
-    last = act.get("last_validated_at") or act["activated_at"]
-    grace_secs = (act.get("offline_grace_hours") or 72) * 3600
-    return (time.time() - last) < grace_secs
+    return act is not None
 
 def validate_license_with_cloud(key: str) -> dict:
     """Call cloud /api/license/validate. Returns parsed response or raises."""
@@ -206,18 +200,13 @@ def _get_machine_id() -> str:
 def require_activation(request: Request) -> dict:
     """
     For local app: activation replaces cloud sessions.
-    Checks that a valid activation exists and is within grace period.
+    Once the app has been activated once, it works forever locally —
+    no sign-in, no repeated online checks, no grace-period blocks.
+    The only hard gate is "has the user ever activated?"
     """
     act = get_activation()
     if not act:
         raise HTTPException(401, "App not activated. Please enter your license key.")
-    if act.get("expires_at") and time.time() > act["expires_at"]:
-        raise HTTPException(403, "License expired. Please renew your subscription.")
-    # Offline grace check
-    last = act.get("last_validated_at") or act["activated_at"]
-    grace_secs = (act.get("offline_grace_hours") or 72) * 3600
-    if (time.time() - last) > grace_secs:
-        raise HTTPException(403, "License check required. Please connect to the internet and restart the app.")
     return act
 
 # ── DB helpers ────────────────────────────────────────────────────────────────
@@ -463,7 +452,8 @@ async def no_cache_html(request: Request, call_next):
 @app.on_event("startup")
 def on_startup():
     init_db()
-    # Background: try to re-validate license with cloud (best-effort)
+    # Background: silently try to refresh last_validated_at with cloud.
+    # This is best-effort only — failure never affects local functionality.
     def _bg_validate():
         act = get_activation()
         if not act:
@@ -472,9 +462,9 @@ def on_startup():
             result = validate_license_with_cloud(act["license_key"])
             if result.get("valid"):
                 update_last_validated()
-                log.info("License re-validated with cloud on startup")
-        except Exception as e:
-            log.info(f"Cloud license check failed (offline?): {e}")
+                log.info("License re-validated with cloud on startup (optional)")
+        except Exception:
+            pass  # Offline or server unreachable — no problem, app works anyway
     threading.Thread(target=_bg_validate, daemon=True).start()
 
 # ── Activation endpoints ──────────────────────────────────────────────────────

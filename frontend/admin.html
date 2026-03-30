@@ -1673,7 +1673,7 @@
     : window.location.origin;
 
   const API = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-    ? 'http://localhost:8000'
+    ? 'http://localhost:8765'
     : BASE_URL;
 
   let selectedDatasetId = null;
@@ -1685,7 +1685,7 @@
   function safeRedirect(url) {
     if (window.location.protocol === 'blob:' || window.location.origin === 'null') {
       console.warn(`[Preview Mode] Redirect to ${url} prevented.`);
-      if (url.includes('login')) {
+      if (url.includes('activate')) {
         setProfileUser({ name: 'Demo User', email: 'demo@lenstagram.app', plan: 'photo_pro' });
       }
       return;
@@ -1739,17 +1739,23 @@
   async function checkAuth() {
     try {
       const r = await fetch(`${API}/api/auth/me`, { credentials: 'include' });
-      if (!r.ok) { safeRedirect('/login.html'); return; }
+      if (!r.ok) {
+        // Not activated yet — send to activation page
+        safeRedirect('/activate.html');
+        return;
+      }
       const user = await r.json();
       setProfileUser(user);
     } catch {
-      safeRedirect('/login.html');
+      // Network error — if app is running we're activated, just show defaults
+      console.warn('Could not reach /api/auth/me — running in degraded mode');
     }
   }
 
   async function doLogout() {
+    // In local mode "logout" just means go back to activation page
     try { await fetch(`${API}/api/auth/logout`, { method: 'POST', credentials: 'include' }); } catch(e) {}
-    safeRedirect('/');
+    safeRedirect('/activate.html');
   }
 
   async function cancelSubscription() {
