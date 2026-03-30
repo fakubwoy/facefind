@@ -13,4 +13,4 @@ qrcode[pil]==7.4.2
 insightface==0.7.3
 onnxruntime==1.19.2
 faiss-cpu==1.8.0.post1
-scipy
+scipy==1.11.4

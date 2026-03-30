@@ -104,20 +104,26 @@ jobs:
           # -*- mode: python ; coding: utf-8 -*-
           import sys, os
           from pathlib import Path
+          from PyInstaller.utils.hooks import collect_all
 
           block_cipher = None
 
           model_src = r'$modelPath'
           model_dst = os.path.join('.insightface', 'models', 'buffalo_sc')
 
+          # Collect all of scipy's binaries, datas, and hidden imports explicitly.
+          # This is necessary on Windows because scipy's .pyd extension modules
+          # are not detected automatically by PyInstaller's static analysis.
+          scipy_datas, scipy_binaries, scipy_hiddenimports = collect_all('scipy')
+
           a = Analysis(
               ['backend/app_local.py'],
               pathex=['backend'],
-              binaries=[],
+              binaries=[] + scipy_binaries,
               datas=[
                   ('build_staging/frontend', 'frontend'),
                   (model_src, model_dst),
-              ],
+              ] + scipy_datas,
               hiddenimports=[
                   'uvicorn.logging',
                   'uvicorn.loops',
@@ -141,10 +147,7 @@ jobs:
                   'PIL',
                   'qrcode',
                   'sqlite3',
-                  'scipy',
-                  'scipy.spatial',
-                  'scipy.spatial.distance',
-              ],
+              ] + scipy_hiddenimports,
               hookspath=[],
               hooksconfig={},
               runtime_hooks=['runtime_hook_stdio.py'],
