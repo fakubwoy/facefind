@@ -757,7 +757,185 @@ def compress_images_in_dir(directory: Path,
     log.info(f"{label}: {processed}/{len(image_paths)} images processed in {directory}")
     return len(image_paths), processed
 
-# ── Embedding job ─────────────────────────────────────────────────────────────
+# ── Compress-and-upload pipeline (single pass, parallel B2 uploads) ───────────
+
+B2_UPLOAD_WORKERS = int(os.environ.get("B2_UPLOAD_WORKERS", "8"))
+
+def _compress_and_upload_one(args):
+    """
+    Worker: compress one image, upload to B2, delete local copy.
+    Returns (rel_path, img_bytes) for reuse in the embedding phase.
+    Returns None on error.
+    """
+    img_path, dataset_dir, dataset_id, is_free, use_b2 = args
+    try:
+        raw = img_path.read_bytes()
+        arr = np.frombuffer(raw, np.uint8)
+        img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+        if img is None:
+            return None
+
+        h, w       = img.shape[:2]
+        max_width  = 3840
+        max_bytes  = FREE_TIER_MAX_BYTES if is_free else None
+        needs_resize  = w > max_width
+        needs_sizecap = is_free and len(raw) > FREE_TIER_MAX_BYTES
+
+        if needs_resize or needs_sizecap:
+            img_bytes = cap_image(img, max_width=max_width, max_bytes=max_bytes)
+        else:
+            _, buf = cv2.imencode('.jpg', img, [int(cv2.IMWRITE_JPEG_QUALITY), 92])
+            img_bytes = buf.tobytes()
+
+        # Normalise extension to .jpg
+        rel_path = str(Path(img_path.relative_to(dataset_dir)).with_suffix('.jpg'))
+
+        if use_b2:
+            b2.upload_bytes(
+                b2.dataset_image_key(dataset_id, rel_path),
+                img_bytes,
+                content_type="image/jpeg",
+            )
+            img_path.unlink(missing_ok=True)   # free local disk immediately
+        else:
+            out = img_path.with_suffix('.jpg')
+            out.write_bytes(img_bytes)
+            if out != img_path:
+                img_path.unlink(missing_ok=True)
+
+        return (rel_path, img_bytes)
+
+    except Exception as exc:
+        log.warning(f"compress/upload failed for {img_path}: {exc}")
+        return None
+
+
+def _unload_face_model():
+    """Unload InsightFace model to free RAM after a batch job."""
+    if os.environ.get("UNLOAD_MODEL_AFTER_EMBED", "true").lower() != "true":
+        return
+    global _face_model
+    with _model_lock:
+        _face_model = None
+    import gc
+    gc.collect()
+
+
+def compress_upload_and_embed(dataset_id: str, is_free: bool):
+    """
+    Full pipeline for a ZIP-sourced dataset:
+      Phase 1 — Compress every image + upload to B2 in parallel (8 workers).
+                 Local copy deleted immediately after upload to keep /tmp lean.
+      Phase 2 — Embed faces using the in-memory bytes from Phase 1
+                 (no re-download needed).
+      Phase 3 — Build FAISS index, upload to B2, clean up temp dirs.
+    """
+    import shutil
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    ds = db_get_dataset(dataset_id)
+    if not ds:
+        return
+
+    dataset_dir = DATASETS_DIR / dataset_id
+    emb_dir     = EMBEDDINGS_DIR / dataset_id
+    emb_dir.mkdir(exist_ok=True)
+
+    use_b2 = b2.b2_configured()
+    exts   = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
+
+    image_paths = [p for p in dataset_dir.rglob("*") if p.suffix.lower() in exts]
+    total = len(image_paths)
+
+    if total == 0:
+        db_update_dataset_fields(dataset_id, status="ready", total=0, face_count=0)
+        log.info(f"[{dataset_id}] No images found — marked ready")
+        return
+
+    log.info(f"[{dataset_id}] Pipeline start: {total} images | B2={'yes' if use_b2 else 'no'} | free={is_free} | workers={B2_UPLOAD_WORKERS}")
+    db_update_dataset_fields(dataset_id, status="compressing", total=total, processed=0)
+
+    # ── Phase 1: compress + upload (parallel) ────────────────────────────────
+    args_list    = [(p, dataset_dir, dataset_id, is_free, use_b2) for p in image_paths]
+    results      = [None] * total   # preserves order for embedding phase
+    upload_count = 0
+
+    with ThreadPoolExecutor(max_workers=B2_UPLOAD_WORKERS) as pool:
+        future_to_idx = {pool.submit(_compress_and_upload_one, a): i
+                         for i, a in enumerate(args_list)}
+        for fut in as_completed(future_to_idx):
+            idx = future_to_idx[fut]
+            results[idx] = fut.result()
+            upload_count += 1
+            if upload_count % 10 == 0 or upload_count == total:
+                db_update_dataset_fields(dataset_id, status="uploading", processed=upload_count)
+                log.info(f"[{dataset_id}] Compress+upload {upload_count}/{total}")
+
+    log.info(f"[{dataset_id}] Phase 1 complete — all images compressed and uploaded")
+
+    # ── Phase 2: embed (uses in-memory bytes, no re-download) ────────────────
+    db_update_dataset_fields(dataset_id, status="processing", processed=0)
+    model      = get_face_model()
+    embeddings = []
+    metadata   = []
+
+    for i, result in enumerate(results):
+        if result is None:
+            continue
+        rel_path, img_bytes = result
+        try:
+            arr = np.frombuffer(img_bytes, np.uint8)
+            img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+            if img is None:
+                continue
+            label = Path(rel_path).parent.name or Path(rel_path).stem
+            for face in model.get(img):
+                embeddings.append(face.normed_embedding.astype("float32"))
+                metadata.append({
+                    "image_path": rel_path,
+                    "label":      label,
+                    "bbox":       [int(x) for x in face.bbox.tolist()],
+                })
+        except Exception as exc:
+            log.warning(f"[{dataset_id}] embed item {i}: {exc}")
+
+        update_freq = 1 if total < 50 else 5
+        if (i + 1) % update_freq == 0 or i == total - 1:
+            db_update_dataset_fields(dataset_id, processed=i + 1)
+            log.info(f"[{dataset_id}] Embed {i+1}/{total}")
+
+    # ── Phase 3: build + upload FAISS index ──────────────────────────────────
+    if embeddings:
+        emb_matrix = np.stack(embeddings).astype("float32")
+        np.save(str(emb_dir / "embeddings.npy"), emb_matrix)
+        with open(emb_dir / "metadata.pkl", "wb") as f:
+            pickle.dump(metadata, f)
+        import faiss
+        idx = faiss.IndexFlatIP(emb_matrix.shape[1])
+        idx.add(emb_matrix)
+        faiss.write_index(idx, str(emb_dir / "face_index.faiss"))
+        if use_b2:
+            for fname in ("embeddings.npy", "metadata.pkl", "face_index.faiss"):
+                fpath = emb_dir / fname
+                if fpath.exists():
+                    b2.upload_embedding_file(dataset_id, fname, fpath.read_bytes())
+                    log.info(f"[{dataset_id}] Uploaded {fname} to B2")
+
+    db_update_dataset_fields(dataset_id, status="ready", face_count=len(embeddings))
+    log.info(f"[{dataset_id}] Done — {len(embeddings)} face embeddings")
+
+    # Clean up local temp dirs
+    if use_b2:
+        for d in (emb_dir, dataset_dir):
+            if d.exists():
+                shutil.rmtree(d, ignore_errors=True)
+        log.info(f"[{dataset_id}] Local temp dirs cleaned up")
+
+    _unload_face_model()
+    log.info(f"[{dataset_id}] Face model unloaded")
+
+
+# ── Embedding job (GDrive path — images already in B2, just embed) ────────────
 
 def run_embedding_job(dataset_id: str):
     ds = db_get_dataset(dataset_id)
@@ -787,7 +965,6 @@ def run_embedding_job(dataset_id: str):
 
     embeddings, metadata = [], []
     model = get_face_model()
-
     items = b2_keys if use_b2 else image_paths
 
     for i, item in enumerate(items):
@@ -807,18 +984,15 @@ def run_embedding_job(dataset_id: str):
                 label    = item.parent.name
 
             for face in model.get(img):
-                emb  = face.normed_embedding.astype("float32")
-                bbox = [int(x) for x in face.bbox.tolist()]
-                embeddings.append(emb)
+                embeddings.append(face.normed_embedding.astype("float32"))
                 metadata.append({
                     "image_path": rel_path,
                     "label":      label,
-                    "bbox":       bbox,
+                    "bbox":       [int(x) for x in face.bbox.tolist()],
                 })
         except Exception as exc:
             log.warning(f"[{dataset_id}] item {i}: {exc}")
 
-        # Update progress more frequently for better UI feedback
         update_freq = 1 if total < 50 else 5
         if (i + 1) % update_freq == 0 or i == total - 1:
             db_update_dataset_fields(dataset_id, processed=i+1)
@@ -833,8 +1007,6 @@ def run_embedding_job(dataset_id: str):
         idx = faiss.IndexFlatIP(emb_matrix.shape[1])
         idx.add(emb_matrix)
         faiss.write_index(idx, str(emb_dir / "face_index.faiss"))
-
-        # Upload embeddings to B2
         if use_b2:
             for fname in ("embeddings.npy", "metadata.pkl", "face_index.faiss"):
                 fpath = emb_dir / fname
@@ -845,23 +1017,15 @@ def run_embedding_job(dataset_id: str):
     db_update_dataset_fields(dataset_id, status="ready", face_count=len(embeddings))
     log.info(f"[{dataset_id}] Done — {len(embeddings)} face embeddings")
 
-    # Clean up local temp files after uploading to B2
     if use_b2:
         import shutil
-        if emb_dir.exists():
-            shutil.rmtree(emb_dir, ignore_errors=True)
-        if dataset_dir.exists():
-            shutil.rmtree(dataset_dir, ignore_errors=True)
+        for d in (emb_dir, dataset_dir):
+            if d.exists():
+                shutil.rmtree(d, ignore_errors=True)
         log.info(f"[{dataset_id}] Local temp dirs cleaned up")
 
-    # Unload model after batch embedding to free RAM
-    if os.environ.get("UNLOAD_MODEL_AFTER_EMBED", "true").lower() == "true":
-        global _face_model
-        with _model_lock:
-            _face_model = None
-        import gc
-        gc.collect()
-        log.info(f"[{dataset_id}] Face model unloaded to free RAM")
+    _unload_face_model()
+    log.info(f"[{dataset_id}] Face model unloaded")
 
 # ── Search ────────────────────────────────────────────────────────────────────
 
@@ -1078,18 +1242,20 @@ def download_gdrive_folder(folder_id: str, dest_dir: Path, dataset_id: str):
 
     db_update_dataset_fields(dataset_id, status="queued")
 
-    # Upload downloaded images to B2 before embedding
-    if b2.b2_configured():
-        exts = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
-        uploaded = 0
-        for img_path in dest_dir.rglob("*"):
-            if img_path.is_file() and img_path.suffix.lower() in exts:
-                rel = str(img_path.relative_to(dest_dir))
-                b2.upload_dataset_image(dataset_id, rel, img_path.read_bytes())
-                uploaded += 1
-        log.info(f"[{dataset_id}] GDrive: uploaded {uploaded} images to B2")
+    # Determine free tier from dataset owner's plan
+    ds_fresh = db_get_dataset(dataset_id)
+    is_free = True
+    if ds_fresh:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT plan FROM users WHERE id=%s", (ds_fresh["user_id"],))
+                row = cur.fetchone()
+        if row:
+            is_free = (row["plan"] or "free") == "free"
 
-    run_embedding_job(dataset_id)
+    # Use the same compress → parallel B2 upload → embed pipeline as ZIP uploads
+    # (compress_upload_and_embed reads images from dest_dir which is DATASETS_DIR / dataset_id)
+    compress_upload_and_embed(dataset_id, is_free)
 
 # ── Auth helpers ──────────────────────────────────────────────────────────────
 
@@ -1936,17 +2102,18 @@ async def upload_zip(
     dataset_dir = DATASETS_DIR / dataset_id
     dataset_dir.mkdir()
 
-    zip_path = dataset_dir / "upload.zip"
+    # Read + extract ZIP (must be synchronous — needed for limit checks below)
+    zip_path  = dataset_dir / "upload.zip"
     raw_bytes = await resilient_read_upload(file)
     zip_path.write_bytes(raw_bytes)
-    
-    # Extract ZIP
+    del raw_bytes  # free RAM immediately
+
     with zipfile.ZipFile(zip_path) as zf:
         zf.extractall(dataset_dir)
     zip_path.unlink()
-    
+
     # ── Enforce dataset count limit ──────────────────────────────────────────
-    limits = get_plan_limits(user)
+    limits   = get_plan_limits(user)
     existing = db_list_datasets(user["id"])
     if len(existing) >= limits["max_datasets"]:
         import shutil; shutil.rmtree(dataset_dir, ignore_errors=True)
@@ -1958,16 +2125,17 @@ async def upload_zip(
         import shutil; shutil.rmtree(dataset_dir, ignore_errors=True)
         raise HTTPException(400, f"Too many images. Your plan allows up to {limits['max_images']:,} images per dataset. This ZIP contains {img_count:,}.")
 
-    # Register dataset first so status is visible in the UI immediately
+    # Register dataset — visible in UI immediately with status "queued"
+    is_free = user.get("plan", "free") == "free"
     ds = {
         "id": dataset_id, "user_id": user["id"],
-        "name": name or file.filename.replace(".zip",""),
+        "name": name or file.filename.replace(".zip", ""),
         "source": "zip", "folder_id": None,
-        "status": "compressing", "total": 0, "processed": 0,
+        "status": "queued", "total": img_count, "processed": 0,
         "face_count": 0, "error": None, "created_at": time.time(),
     }
-    
     db_upsert_dataset(ds)
+
     # Assign to group if provided
     if group_id:
         g = db_get_group(group_id)
@@ -1976,26 +2144,11 @@ async def upload_zip(
                 with conn.cursor() as cur:
                     cur.execute("UPDATE datasets SET group_id=%s WHERE id=%s", (group_id, dataset_id))
                 conn.commit()
-    db_upsert_dataset(ds)
 
-    # Apply caps before embedding.
-    is_free = user.get("plan", "free") == "free"
-    total_imgs, capped = compress_images_in_dir(dataset_dir, free_tier=is_free)
-    log.info(f"[{dataset_id}] {'Free' if is_free else 'Paid'} tier cap: {capped}/{total_imgs} images processed")
-
-    # Upload images to B2
-    if b2.b2_configured():
-        exts = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
-        uploaded = 0
-        for img_path in dataset_dir.rglob("*"):
-            if img_path.is_file() and img_path.suffix.lower() in exts:
-                rel = str(img_path.relative_to(dataset_dir))
-                b2.upload_dataset_image(dataset_id, rel, img_path.read_bytes())
-                uploaded += 1
-        log.info(f"[{dataset_id}] Uploaded {uploaded} images to B2")
-
-    background_tasks.add_task(run_embedding_job, dataset_id)
-    return {"dataset_id": dataset_id, "status": "compressing"}
+    # ── Hand off everything else to background ───────────────────────────────
+    # compress_upload_and_embed handles: compress → parallel B2 upload → embed → FAISS → cleanup
+    background_tasks.add_task(compress_upload_and_embed, dataset_id, is_free)
+    return {"dataset_id": dataset_id, "status": "queued"}
 
 @app.post("/api/datasets/gdrive")
 async def use_gdrive_folder(
