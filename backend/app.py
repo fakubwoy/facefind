@@ -1118,69 +1118,159 @@ def generate_qr_code_png(data: str) -> bytes:
 
 def apply_watermark(image_bytes: bytes, watermark_text: str) -> bytes:
     """
-    Overlay studio name as a watermark at bottom-left of image.
-    Uses Pillow. Raises on failure so the caller can log and handle it.
+    Overlay studio name as a cursive watermark at bottom-left of image.
+    Uses Great Vibes font (downloaded once and cached) with a dark translucent
+    gradient pill background that fades out to the right for a polished look.
     """
+    import numpy as np
     from PIL import Image as PILImage, ImageDraw, ImageFont
 
     img = PILImage.open(io.BytesIO(image_bytes)).convert("RGBA")
     w, h = img.size
 
-    txt_layer = PILImage.new("RGBA", img.size, (255, 255, 255, 0))
-    draw = ImageDraw.Draw(txt_layer)
+    font_size = max(36, int(h * 0.055))
+    font = _load_watermark_font(font_size)
 
-    font_size = max(28, int(h * 0.045))
-    font = None
-
-    # Broader list covering Debian, Ubuntu, Alpine (Railway)
-    font_candidates = [
-        "/usr/share/fonts/truetype/dejavu/DejaVuSerif-BoldItalic.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSerif-BoldItalic.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-        "/usr/share/fonts/truetype/freefont/FreeSerifBoldItalic.ttf",
-        "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
-        "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/dejavu/DejaVuSerif-BoldItalic.ttf",
-        "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/truetype/ttf-dejavu/DejaVuSans-Bold.ttf",
-    ]
-    for fpath in font_candidates:
-        if os.path.exists(fpath):
-            try:
-                font = ImageFont.truetype(fpath, font_size)
-                log.info(f"Watermark font: {fpath} size={font_size}")
-                break
-            except Exception as fe:
-                log.warning(f"Font load failed {fpath}: {fe}")
-
-    if font is None:
-        log.warning("No system font found — using Pillow default")
-        try:
-            font = ImageFont.load_default(size=font_size)
-        except TypeError:
-            font = ImageFont.load_default()
-
-    # Text bounding box — textbbox available since Pillow 8.0
+    # Measure text
+    probe_draw = ImageDraw.Draw(PILImage.new("RGBA", (1, 1)))
     try:
-        bbox = draw.textbbox((0, 0), watermark_text, font=font)
-        tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+        bbox = probe_draw.textbbox((0, 0), watermark_text, font=font)
+        tw = bbox[2] - bbox[0]
+        th = bbox[3] - bbox[1]
+        t_offset_y = bbox[1]  # top bearing (may be negative for script fonts)
     except AttributeError:
-        tw, th = draw.textsize(watermark_text, font=font)
+        tw, th = probe_draw.textsize(watermark_text, font=font)
+        t_offset_y = 0
 
-    pad_x = int(w * 0.02)
-    pad_y = int(h * 0.02)
-    x = pad_x
-    y = h - th - pad_y * 3
+    pad_x = int(w * 0.022)
+    pad_y = int(h * 0.022)
+    pill_pad_x = int(tw * 0.18)
+    pill_pad_y = int(th * 0.45)
 
-    draw.text((x + 2, y + 2), watermark_text, font=font, fill=(0, 0, 0, 130))
-    draw.text((x, y), watermark_text, font=font, fill=(255, 255, 255, 210))
+    pill_x0 = pad_x
+    pill_y0 = h - th - pad_y * 2 - pill_pad_y - t_offset_y
+    pill_x1 = pad_x + tw + pill_pad_x * 2
+    pill_y1 = h - pad_y * 2 + pill_pad_y - t_offset_y
+
+    pill_w = max(pill_x1 - pill_x0, 1)
+    pill_h = max(pill_y1 - pill_y0, 1)
+
+    # Dark gradient pill: opaque on left, fades to transparent on right
+    gradient_arr = np.zeros((pill_h, pill_w, 4), dtype=np.uint8)
+    fade_start = int(pill_w * 0.60)
+    for gx in range(pill_w):
+        if gx <= fade_start:
+            alpha = 165
+        else:
+            progress = (gx - fade_start) / max(pill_w - fade_start, 1)
+            alpha = int(165 * (1.0 - progress))
+        gradient_arr[:, gx, 3] = alpha  # alpha only; R/G/B stay 0
+
+    gradient = PILImage.fromarray(gradient_arr, mode="RGBA")
+
+    # Rounded-rect mask so the pill has soft corners
+    mask = PILImage.new("L", (pill_w, pill_h), 0)
+    mask_draw = ImageDraw.Draw(mask)
+    radius = min(pill_h // 2, 18)
+    mask_draw.rounded_rectangle([0, 0, pill_w - 1, pill_h - 1], radius=radius, fill=255)
+
+    # Apply mask to gradient alpha channel
+    g_r, g_g, g_b, g_a = gradient.split()
+    masked_alpha = PILImage.fromarray(
+        (np.array(g_a) * np.array(mask) // 255).astype(np.uint8)
+    )
+    gradient = PILImage.merge("RGBA", (g_r, g_g, g_b, masked_alpha))
+
+    pill_layer = PILImage.new("RGBA", img.size, (0, 0, 0, 0))
+    pill_layer.paste(gradient, (pill_x0, pill_y0))
+
+    img = PILImage.alpha_composite(img, pill_layer)
+
+    # Draw cursive text on top
+    txt_layer = PILImage.new("RGBA", img.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(txt_layer)
+    tx = pad_x + pill_pad_x
+    ty = pill_y0 + pill_pad_y - t_offset_y
+    # Subtle shadow for depth
+    draw.text((tx + 1, ty + 1), watermark_text, font=font, fill=(0, 0, 0, 90))
+    draw.text((tx, ty), watermark_text, font=font, fill=(255, 255, 255, 230))
 
     out = PILImage.alpha_composite(img, txt_layer).convert("RGB")
     buf = io.BytesIO()
     out.save(buf, format="JPEG", quality=92)
-    log.info(f"Watermark applied: size={w}x{h}")
+    log.info(f"Watermark applied: size={w}x{h} font_size={font_size}")
     return buf.getvalue()
+
+
+# ── Watermark font loader (cached) ───────────────────────────────────────────
+
+_wm_font_cache: dict = {}
+_wm_font_lock = threading.Lock()
+
+_GREAT_VIBES_URL = (
+    "https://github.com/google/fonts/raw/main/ofl/greatvibes/GreatVibes-Regular.ttf"
+)
+_GREAT_VIBES_PATH = DATA_DIR / "fonts" / "GreatVibes-Regular.ttf"
+
+# Fallback cursive/script system fonts (Debian/Ubuntu/Alpine)
+_CURSIVE_FONT_CANDIDATES = [
+    "/usr/share/fonts/truetype/urw-base35/URWChanceryL-MediItal.ttf",
+    "/usr/share/fonts/truetype/freefont/FreeSerifBoldItalic.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSerif-BoldItalic.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSerif-BoldItalic.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+]
+
+
+def _load_watermark_font(size: int):
+    """Return an ImageFont for the watermark, using Great Vibes if available."""
+    from PIL import ImageFont
+
+    with _wm_font_lock:
+        if size in _wm_font_cache:
+            return _wm_font_cache[size]
+
+        font = None
+
+        # 1. Try cached Great Vibes on disk
+        if _GREAT_VIBES_PATH.exists():
+            try:
+                font = ImageFont.truetype(str(_GREAT_VIBES_PATH), size)
+                log.info(f"Watermark: loaded Great Vibes from cache size={size}")
+            except Exception as e:
+                log.warning(f"Watermark: cached Great Vibes failed: {e}")
+
+        # 2. Try downloading Great Vibes from Google Fonts GitHub
+        if font is None:
+            try:
+                _GREAT_VIBES_PATH.parent.mkdir(parents=True, exist_ok=True)
+                urllib.request.urlretrieve(_GREAT_VIBES_URL, str(_GREAT_VIBES_PATH))
+                font = ImageFont.truetype(str(_GREAT_VIBES_PATH), size)
+                log.info(f"Watermark: downloaded Great Vibes size={size}")
+            except Exception as e:
+                log.warning(f"Watermark: Great Vibes download failed: {e}")
+
+        # 3. Fall back to system cursive/script fonts
+        if font is None:
+            for fpath in _CURSIVE_FONT_CANDIDATES:
+                if os.path.exists(fpath):
+                    try:
+                        font = ImageFont.truetype(fpath, size)
+                        log.info(f"Watermark: fallback font {fpath} size={size}")
+                        break
+                    except Exception:
+                        pass
+
+        # 4. Last resort: Pillow default
+        if font is None:
+            log.warning("Watermark: using Pillow default font")
+            try:
+                font = ImageFont.load_default(size=size)
+            except TypeError:
+                font = ImageFont.load_default()
+
+        _wm_font_cache[size] = font
+        return font
 
 
 # ── Google Drive accessibility check ─────────────────────────────────────────
