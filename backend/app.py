@@ -1119,8 +1119,8 @@ def generate_qr_code_png(data: str) -> bytes:
 def apply_watermark(image_bytes: bytes, watermark_text: str) -> bytes:
     """
     Overlay studio name as a cursive watermark at bottom-left of image.
-    Uses Great Vibes font (downloaded once and cached) with a dark translucent
-    gradient pill background that fades out to the right for a polished look.
+    Uses Great Vibes font with a dark translucent gradient pill background
+    that fades out to the right.
     """
     import numpy as np
     from PIL import Image as PILImage, ImageDraw, ImageFont
@@ -1131,69 +1131,78 @@ def apply_watermark(image_bytes: bytes, watermark_text: str) -> bytes:
     font_size = max(36, int(h * 0.055))
     font = _load_watermark_font(font_size)
 
-    # Measure text
-    probe_draw = ImageDraw.Draw(PILImage.new("RGBA", (1, 1)))
+    # ── Measure the rendered text on a scratch canvas ──────────────────────
+    scratch = PILImage.new("RGBA", (w, h), (0, 0, 0, 0))
+    scratch_draw = ImageDraw.Draw(scratch)
     try:
-        bbox = probe_draw.textbbox((0, 0), watermark_text, font=font)
+        bbox = scratch_draw.textbbox((0, 0), watermark_text, font=font)
         tw = bbox[2] - bbox[0]
         th = bbox[3] - bbox[1]
-        t_offset_y = bbox[1]  # top bearing (may be negative for script fonts)
     except AttributeError:
-        tw, th = probe_draw.textsize(watermark_text, font=font)
-        t_offset_y = 0
+        tw, th = scratch_draw.textsize(watermark_text, font=font)
 
-    pad_x = int(w * 0.022)
-    pad_y = int(h * 0.022)
-    pill_pad_x = int(tw * 0.18)
-    pill_pad_y = int(th * 0.45)
+    # ── Layout: pill sits at bottom-left with comfortable padding ──────────
+    pad_x   = int(w * 0.022)
+    pad_y   = int(h * 0.025)
+    inner_x = int(tw * 0.20)   # horizontal padding inside pill
+    inner_y = int(th * 0.50)   # vertical padding inside pill
 
-    pill_x0 = pad_x
-    pill_y0 = h - th - pad_y * 2 - pill_pad_y - t_offset_y
-    pill_x1 = pad_x + tw + pill_pad_x * 2
-    pill_y1 = h - pad_y * 2 + pill_pad_y - t_offset_y
+    # Top-left corner of the pill
+    px = pad_x
+    py = h - th - pad_y - inner_y * 2
 
-    pill_w = max(pill_x1 - pill_x0, 1)
-    pill_h = max(pill_y1 - pill_y0, 1)
+    pill_w = tw + inner_x * 2
+    pill_h = th + inner_y * 2
 
-    # Dark gradient pill: opaque on left, fades to transparent on right
-    gradient_arr = np.zeros((pill_h, pill_w, 4), dtype=np.uint8)
-    fade_start = int(pill_w * 0.60)
-    for gx in range(pill_w):
-        if gx <= fade_start:
-            alpha = 165
-        else:
-            progress = (gx - fade_start) / max(pill_w - fade_start, 1)
-            alpha = int(165 * (1.0 - progress))
-        gradient_arr[:, gx, 3] = alpha  # alpha only; R/G/B stay 0
+    # ── Build gradient pill on a small canvas, then paste onto full image ──
+    # Use numpy for a clean horizontal alpha gradient (left=opaque, right=transparent)
+    grad = np.zeros((pill_h, pill_w, 4), dtype=np.uint8)
+    # R, G, B stay 0 (black background)
+    xs = np.arange(pill_w, dtype=np.float32)
+    fade_start = pill_w * 0.55
+    alpha_col = np.where(
+        xs <= fade_start,
+        170,
+        (170 * (1.0 - (xs - fade_start) / max(pill_w - fade_start, 1))).clip(0, 170)
+    ).astype(np.uint8)
+    grad[:, :, 3] = alpha_col[np.newaxis, :]   # broadcast across all rows
 
-    gradient = PILImage.fromarray(gradient_arr, mode="RGBA")
+    pill_img = PILImage.fromarray(grad, mode="RGBA")
 
-    # Rounded-rect mask so the pill has soft corners
+    # Rounded corners via a mask
+    corner_r = min(pill_h // 4, 10)
     mask = PILImage.new("L", (pill_w, pill_h), 0)
-    mask_draw = ImageDraw.Draw(mask)
-    radius = min(pill_h // 2, 18)
-    mask_draw.rounded_rectangle([0, 0, pill_w - 1, pill_h - 1], radius=radius, fill=255)
-
-    # Apply mask to gradient alpha channel
-    g_r, g_g, g_b, g_a = gradient.split()
-    masked_alpha = PILImage.fromarray(
-        (np.array(g_a) * np.array(mask) // 255).astype(np.uint8)
+    ImageDraw.Draw(mask).rounded_rectangle(
+        [0, 0, pill_w - 1, pill_h - 1], radius=corner_r, fill=255
     )
-    gradient = PILImage.merge("RGBA", (g_r, g_g, g_b, masked_alpha))
+    # Multiply existing alpha by the rounded mask
+    r, g, b, a = pill_img.split()
+    a = PILImage.fromarray((np.array(a, dtype=np.uint16) * np.array(mask, dtype=np.uint16) // 255).astype(np.uint8))
+    pill_img = PILImage.merge("RGBA", (r, g, b, a))
 
-    pill_layer = PILImage.new("RGBA", img.size, (0, 0, 0, 0))
-    pill_layer.paste(gradient, (pill_x0, pill_y0))
-
+    # Composite pill onto image
+    pill_layer = PILImage.new("RGBA", (w, h), (0, 0, 0, 0))
+    pill_layer.paste(pill_img, (px, py))
     img = PILImage.alpha_composite(img, pill_layer)
 
-    # Draw cursive text on top
-    txt_layer = PILImage.new("RGBA", img.size, (0, 0, 0, 0))
+    # ── Draw text centred vertically inside the pill ───────────────────────
+    # Use textbbox with actual draw position to get exact ink bounds,
+    # then offset so the visible glyph is centred in the pill.
+    txt_layer = PILImage.new("RGBA", (w, h), (0, 0, 0, 0))
     draw = ImageDraw.Draw(txt_layer)
-    tx = pad_x + pill_pad_x
-    ty = pill_y0 + pill_pad_y - t_offset_y
-    # Subtle shadow for depth
-    draw.text((tx + 1, ty + 1), watermark_text, font=font, fill=(0, 0, 0, 90))
-    draw.text((tx, ty), watermark_text, font=font, fill=(255, 255, 255, 230))
+    tx = px + inner_x
+    # Centre vertically: offset by the top bearing so glyph sits in the middle
+    try:
+        ink_bbox = draw.textbbox((tx, 0), watermark_text, font=font)
+        ink_h = ink_bbox[3] - ink_bbox[1]
+        ink_top_bearing = ink_bbox[1]  # how far below y=0 the top of the glyph is
+    except AttributeError:
+        ink_h = th
+        ink_top_bearing = 0
+    ty = py + (pill_h - ink_h) // 2 - ink_top_bearing
+    # Soft shadow for depth
+    draw.text((tx + 1, ty + 2), watermark_text, font=font, fill=(0, 0, 0, 100))
+    draw.text((tx, ty), watermark_text, font=font, fill=(255, 255, 255, 235))
 
     out = PILImage.alpha_composite(img, txt_layer).convert("RGB")
     buf = io.BytesIO()
