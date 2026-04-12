@@ -16,20 +16,15 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ ./backend/
 COPY frontend/ ./frontend/
 
-# Data directory (Railway Volume will be mounted here)
-RUN mkdir -p /data/datasets /data/embeddings /data/uploads
+# Temp scratch dirs — bulk data lives in B2
+RUN mkdir -p /tmp/facefind/datasets /tmp/facefind/embeddings /tmp/facefind/uploads
 
-EXPOSE 8000
+EXPOSE 8080
 
-# Tell glibc to return freed memory to the OS promptly instead of hoarding it.
-# This is the single biggest win for Python ML workloads on Railway.
 ENV MALLOC_TRIM_THRESHOLD_=65536
-# Use the small InsightFace model by default (overridable via Railway env vars)
 ENV INSIGHTFACE_MODEL=buffalo_sc
 ENV DET_SIZE=320
-# Unload the model from RAM after batch embedding finishes
 ENV UNLOAD_MODEL_AFTER_EMBED=true
 
-# Single worker — avoids loading the ~300MB model N times in parallel.
-# Railway scales horizontally via replicas, not per-process workers.
-CMD ["sh", "-c", "uvicorn backend.app:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1"]
+# Cloud Run injects PORT env var — defaults to 8080
+CMD ["sh", "-c", "uvicorn backend.app:app --host 0.0.0.0 --port ${PORT:-8080} --workers 1"]

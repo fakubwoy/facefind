@@ -59,6 +59,8 @@ DATABASE_URL = os.environ["DATABASE_URL"]  # set automatically by Railway Postgr
 
 def get_db():
     conn = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
+    conn.cursor().execute("SET search_path TO public")
+    conn.commit()
     return conn
 
 def init_db():
@@ -169,22 +171,41 @@ def init_db():
                 );
             """)
             # Migration: backfill plan_cycle_start for existing paid users who have none.
-            # Uses their most recent paid order's created_at as a best estimate.
+            # Guard: only run if razorpay_orders table already exists (safe on fresh DB)
             cur.execute("""
-                UPDATE users u
-                SET plan_cycle_start = sub.latest_order
-                FROM (
-                    SELECT user_id, MAX(created_at) AS latest_order
-                    FROM razorpay_orders
-                    WHERE status = 'paid'
-                    GROUP BY user_id
-                ) sub
-                WHERE u.id = sub.user_id
-                  AND u.plan != 'free'
-                  AND u.plan_cycle_start IS NULL;
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.tables
+                        WHERE table_name = 'razorpay_orders'
+                    ) THEN
+                        UPDATE users u
+                        SET plan_cycle_start = sub.latest_order
+                        FROM (
+                            SELECT user_id, MAX(created_at) AS latest_order
+                            FROM razorpay_orders
+                            WHERE status = 'paid'
+                            GROUP BY user_id
+                        ) sub
+                        WHERE u.id = sub.user_id
+                          AND u.plan != 'free'
+                          AND u.plan_cycle_start IS NULL;
+                    END IF;
+                END$$;
             """)
             cur.execute("""
-                ALTER TABLE razorpay_orders ADD COLUMN IF NOT EXISTS discount_code TEXT DEFAULT NULL;
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.tables
+                        WHERE table_name = 'razorpay_orders'
+                    ) THEN
+                        ALTER TABLE razorpay_orders ADD COLUMN IF NOT EXISTS discount_code TEXT DEFAULT NULL;
+                        ALTER TABLE razorpay_orders ADD COLUMN IF NOT EXISTS previous_plan TEXT DEFAULT NULL;
+                        ALTER TABLE razorpay_orders ADD COLUMN IF NOT EXISTS plan_interval TEXT DEFAULT 'monthly';
+                        ALTER TABLE razorpay_orders ADD COLUMN IF NOT EXISTS credit_applied_paise INT DEFAULT 0;
+                    END IF;
+                END$$;
             """)
             # Rate-limit table for discount code validation attempts
             cur.execute("""
@@ -193,19 +214,6 @@ def init_db():
                     user_id    TEXT NOT NULL,
                     attempted_at DOUBLE PRECISION
                 );
-            """)
-            # Migration: add previous_plan + proration fields to razorpay_orders
-            cur.execute("""
-                ALTER TABLE razorpay_orders ADD COLUMN IF NOT EXISTS previous_plan TEXT DEFAULT NULL;
-            """)
-            cur.execute("""
-                ALTER TABLE razorpay_orders ADD COLUMN IF NOT EXISTS plan_interval TEXT DEFAULT 'monthly';
-            """)
-            cur.execute("""
-                ALTER TABLE razorpay_orders ADD COLUMN IF NOT EXISTS credit_applied_paise INT DEFAULT 0;
-            """)
-            cur.execute("""
-                ALTER TABLE razorpay_orders ADD COLUMN IF NOT EXISTS credit_applied_paise INT DEFAULT 0;
             """)
             # Migration: enforce one share per dataset (deduplicate first, then add constraint)
             cur.execute("""
