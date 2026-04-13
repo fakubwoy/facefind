@@ -483,6 +483,42 @@ def db_insert_share(share: dict):
 _face_model = None
 _model_lock  = threading.Lock()
 
+# ── Idle-unload: release model + FAISS indexes after N minutes of inactivity ──
+IDLE_UNLOAD_SECONDS = int(os.environ.get("IDLE_UNLOAD_SECONDS", str(10 * 60)))  # default 10 min
+_last_activity_time: float = 0.0  # updated on every search / embed call
+
+
+def _touch_activity():
+    """Call this on every search or embed operation to reset the idle timer."""
+    global _last_activity_time
+    _last_activity_time = time.time()
+
+
+def _idle_watcher():
+    """Background thread: unloads face model and FAISS indexes when idle."""
+    global _face_model
+    log.info(f"Idle-watcher started (threshold={IDLE_UNLOAD_SECONDS}s)")
+    while True:
+        time.sleep(60)  # check every minute
+        if _last_activity_time == 0:
+            continue  # nothing has run yet — nothing to unload
+        idle_for = time.time() - _last_activity_time
+        if idle_for < IDLE_UNLOAD_SECONDS:
+            continue
+
+        # Unload face model
+        with _model_lock:
+            if _face_model is not None:
+                _face_model = None
+                log.info(f"[idle-watcher] Face model unloaded after {idle_for:.0f}s idle")
+
+        # Evict all FAISS indexes
+        with _index_cache_lock:
+            if _index_cache:
+                n = len(_index_cache)
+                _index_cache.clear()
+                log.info(f"[idle-watcher] Cleared {n} FAISS index(es) after {idle_for:.0f}s idle")
+
 def get_face_model():
     global _face_model
     if _face_model is None:
@@ -546,6 +582,7 @@ def cap_image(img_bgr: np.ndarray,
         return encode_to_jpg(img_bgr, 92)
 
 def extract_embedding(img_bgr: np.ndarray):
+    _touch_activity()
     model = get_face_model()
     faces = model.get(img_bgr)
     if not faces:
@@ -1035,6 +1072,7 @@ _index_cache: "collections.OrderedDict[str, tuple]" = collections.OrderedDict()
 _index_cache_lock = threading.Lock()
 
 def _get_index_and_meta(dataset_id: str):
+    _touch_activity()
     with _index_cache_lock:
         if dataset_id in _index_cache:
             _index_cache.move_to_end(dataset_id)
@@ -1988,6 +2026,9 @@ async def no_cache_html(request: Request, call_next):
 def on_startup():
     init_db()
     get_redis()  # warm up connection
+    # Start background idle-unload watcher
+    t = threading.Thread(target=_idle_watcher, daemon=True, name="idle-watcher")
+    t.start()
 
 # ── Auth endpoints ────────────────────────────────────────────────────────────
 
