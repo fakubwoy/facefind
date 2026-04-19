@@ -1345,14 +1345,13 @@ def apply_watermark(image_bytes: bytes, watermark_text: str) -> bytes:
     except AttributeError:
         tw, th = scratch_draw.textsize(watermark_text, font=font)
 
-    # ── Layout: pill sits at bottom-left with comfortable padding ──────────
-    pad_x   = int(w * 0.022)
+    # ── Layout: pill sits flush to the left edge, above bottom ────────────
     pad_y   = int(h * 0.025)
-    inner_x = int(tw * 0.20)   # horizontal padding inside pill
+    inner_x = int(tw * 0.20)   # horizontal padding inside pill (right side only)
     inner_y = int(th * 0.50)   # vertical padding inside pill
 
-    # Top-left corner of the pill
-    px = pad_x
+    # Pill starts at x=0 (flush left edge)
+    px = 0
     py = h - th - pad_y - inner_y * 2
 
     pill_w = tw + inner_x * 2
@@ -1373,12 +1372,16 @@ def apply_watermark(image_bytes: bytes, watermark_text: str) -> bytes:
 
     pill_img = PILImage.fromarray(grad, mode="RGBA")
 
-    # Rounded corners via a mask
+    # Rounded corners only on the right side (left is flush with image edge)
     corner_r = min(pill_h // 4, 10)
     mask = PILImage.new("L", (pill_w, pill_h), 0)
-    ImageDraw.Draw(mask).rounded_rectangle(
+    mask_draw = ImageDraw.Draw(mask)
+    # Draw a rounded rect but cover the left half with a plain rectangle so
+    # left corners stay square while right corners stay rounded.
+    mask_draw.rounded_rectangle(
         [0, 0, pill_w - 1, pill_h - 1], radius=corner_r, fill=255
     )
+    mask_draw.rectangle([0, 0, corner_r, pill_h - 1], fill=255)  # square off left corners
     # Multiply existing alpha by the rounded mask
     r, g, b, a = pill_img.split()
     a = PILImage.fromarray((np.array(a, dtype=np.uint16) * np.array(mask, dtype=np.uint16) // 255).astype(np.uint8))
