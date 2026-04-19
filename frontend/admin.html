@@ -3277,21 +3277,28 @@
   }
 
   function applyLimitWall(cfg, count) {
-    const wall   = document.getElementById('limitWall');
-    const drop   = document.getElementById('dropZone');
-    const upBtn2 = document.getElementById('uploadBtn');
-    const maxDS  = cfg.maxDatasets;
-    const uploadActive = document.getElementById('zipProgressPanel').classList.contains('visible')
+    const wall        = document.getElementById('limitWall');
+    const formFields  = document.getElementById('zipFormFields');
+    const successEl   = document.getElementById('zipSuccess');
+    const progressEl  = document.getElementById('zipProgressPanel');
+    const maxDS       = cfg.maxDatasets;
+    const uploadActive = progressEl.classList.contains('visible')
                       || document.getElementById('driveProgressPanel').classList.contains('visible');
+
     if (count >= maxDS && !uploadActive) {
+      // Show ONLY the limit wall — hide everything else in the zip tab
       wall.classList.add('show');
-      drop.style.display   = 'none';
-      upBtn2.style.display = 'none';
+      formFields.style.display = 'none';
+      successEl.classList.remove('visible');
+      progressEl.classList.remove('visible');
       const maxLabel = maxDS >= 9999 ? 'unlimited events' : maxDS + (maxDS === 1 ? ' event' : ' events');
       document.getElementById('limitWallMax').textContent = maxLabel;
     } else {
+      // Hide wall — restore form (only if not mid-upload or showing success)
       wall.classList.remove('show');
-      if (!uploadActive) { drop.style.display = ''; upBtn2.style.display = ''; }
+      if (!uploadActive && !successEl.classList.contains('visible')) {
+        formFields.style.display = '';
+      }
     }
   }
 
