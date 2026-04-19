@@ -1679,12 +1679,19 @@
             <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
           </svg>
         </div>
-        <!-- Calendar dropdown -->
+        <!-- Calendar overlay -->
+        <div id="datepickerOverlay" onclick="dpClose()" style="
+          display:none;position:fixed;inset:0;z-index:99990;
+          background:rgba(0,0,0,0.45);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);
+          animation:dpFadeIn 0.15s ease;">
+        </div>
         <div id="datepickerCal" style="
           display:none;position:fixed;z-index:99999;
+          top:50%;left:50%;transform:translate(-50%,-50%);
           background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);
-          box-shadow:0 12px 32px rgba(0,0,0,0.12),0 4px 8px rgba(0,0,0,0.06);
-          padding:16px;font-family:'Plus Jakarta Sans',sans-serif;width:280px;">
+          box-shadow:0 20px 60px rgba(0,0,0,0.25),0 8px 16px rgba(0,0,0,0.10);
+          padding:16px;font-family:'Plus Jakarta Sans',sans-serif;width:300px;max-width:calc(100vw - 32px);
+          animation:dpSlideIn 0.18s cubic-bezier(0.34,1.56,0.64,1);">
           <!-- Header: prev / month+year / next -->
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
             <button onclick="dpShift(-1)" style="
@@ -3329,7 +3336,11 @@
   }
 
   const style = document.createElement('style');
-  style.textContent = '@keyframes spin { to { transform: rotate(360deg); } }';
+  style.textContent = `
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes dpFadeIn { from { opacity:0; } to { opacity:1; } }
+    @keyframes dpSlideIn { from { opacity:0; transform:translate(-50%,-50%) scale(0.92); } to { opacity:1; transform:translate(-50%,-50%) scale(1); } }
+  `;
   document.head.appendChild(style);
 
   // ── Custom Datepicker ────────────────────────────────────────────────────────
@@ -3401,45 +3412,14 @@
     }
 
     window.toggleDatepicker = function() {
-      const cal = document.getElementById('datepickerCal');
+      const cal     = document.getElementById('datepickerCal');
+      const overlay = document.getElementById('datepickerOverlay');
       const trigger = document.getElementById('datepickerTrigger');
       if (cal.style.display === 'none') {
         if (!dpYear) dpInit();
         else dpRender();
-
+        overlay.style.display = 'block';
         cal.style.display = 'block';
-        const calW  = cal.offsetWidth  || 280;
-        const calH  = cal.offsetHeight || 320;
-        const gap   = 10;
-
-        // Anchor: right edge of the modal, vertically centered on the modal
-        const modal = document.querySelector('#createGroupModal .modal');
-        const ref   = modal ? modal.getBoundingClientRect() : trigger.getBoundingClientRect();
-
-        const spaceRight = window.innerWidth - ref.right - gap;
-        const spaceLeft  = ref.left - gap;
-
-        let left, top;
-
-        if (spaceRight >= calW) {
-          // ✅ Preferred: snug to the right of the modal
-          left = ref.right + gap;
-        } else if (spaceLeft >= calW) {
-          // Fallback: snug to the left of the modal
-          left = ref.left - calW - gap;
-        } else {
-          // Last resort: below the trigger, centered on modal width
-          left = ref.left + (ref.width - calW) / 2;
-        }
-
-        // Vertically center the calendar on the modal, clamped to viewport
-        top = ref.top + (ref.height - calH) / 2;
-        top = Math.max(8, Math.min(top, window.innerHeight - calH - 8));
-        left = Math.max(8, Math.min(left, window.innerWidth - calW - 8));
-
-        cal.style.left = left + 'px';
-        cal.style.top  = top  + 'px';
-
         trigger.style.borderColor = 'var(--primary)';
         trigger.style.boxShadow   = '0 0 0 3px rgba(79,70,229,0.12)';
       } else {
@@ -3448,9 +3428,11 @@
     };
 
     window.dpClose = function() {
-      const cal = document.getElementById('datepickerCal');
+      const cal     = document.getElementById('datepickerCal');
+      const overlay = document.getElementById('datepickerOverlay');
       const trigger = document.getElementById('datepickerTrigger');
       if (cal) cal.style.display = 'none';
+      if (overlay) overlay.style.display = 'none';
       if (trigger) { trigger.style.borderColor = ''; trigger.style.boxShadow = ''; }
     };
 
@@ -3493,12 +3475,13 @@
       dpClose();
     };
 
-    // Close when clicking outside
+    // Close when clicking outside (overlay handles most cases; this is a safety net)
     document.addEventListener('mousedown', function(e) {
       const cal     = document.getElementById('datepickerCal');
+      const overlay = document.getElementById('datepickerOverlay');
       const trigger = document.getElementById('datepickerTrigger');
       if (cal && cal.style.display !== 'none' &&
-          !cal.contains(e.target) && !trigger.contains(e.target)) {
+          !cal.contains(e.target) && !trigger.contains(e.target) && e.target !== overlay) {
         dpClose();
       }
     });
