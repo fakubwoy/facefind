@@ -2439,8 +2439,12 @@ async def create_share(request: Request):
     if ds["status"] != "ready":
         raise HTTPException(400, "Dataset is not ready yet.")
 
-    # If no explicit watermark supplied, inherit from the event group
-    if not watermark_text and ds.get("group_id"):
+    # Free-plan users always get the Lenstagram.com watermark — enforce server-side
+    # regardless of what the client sent, so it cannot be bypassed via API calls.
+    if user.get("plan", "free") == "free":
+        watermark_text = "Lenstagram.com"
+    elif not watermark_text and ds.get("group_id"):
+        # Paid users: if no explicit watermark supplied, inherit from the event group
         group = db_get_group(ds["group_id"])
         if group:
             watermark_text = group.get("watermark_text") or ""
@@ -4189,7 +4193,11 @@ async def update_share(share_id: str, request: Request):
         body = await request.json()
     except Exception:
         raise HTTPException(400, "Invalid JSON body.")
-    watermark_text = (body.get("watermark_text") or "").strip()[:80]
+    # Free-plan users: always keep Lenstagram.com watermark, ignore client value
+    if user.get("plan", "free") == "free":
+        watermark_text = "Lenstagram.com"
+    else:
+        watermark_text = (body.get("watermark_text") or "").strip()[:80]
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute(

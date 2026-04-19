@@ -1325,25 +1325,49 @@
               <p style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.6;">Pick an album below and create a share link. Guests open the link, snap a selfie, and instantly see every photo they're in — no login, no app needed.</p>
 
               <!-- Watermark settings -->
-              <div style="background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:16px;margin-bottom:16px;">
+              <div id="watermarkSection" style="background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:16px;margin-bottom:16px;">
                 <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:12px;display:flex;align-items:center;gap:6px;">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                   STUDIO BRANDING
                 </div>
-                <label class="field-checkbox">
-                  <input type="checkbox" id="watermarkEnabled" onchange="toggleWatermarkPreview()">
-                  <div>
-                    <div class="field-checkbox-label">Add studio watermark to photos</div>
-                    <div class="field-checkbox-hint">Your studio name in an elegant cursive font at the bottom-left of every photo in results</div>
+
+                <!-- FREE PLAN: forced watermark notice -->
+                <div id="watermarkFreeNotice" style="display:none;">
+                  <div style="display:flex;align-items:flex-start;gap:10px;">
+                    <div style="width:32px;height:32px;border-radius:8px;background:var(--primary-light);color:var(--primary);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    </div>
+                    <div>
+                      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:3px;">Lenstagram.com watermark applied</div>
+                      <div style="font-size:12px;color:var(--muted);line-height:1.6;">All downloaded photos on the free plan include a <em>Lenstagram.com</em> watermark. Upgrade to remove it or add your own studio branding.</div>
+                    </div>
                   </div>
-                </label>
-                <div id="watermarkFieldWrap" style="display:none;margin-top:12px;">
-                  <input type="text" id="watermarkText" placeholder="e.g. Lens & Love Studio" 
-                    style="width:100%;background:var(--surface);border:1.5px solid var(--border);color:var(--text);font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;padding:10px 14px;border-radius:var(--radius-sm);outline:none;transition:border-color 0.2s;"
-                    oninput="updateWatermarkPreview()" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='var(--border)'">
-                  <div class="watermark-preview" id="watermarkPreview">
-                    <div class="watermark-preview-label">Preview</div>
-                    <div class="watermark-text-preview" id="watermarkTextPreview">Your Studio Name</div>
+                  <a href="/pricing.html" style="display:inline-flex;align-items:center;gap:6px;margin-top:12px;background:var(--primary);color:#fff;font-family:'Plus Jakarta Sans',sans-serif;font-size:12px;font-weight:700;padding:7px 14px;border-radius:var(--radius-sm);text-decoration:none;transition:opacity 0.15s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>
+                    Upgrade to remove watermark
+                  </a>
+                  <!-- Hidden inputs keep generateShare() working unchanged -->
+                  <input type="hidden" id="watermarkEnabled" value="1">
+                  <input type="hidden" id="watermarkText" value="Lenstagram.com">
+                </div>
+
+                <!-- PAID PLAN: full custom branding UI -->
+                <div id="watermarkPaidUI" style="display:none;">
+                  <label class="field-checkbox">
+                    <input type="checkbox" id="watermarkEnabledPaid" onchange="toggleWatermarkPreview()">
+                    <div>
+                      <div class="field-checkbox-label">Add studio watermark to photos</div>
+                      <div class="field-checkbox-hint">Your studio name in an elegant cursive font at the bottom-left of every photo in results</div>
+                    </div>
+                  </label>
+                  <div id="watermarkFieldWrap" style="display:none;margin-top:12px;">
+                    <input type="text" id="watermarkTextPaid" placeholder="e.g. Lens & Love Studio"
+                      style="width:100%;background:var(--surface);border:1.5px solid var(--border);color:var(--text);font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;padding:10px 14px;border-radius:var(--radius-sm);outline:none;transition:border-color 0.2s;"
+                      oninput="updateWatermarkPreview()" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='var(--border)'">
+                    <div class="watermark-preview" id="watermarkPreview">
+                      <div class="watermark-preview-label">Preview</div>
+                      <div class="watermark-text-preview" id="watermarkTextPreview">Your Studio Name</div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1800,14 +1824,27 @@
   }
 
   // ── Watermark helpers ───────────────────────────────────────────────────────
+
+  // Call this after currentPlan is known to show the correct watermark UI
+  function applyWatermarkPlanUI() {
+    const isFree = currentPlan === 'free';
+    const freeNotice = document.getElementById('watermarkFreeNotice');
+    const paidUI     = document.getElementById('watermarkPaidUI');
+    if (!freeNotice || !paidUI) return;
+    freeNotice.style.display = isFree ? '' : 'none';
+    paidUI.style.display     = isFree ? 'none' : '';
+  }
+
   function toggleWatermarkPreview() {
-    const enabled = document.getElementById('watermarkEnabled').checked;
+    const chk = document.getElementById('watermarkEnabledPaid');
+    const enabled = chk ? chk.checked : false;
     document.getElementById('watermarkFieldWrap').style.display = enabled ? '' : 'none';
     if (enabled) updateWatermarkPreview();
   }
 
   function updateWatermarkPreview() {
-    const val = document.getElementById('watermarkText').value.trim();
+    const textEl = document.getElementById('watermarkTextPaid') || document.getElementById('watermarkText');
+    const val = textEl ? textEl.value.trim() : '';
     const preview = document.getElementById('watermarkPreview');
     const text = document.getElementById('watermarkTextPreview');
     if (val) {
@@ -2186,10 +2223,14 @@
     loadDatasets(groupId);
 
     // Reset watermark UI first
-    document.getElementById('watermarkEnabled').checked = false;
-    document.getElementById('watermarkText').value = '';
+    applyWatermarkPlanUI();
+    const chkPaid = document.getElementById('watermarkEnabledPaid');
+    if (chkPaid) chkPaid.checked = false;
+    const textPaid = document.getElementById('watermarkTextPaid');
+    if (textPaid) textPaid.value = '';
     document.getElementById('watermarkFieldWrap').style.display = 'none';
-    document.getElementById('watermarkPreview').classList.remove('visible');
+    const wmPrev = document.getElementById('watermarkPreview');
+    if (wmPrev) wmPrev.classList.remove('visible');
 
     // Check existing share
     if (g && g.share_id) {
@@ -2198,13 +2239,15 @@
       document.getElementById('shareBox').classList.add('visible');
       generateQRCanvas(shareUrl, document.getElementById('qrCanvas'));
 
-      // Load share details to restore watermark settings
+      // Load share details to restore watermark settings (paid users only)
       fetch(`${API}/api/shares/${g.share_id}`, { credentials: 'include' })
         .then(r => r.ok ? r.json() : null)
         .then(share => {
-          if (share && share.watermark_text) {
-            document.getElementById('watermarkEnabled').checked = true;
-            document.getElementById('watermarkText').value = share.watermark_text;
+          if (share && share.watermark_text && currentPlan !== 'free') {
+            const chk2 = document.getElementById('watermarkEnabledPaid');
+            const txt2 = document.getElementById('watermarkTextPaid');
+            if (chk2) chk2.checked = true;
+            if (txt2) txt2.value = share.watermark_text;
             document.getElementById('watermarkFieldWrap').style.display = '';
             updateWatermarkPreview();
           }
@@ -2364,8 +2407,16 @@
   // ── Share generation ────────────────────────────────────────────────────────
   async function generateShare() {
     if (!selectedDatasetId) return;
-    const watermarkEnabled = document.getElementById('watermarkEnabled').checked;
-    const watermarkText = watermarkEnabled ? document.getElementById('watermarkText').value.trim() : null;
+    let watermarkText;
+    if (currentPlan === 'free') {
+      // Free plan: always force Lenstagram.com watermark
+      watermarkText = 'Lenstagram.com';
+    } else {
+      const chk = document.getElementById('watermarkEnabledPaid');
+      const enabled = chk ? chk.checked : false;
+      const textEl = document.getElementById('watermarkTextPaid');
+      watermarkText = enabled && textEl ? textEl.value.trim() || null : null;
+    }
 
     const btn = document.getElementById('shareBtn');
     btn.disabled = true;
@@ -3148,6 +3199,7 @@
     } catch { currentPlan = 'free'; }
 
     const cfg = PLAN_CONFIG[currentPlan] || PLAN_CONFIG.free;
+    applyWatermarkPlanUI(); // update watermark section to match current plan
 
     let datasetCount = 0;
     try {
@@ -3347,20 +3399,42 @@
       if (cal.style.display === 'none') {
         if (!dpYear) dpInit();
         else dpRender();
-        // Position using fixed coords to escape modal overflow clipping
+        // Position using fixed coords to escape modal overflow clipping.
+        // Prefer opening to the RIGHT of the modal if there is enough space,
+        // otherwise fall back to below/above the trigger.
         cal.style.display = 'block';
-        const rect = trigger.getBoundingClientRect();
-        const calW = 280;
-        let left = rect.left;
-        if (left + calW > window.innerWidth - 8) left = window.innerWidth - calW - 8;
-        const calH = cal.offsetHeight;
-        const spaceBelow = window.innerHeight - rect.bottom - 8;
-        if (spaceBelow < calH && rect.top > calH) {
-          cal.style.top  = (rect.top - calH - 6) + 'px';
+        const rect    = trigger.getBoundingClientRect();
+        const calW    = 280;
+        const calH    = cal.offsetHeight;
+        const gap     = 12;
+        const spaceRight  = window.innerWidth  - rect.right  - gap;
+        const spaceLeft   = rect.left - gap;
+        const spaceBelow  = window.innerHeight - rect.top    - gap;   // room if anchored to trigger top
+        const spaceAbove  = rect.bottom - gap;
+
+        if (spaceRight >= calW) {
+          // Open to the right, vertically aligned to trigger top, clamped to viewport
+          let top = rect.top;
+          if (top + calH > window.innerHeight - 8) top = window.innerHeight - calH - 8;
+          cal.style.left = (rect.right + gap) + 'px';
+          cal.style.top  = Math.max(8, top) + 'px';
+        } else if (spaceLeft >= calW) {
+          // Open to the left
+          let top = rect.top;
+          if (top + calH > window.innerHeight - 8) top = window.innerHeight - calH - 8;
+          cal.style.left = (rect.left - calW - gap) + 'px';
+          cal.style.top  = Math.max(8, top) + 'px';
         } else {
-          cal.style.top  = (rect.bottom + 6) + 'px';
+          // Fall back: below or above the trigger
+          let left = rect.left;
+          if (left + calW > window.innerWidth - 8) left = window.innerWidth - calW - 8;
+          cal.style.left = Math.max(8, left) + 'px';
+          if (spaceBelow >= calH) {
+            cal.style.top = (rect.bottom + gap) + 'px';
+          } else {
+            cal.style.top = Math.max(8, rect.top - calH - gap) + 'px';
+          }
         }
-        cal.style.left = left + 'px';
         trigger.style.borderColor = 'var(--primary)';
         trigger.style.boxShadow   = '0 0 0 3px rgba(79,70,229,0.12)';
       } else {
