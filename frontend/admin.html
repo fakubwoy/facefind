@@ -1657,10 +1657,10 @@
         </div>
         <!-- Calendar dropdown -->
         <div id="datepickerCal" style="
-          display:none;position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:9999;
+          display:none;position:fixed;z-index:99999;
           background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);
           box-shadow:0 12px 32px rgba(0,0,0,0.12),0 4px 8px rgba(0,0,0,0.06);
-          padding:16px;font-family:'Plus Jakarta Sans',sans-serif;">
+          padding:16px;font-family:'Plus Jakarta Sans',sans-serif;width:280px;">
           <!-- Header: prev / month+year / next -->
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
             <button onclick="dpShift(-1)" style="
@@ -1690,9 +1690,13 @@
           </div>
           <!-- Day-of-week labels -->
           <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px;">
-            ${['Su','Mo','Tu','We','Th','Fr','Sa'].map(d =>
-              `<div style="text-align:center;font-size:11px;font-weight:700;color:var(--muted);padding:4px 0;">${d}</div>`
-            ).join('')}
+            <div style="text-align:center;font-size:11px;font-weight:700;color:var(--muted);padding:4px 0;">Su</div>
+            <div style="text-align:center;font-size:11px;font-weight:700;color:var(--muted);padding:4px 0;">Mo</div>
+            <div style="text-align:center;font-size:11px;font-weight:700;color:var(--muted);padding:4px 0;">Tu</div>
+            <div style="text-align:center;font-size:11px;font-weight:700;color:var(--muted);padding:4px 0;">We</div>
+            <div style="text-align:center;font-size:11px;font-weight:700;color:var(--muted);padding:4px 0;">Th</div>
+            <div style="text-align:center;font-size:11px;font-weight:700;color:var(--muted);padding:4px 0;">Fr</div>
+            <div style="text-align:center;font-size:11px;font-weight:700;color:var(--muted);padding:4px 0;">Sa</div>
           </div>
           <!-- Day cells -->
           <div id="dpGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;"></div>
@@ -3343,7 +3347,20 @@
       if (cal.style.display === 'none') {
         if (!dpYear) dpInit();
         else dpRender();
+        // Position using fixed coords to escape modal overflow clipping
         cal.style.display = 'block';
+        const rect = trigger.getBoundingClientRect();
+        const calW = 280;
+        let left = rect.left;
+        if (left + calW > window.innerWidth - 8) left = window.innerWidth - calW - 8;
+        const calH = cal.offsetHeight;
+        const spaceBelow = window.innerHeight - rect.bottom - 8;
+        if (spaceBelow < calH && rect.top > calH) {
+          cal.style.top  = (rect.top - calH - 6) + 'px';
+        } else {
+          cal.style.top  = (rect.bottom + 6) + 'px';
+        }
+        cal.style.left = left + 'px';
         trigger.style.borderColor = 'var(--primary)';
         trigger.style.boxShadow   = '0 0 0 3px rgba(79,70,229,0.12)';
       } else {
