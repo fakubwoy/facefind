@@ -3399,42 +3399,40 @@
       if (cal.style.display === 'none') {
         if (!dpYear) dpInit();
         else dpRender();
-        // Position using fixed coords to escape modal overflow clipping.
-        // Prefer opening to the RIGHT of the modal if there is enough space,
-        // otherwise fall back to below/above the trigger.
+
         cal.style.display = 'block';
-        const rect    = trigger.getBoundingClientRect();
-        const calW    = 280;
-        const calH    = cal.offsetHeight;
-        const gap     = 12;
-        const spaceRight  = window.innerWidth  - rect.right  - gap;
-        const spaceLeft   = rect.left - gap;
-        const spaceBelow  = window.innerHeight - rect.top    - gap;   // room if anchored to trigger top
-        const spaceAbove  = rect.bottom - gap;
+        const calW  = cal.offsetWidth  || 280;
+        const calH  = cal.offsetHeight || 320;
+        const gap   = 10;
+
+        // Anchor: right edge of the modal, vertically centered on the modal
+        const modal = document.querySelector('#createGroupModal .modal');
+        const ref   = modal ? modal.getBoundingClientRect() : trigger.getBoundingClientRect();
+
+        const spaceRight = window.innerWidth - ref.right - gap;
+        const spaceLeft  = ref.left - gap;
+
+        let left, top;
 
         if (spaceRight >= calW) {
-          // Open to the right, vertically aligned to trigger top, clamped to viewport
-          let top = rect.top;
-          if (top + calH > window.innerHeight - 8) top = window.innerHeight - calH - 8;
-          cal.style.left = (rect.right + gap) + 'px';
-          cal.style.top  = Math.max(8, top) + 'px';
+          // ✅ Preferred: snug to the right of the modal
+          left = ref.right + gap;
         } else if (spaceLeft >= calW) {
-          // Open to the left
-          let top = rect.top;
-          if (top + calH > window.innerHeight - 8) top = window.innerHeight - calH - 8;
-          cal.style.left = (rect.left - calW - gap) + 'px';
-          cal.style.top  = Math.max(8, top) + 'px';
+          // Fallback: snug to the left of the modal
+          left = ref.left - calW - gap;
         } else {
-          // Fall back: below or above the trigger
-          let left = rect.left;
-          if (left + calW > window.innerWidth - 8) left = window.innerWidth - calW - 8;
-          cal.style.left = Math.max(8, left) + 'px';
-          if (spaceBelow >= calH) {
-            cal.style.top = (rect.bottom + gap) + 'px';
-          } else {
-            cal.style.top = Math.max(8, rect.top - calH - gap) + 'px';
-          }
+          // Last resort: below the trigger, centered on modal width
+          left = ref.left + (ref.width - calW) / 2;
         }
+
+        // Vertically center the calendar on the modal, clamped to viewport
+        top = ref.top + (ref.height - calH) / 2;
+        top = Math.max(8, Math.min(top, window.innerHeight - calH - 8));
+        left = Math.max(8, Math.min(left, window.innerWidth - calW - 8));
+
+        cal.style.left = left + 'px';
+        cal.style.top  = top  + 'px';
+
         trigger.style.borderColor = 'var(--primary)';
         trigger.style.boxShadow   = '0 0 0 3px rgba(79,70,229,0.12)';
       } else {
