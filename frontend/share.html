@@ -661,7 +661,15 @@
 
     /* ── Results ── */
     .results-state { display: none; }
-    .results-state.show { display: block; animation: fadeIn 0.4s ease; }
+    .results-state.show {
+      display: block;
+      animation: fadeIn 0.4s ease;
+    }
+
+    /* When results are shown, expand the layout to use full available width */
+    .layout.results-wide {
+      max-width: 1100px;
+    }
 
     .results-header {
       display: flex; align-items: flex-start; justify-content: space-between;
@@ -724,15 +732,14 @@
 
     /* ── Photo grid ── */
     .photo-grid {
-      columns: 3;
-      gap: 12px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
     }
 
-    @media (max-width: 480px) { .photo-grid { columns: 2; } }
+    @media (max-width: 600px) { .photo-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; } }
 
     .photo-item {
-      break-inside: avoid;
-      margin-bottom: 12px;
       position: relative;
       overflow: hidden;
       cursor: pointer;
@@ -740,6 +747,7 @@
       background: var(--surface2);
       box-shadow: var(--shadow-sm);
       transition: transform 0.25s, box-shadow 0.25s;
+      aspect-ratio: 3 / 4;
     }
 
     .photo-item:hover {
@@ -748,7 +756,9 @@
     }
 
     .photo-item img {
-      width: 100%; display: block;
+      width: 100%; height: 100%;
+      object-fit: cover;
+      display: block;
       transition: transform 0.4s;
     }
 
@@ -1761,6 +1771,9 @@
     document.getElementById('noFaceState').classList.toggle('show', state === 'noface');
     document.getElementById('facePickerState').style.display = state === 'facepicker' ? 'block' : 'none';
     document.getElementById('resultsState').classList.toggle('show', state === 'results');
+
+    // Widen the layout container when showing results grid
+    document.querySelector('.layout').classList.toggle('results-wide', state === 'results');
 
     if (state === 'upload' || state === 'results') {
       document.getElementById('stepsBar').style.display = 'flex';
