@@ -15,7 +15,7 @@ from email.mime.multipart import MIMEMultipart
 from email.message import EmailMessage
 import urllib.request, urllib.parse, logging
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 import numpy as np
 import cv2
@@ -2131,46 +2131,70 @@ def list_datasets(request: Request):
 async def upload_zip(
     request: Request,
     background_tasks: BackgroundTasks,
-    file: UploadFile = File(...),
+    file: List[UploadFile] = File(...),
     name: str = Form(default=""),
     group_id: str = Form(default=""),
 ):
     user = require_auth(request)
-    if not file.filename.endswith(".zip"):
-        raise HTTPException(400, "Please upload a .zip file.")
+
+    _IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".heic", ".heif"}
+
+    # Normalise: FastAPI wraps a single file in a list automatically with List[UploadFile]
+    files = file if isinstance(file, list) else [file]
+
+    if not files:
+        raise HTTPException(400, "No files received.")
+
+    is_zip = len(files) == 1 and files[0].filename.lower().endswith(".zip")
+    is_images = all(Path(f.filename).suffix.lower() in _IMAGE_EXTS for f in files)
+
+    if not is_zip and not is_images:
+        raise HTTPException(400, "Please upload a ZIP file or one or more image files (JPG, PNG, WEBP, HEIC).")
 
     dataset_id  = str(uuid.uuid4())[:8]
     dataset_dir = DATASETS_DIR / dataset_id
     dataset_dir.mkdir()
 
-    # Read + extract ZIP (must be synchronous — needed for limit checks below)
-    zip_path  = dataset_dir / "upload.zip"
-    raw_bytes = await resilient_read_upload(file)
-    zip_path.write_bytes(raw_bytes)
-    del raw_bytes  # free RAM immediately
+    import shutil as _shutil
 
-    with zipfile.ZipFile(zip_path) as zf:
-        zf.extractall(dataset_dir)
-    zip_path.unlink()
+    if is_zip:
+        # ── ZIP path: extract as before ──────────────────────────────────────
+        zip_path  = dataset_dir / "upload.zip"
+        raw_bytes = await resilient_read_upload(files[0])
+        zip_path.write_bytes(raw_bytes)
+        del raw_bytes
+        with zipfile.ZipFile(zip_path) as zf:
+            zf.extractall(dataset_dir)
+        zip_path.unlink()
+        default_name = files[0].filename.replace(".zip", "").replace(".ZIP", "")
+    else:
+        # ── Loose images path: save each file directly into dataset_dir ──────
+        for f in files:
+            safe_name = Path(f.filename).name  # strip any path traversal
+            dest = dataset_dir / safe_name
+            raw = await resilient_read_upload(f)
+            dest.write_bytes(raw)
+            del raw
+        default_name = f"{len(files)} photos"
 
     # ── Enforce dataset count limit ──────────────────────────────────────────
     limits   = get_plan_limits(user)
     existing = db_list_datasets(user["id"])
     if len(existing) >= limits["max_datasets"]:
-        import shutil; shutil.rmtree(dataset_dir, ignore_errors=True)
+        _shutil.rmtree(dataset_dir, ignore_errors=True)
         raise HTTPException(400, f"Dataset limit reached. Your plan allows {limits['max_datasets']} dataset(s). Delete one or upgrade.")
 
     # ── Enforce image count limit ─────────────────────────────────────────────
     img_count = count_images_in_dir(dataset_dir)
     if img_count > limits["max_images"]:
-        import shutil; shutil.rmtree(dataset_dir, ignore_errors=True)
-        raise HTTPException(400, f"Too many images. Your plan allows up to {limits['max_images']:,} images per dataset. This ZIP contains {img_count:,}.")
+        _shutil.rmtree(dataset_dir, ignore_errors=True)
+        raise HTTPException(400, f"Too many images. Your plan allows up to {limits['max_images']:,} images per dataset. You uploaded {img_count:,}.")
 
     # Register dataset — visible in UI immediately with status "queued"
     is_free = user.get("plan", "free") == "free"
     ds = {
         "id": dataset_id, "user_id": user["id"],
-        "name": name or file.filename.replace(".zip", ""),
+        "name": name or default_name,
         "source": "zip", "folder_id": None,
         "status": "queued", "total": img_count, "processed": 0,
         "face_count": 0, "error": None, "created_at": time.time(),
@@ -2187,7 +2211,6 @@ async def upload_zip(
                 conn.commit()
 
     # ── Hand off everything else to background ───────────────────────────────
-    # compress_upload_and_embed handles: compress → parallel B2 upload → embed → FAISS → cleanup
     background_tasks.add_task(compress_upload_and_embed, dataset_id, is_free)
     return {"dataset_id": dataset_id, "status": "queued"}
 
@@ -2301,7 +2324,7 @@ async def add_images_to_dataset(
     dataset_id: str,
     request: Request,
     background_tasks: BackgroundTasks,
-    file: UploadFile = File(...),
+    file: List[UploadFile] = File(...),
 ):
     user = require_auth(request)
     ds = db_get_dataset(dataset_id)
@@ -2311,27 +2334,47 @@ async def add_images_to_dataset(
         raise HTTPException(403, "Not your dataset.")
     if ds["status"] != "ready":
         raise HTTPException(400, "Dataset must be in 'ready' state to add images.")
-    if not file.filename.endswith(".zip"):
-        raise HTTPException(400, "Please upload a .zip file.")
-    
+
+    _IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".heic", ".heif"}
+
+    files = file if isinstance(file, list) else [file]
+    if not files:
+        raise HTTPException(400, "No files received.")
+
+    is_zip    = len(files) == 1 and files[0].filename.lower().endswith(".zip")
+    is_images = all(Path(f.filename).suffix.lower() in _IMAGE_EXTS for f in files)
+
+    if not is_zip and not is_images:
+        raise HTTPException(400, "Please upload a ZIP file or one or more image files (JPG, PNG, WEBP, HEIC).")
+
     dataset_dir = DATASETS_DIR / dataset_id
-    
     temp_dir = dataset_dir / f"_temp_{int(time.time())}"
     temp_dir.mkdir()
-    
-    zip_path = temp_dir / "upload.zip"
-    raw_bytes = await resilient_read_upload(file)
-    zip_path.write_bytes(raw_bytes)
-    with zipfile.ZipFile(zip_path) as zf:
-        zf.extractall(temp_dir)
-    zip_path.unlink()
+
+    import shutil as _shutil
+
+    if is_zip:
+        zip_path = temp_dir / "upload.zip"
+        raw_bytes = await resilient_read_upload(files[0])
+        zip_path.write_bytes(raw_bytes)
+        del raw_bytes
+        with zipfile.ZipFile(zip_path) as zf:
+            zf.extractall(temp_dir)
+        zip_path.unlink()
+    else:
+        for f in files:
+            safe_name = Path(f.filename).name
+            dest = temp_dir / safe_name
+            raw = await resilient_read_upload(f)
+            dest.write_bytes(raw)
+            del raw
 
     # ── Enforce image limit on combined total ─────────────────────────────────
     limits = get_plan_limits(user)
     existing_count = count_images_in_dir(dataset_dir)
     new_count      = count_images_in_dir(temp_dir)
     if existing_count + new_count > limits["max_images"]:
-        import shutil; shutil.rmtree(temp_dir, ignore_errors=True)
+        _shutil.rmtree(temp_dir, ignore_errors=True)
         raise HTTPException(400,
             f"Image limit exceeded. Your plan allows {limits['max_images']:,} images per dataset. "
             f"This dataset already has {existing_count:,} and you're adding {new_count:,}.")
@@ -2339,20 +2382,19 @@ async def add_images_to_dataset(
     is_free = user.get("plan", "free") == "free"
     total_imgs, capped = compress_images_in_dir(temp_dir, free_tier=is_free)
     log.info(f"[{dataset_id}] {'Free' if is_free else 'Paid'} tier cap on new images: {capped}/{total_imgs} processed")
-    
-    import shutil
+
     for item in temp_dir.rglob("*"):
         if item.is_file():
             rel_path = item.relative_to(temp_dir)
             target = dataset_dir / rel_path
             target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(item), str(target))
-    
-    shutil.rmtree(temp_dir)
-    
+            _shutil.move(str(item), str(target))
+
+    _shutil.rmtree(temp_dir)
+
     db_update_dataset_fields(dataset_id, status="queued")
     background_tasks.add_task(run_embedding_job, dataset_id)
-    
+
     log.info(f"[{dataset_id}] Images added, re-embedding started")
     return {"ok": True, "dataset_id": dataset_id, "status": "queued"}
 
