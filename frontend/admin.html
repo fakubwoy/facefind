@@ -1637,9 +1637,76 @@
           <option value="other">Other</option>
         </select>
       </div>
-      <div class="field">
+      <div class="field" style="position:relative;">
         <label>Event Date (optional)</label>
-        <input type="date" id="newGroupDate" style="width:100%;background:var(--bg);border:1.5px solid var(--border);color:var(--text);font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;font-weight:500;padding:11px 14px;border-radius:var(--radius-sm);outline:none;transition:border-color 0.2s,box-shadow 0.2s;" onfocus="this.style.borderColor='var(--primary)';this.style.boxShadow='0 0 0 3px rgba(79,70,229,0.12)';" onblur="this.style.borderColor='';this.style.boxShadow='';">
+        <!-- Hidden real value read by createGroup() -->
+        <input type="hidden" id="newGroupDate">
+        <!-- Visible trigger -->
+        <div id="datepickerTrigger" onclick="toggleDatepicker()" style="
+          width:100%;background:var(--bg);border:1.5px solid var(--border);color:var(--text);
+          font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;font-weight:500;
+          padding:11px 14px;border-radius:var(--radius-sm);cursor:pointer;
+          display:flex;align-items:center;justify-content:space-between;
+          transition:border-color 0.2s,box-shadow 0.2s;user-select:none;
+          box-sizing:border-box;">
+          <span id="datepickerLabel" style="color:var(--muted);opacity:0.6;">Pick a date</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;color:var(--muted);">
+            <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
+            <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+          </svg>
+        </div>
+        <!-- Calendar dropdown -->
+        <div id="datepickerCal" style="
+          display:none;position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:9999;
+          background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);
+          box-shadow:0 12px 32px rgba(0,0,0,0.12),0 4px 8px rgba(0,0,0,0.06);
+          padding:16px;font-family:'Plus Jakarta Sans',sans-serif;">
+          <!-- Header: prev / month+year / next -->
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+            <button onclick="dpShift(-1)" style="
+              width:30px;height:30px;border:1.5px solid var(--border);border-radius:8px;
+              background:var(--bg);cursor:pointer;display:flex;align-items:center;justify-content:center;
+              color:var(--muted);transition:all 0.15s;" onmouseover="this.style.borderColor='var(--primary)';this.style.color='var(--primary)';" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)';">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <select id="dpMonthSel" onchange="dpGoToMonth()" style="
+                border:1.5px solid var(--border);border-radius:6px;background:var(--bg);
+                color:var(--text);font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;
+                font-weight:700;padding:4px 8px;cursor:pointer;outline:none;">
+              </select>
+              <select id="dpYearSel" onchange="dpGoToMonth()" style="
+                border:1.5px solid var(--border);border-radius:6px;background:var(--bg);
+                color:var(--text);font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;
+                font-weight:700;padding:4px 8px;cursor:pointer;outline:none;">
+              </select>
+            </div>
+            <button onclick="dpShift(1)" style="
+              width:30px;height:30px;border:1.5px solid var(--border);border-radius:8px;
+              background:var(--bg);cursor:pointer;display:flex;align-items:center;justify-content:center;
+              color:var(--muted);transition:all 0.15s;" onmouseover="this.style.borderColor='var(--primary)';this.style.color='var(--primary)';" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)';">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          </div>
+          <!-- Day-of-week labels -->
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px;">
+            ${['Su','Mo','Tu','We','Th','Fr','Sa'].map(d =>
+              `<div style="text-align:center;font-size:11px;font-weight:700;color:var(--muted);padding:4px 0;">${d}</div>`
+            ).join('')}
+          </div>
+          <!-- Day cells -->
+          <div id="dpGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;"></div>
+          <!-- Clear -->
+          <div style="margin-top:12px;border-top:1px solid var(--border);padding-top:10px;text-align:center;">
+            <button onclick="dpClear()" style="
+              background:none;border:none;font-family:'Plus Jakarta Sans',sans-serif;
+              font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;
+              padding:4px 12px;border-radius:6px;transition:color 0.15s;"
+              onmouseover="this.style.color='var(--error)'" onmouseout="this.style.color='var(--muted)'">
+              Clear date
+            </button>
+          </div>
+        </div>
       </div>
       <button class="btn btn-primary" onclick="createGroup()" style="margin-top:24px;">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -3201,6 +3268,158 @@
   const style = document.createElement('style');
   style.textContent = '@keyframes spin { to { transform: rotate(360deg); } }';
   document.head.appendChild(style);
+
+  // ── Custom Datepicker ────────────────────────────────────────────────────────
+  (function() {
+    const MONTHS = ['January','February','March','April','May','June',
+                    'July','August','September','October','November','December'];
+    const SHORT_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun',
+                          'Jul','Aug','Sep','Oct','Nov','Dec'];
+
+    let dpYear, dpMonth, dpSelected = null; // dpSelected = Date object or null
+
+    function dpInit() {
+      const now = new Date();
+      dpYear  = now.getFullYear();
+      dpMonth = now.getMonth();
+      // Populate month select
+      const mSel = document.getElementById('dpMonthSel');
+      mSel.innerHTML = MONTHS.map((m, i) =>
+        `<option value="${i}">${m}</option>`).join('');
+      // Populate year select: 5 years back → 5 years ahead
+      const ySel = document.getElementById('dpYearSel');
+      ySel.innerHTML = '';
+      for (let y = now.getFullYear() - 5; y <= now.getFullYear() + 5; y++) {
+        ySel.innerHTML += `<option value="${y}">${y}</option>`;
+      }
+      dpRender();
+    }
+
+    function dpRender() {
+      const mSel = document.getElementById('dpMonthSel');
+      const ySel = document.getElementById('dpYearSel');
+      if (mSel) mSel.value = dpMonth;
+      if (ySel) ySel.value = dpYear;
+
+      const grid   = document.getElementById('dpGrid');
+      if (!grid) return;
+      const first  = new Date(dpYear, dpMonth, 1).getDay(); // 0=Sun
+      const days   = new Date(dpYear, dpMonth + 1, 0).getDate();
+      const today  = new Date();
+      let html = '';
+
+      // Empty cells before the 1st
+      for (let i = 0; i < first; i++) {
+        html += `<div></div>`;
+      }
+
+      for (let d = 1; d <= days; d++) {
+        const isToday   = today.getFullYear() === dpYear && today.getMonth() === dpMonth && today.getDate() === d;
+        const isSel     = dpSelected && dpSelected.getFullYear() === dpYear &&
+                          dpSelected.getMonth() === dpMonth && dpSelected.getDate() === d;
+        let style = `
+          text-align:center;font-size:13px;font-weight:${isToday || isSel ? '700' : '500'};
+          padding:7px 2px;border-radius:8px;cursor:pointer;transition:all 0.12s;
+          position:relative;
+        `;
+        if (isSel) {
+          style += `background:var(--primary);color:#fff;box-shadow:0 2px 8px rgba(79,70,229,0.35);`;
+        } else if (isToday) {
+          style += `background:var(--primary-light);color:var(--primary);`;
+        } else {
+          style += `color:var(--text2);`;
+        }
+        html += `<div style="${style}" onclick="dpSelect(${d})"
+          onmouseover="if(!this.dataset.sel){this.style.background='var(--primary-light)';this.style.color='var(--primary)';}"
+          onmouseout="if(!this.dataset.sel){this.style.background='';this.style.color='var(--text2)';}"
+          ${isSel ? 'data-sel="1"' : ''}>${d}</div>`;
+      }
+      grid.innerHTML = html;
+    }
+
+    window.toggleDatepicker = function() {
+      const cal = document.getElementById('datepickerCal');
+      const trigger = document.getElementById('datepickerTrigger');
+      if (cal.style.display === 'none') {
+        if (!dpYear) dpInit();
+        else dpRender();
+        cal.style.display = 'block';
+        trigger.style.borderColor = 'var(--primary)';
+        trigger.style.boxShadow   = '0 0 0 3px rgba(79,70,229,0.12)';
+      } else {
+        dpClose();
+      }
+    };
+
+    window.dpClose = function() {
+      const cal = document.getElementById('datepickerCal');
+      const trigger = document.getElementById('datepickerTrigger');
+      if (cal) cal.style.display = 'none';
+      if (trigger) { trigger.style.borderColor = ''; trigger.style.boxShadow = ''; }
+    };
+
+    window.dpShift = function(dir) {
+      dpMonth += dir;
+      if (dpMonth > 11) { dpMonth = 0;  dpYear++; }
+      if (dpMonth < 0)  { dpMonth = 11; dpYear--; }
+      dpRender();
+    };
+
+    window.dpGoToMonth = function() {
+      dpMonth = parseInt(document.getElementById('dpMonthSel').value);
+      dpYear  = parseInt(document.getElementById('dpYearSel').value);
+      dpRender();
+    };
+
+    window.dpSelect = function(day) {
+      dpSelected = new Date(dpYear, dpMonth, day);
+      // Write ISO value to hidden input
+      const iso = `${dpYear}-${String(dpMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+      document.getElementById('newGroupDate').value = iso;
+      // Update trigger label
+      const label = document.getElementById('datepickerLabel');
+      label.textContent = `${day} ${SHORT_MONTHS[dpMonth]} ${dpYear}`;
+      label.style.color = 'var(--text)';
+      label.style.opacity = '1';
+      dpRender();
+      // Close after a brief moment so user sees the selection highlight
+      setTimeout(dpClose, 160);
+    };
+
+    window.dpClear = function() {
+      dpSelected = null;
+      document.getElementById('newGroupDate').value = '';
+      const label = document.getElementById('datepickerLabel');
+      label.textContent = 'Pick a date';
+      label.style.color = 'var(--muted)';
+      label.style.opacity = '0.6';
+      dpRender();
+      dpClose();
+    };
+
+    // Close when clicking outside
+    document.addEventListener('mousedown', function(e) {
+      const cal     = document.getElementById('datepickerCal');
+      const trigger = document.getElementById('datepickerTrigger');
+      if (cal && cal.style.display !== 'none' &&
+          !cal.contains(e.target) && !trigger.contains(e.target)) {
+        dpClose();
+      }
+    });
+
+    // Reset datepicker when modal is closed / reopened
+    const origCloseModal = window.closeModal;
+    window.closeModal = function(id) {
+      if (id === 'createGroupModal') {
+        dpSelected = null;
+        document.getElementById('newGroupDate').value = '';
+        const label = document.getElementById('datepickerLabel');
+        if (label) { label.textContent = 'Pick a date'; label.style.color = 'var(--muted)'; label.style.opacity = '0.6'; }
+        dpClose();
+      }
+      origCloseModal(id);
+    };
+  })();
 
   // ── Init ────────────────────────────────────────────────────────────────────
   checkAuth();
