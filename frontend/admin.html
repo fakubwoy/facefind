@@ -1427,13 +1427,22 @@
               Upload to an Event Group
             </div>
 
-            <!-- Event Group selector -->
-            <div class="field" style="margin-top:0;margin-bottom:18px;">
-              <label>Event Group</label>
-              <select id="uploadTargetGroup" style="background:var(--bg);">
+            <!-- Event Group / Album selector (label + hint swap based on quota mode) -->
+            <div class="field" id="uploadSelectorField" style="margin-top:0;margin-bottom:18px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
+                <label id="uploadSelectorLabel" style="margin-bottom:0;">Event Group</label>
+                <!-- Quota pill — shown only in add-to-existing mode -->
+                <span id="quotaPill" style="display:none;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;"></span>
+              </div>
+              <!-- Normal mode: group selector -->
+              <select id="uploadTargetGroup" style="background:var(--bg);display:block;">
                 <option value="">— Select event group —</option>
               </select>
-              <div class="field-hint">
+              <!-- Add-to-existing mode: flat album selector populated from allDatasetsCache -->
+              <select id="uploadTargetDataset" style="background:var(--bg);display:none;">
+                <option value="">— Select an album —</option>
+              </select>
+              <div id="uploadSelectorHint" class="field-hint">
                 Or <button onclick="showCreateGroupModal()" style="background:none;border:none;color:var(--primary);font-weight:700;cursor:pointer;font-size:12px;padding:0;font-family:'Plus Jakarta Sans',sans-serif;">create a new event group</button>
               </div>
             </div>
@@ -1480,7 +1489,7 @@
                   <div class="drop-hint">JPG · PNG · WEBP · HEIC · or a ZIP of your event photos</div>
                 </div>
 
-                <div class="field">
+                <div class="field" id="albumNameField">
                   <label>Album name (optional)</label>
                   <input type="text" id="datasetName" placeholder="e.g. Reception, Day 2, Candids">
                 </div>
@@ -2627,7 +2636,12 @@
   }
 
   zipFile.addEventListener('change', () => {
-    uploadBtn.disabled = !zipFile.files.length;
+    if (_addToExistingMode) {
+      const datasetSel = document.getElementById('uploadTargetDataset');
+      uploadBtn.disabled = !(zipFile.files.length && datasetSel?.value);
+    } else {
+      uploadBtn.disabled = !zipFile.files.length;
+    }
     if (zipFile.files.length) showZipFilesInfo(zipFile.files);
   });
 
@@ -2644,11 +2658,83 @@
     const dt = new DataTransfer();
     files.forEach(f => dt.items.add(f));
     zipFile.files = dt.files;
-    uploadBtn.disabled = false;
+    if (_addToExistingMode) {
+      const datasetSel = document.getElementById('uploadTargetDataset');
+      uploadBtn.disabled = !(dt.files.length && datasetSel?.value);
+    } else {
+      uploadBtn.disabled = false;
+    }
     showZipFilesInfo(dt.files);
   });
 
   uploadBtn.addEventListener('click', () => {
+    // ── Add-to-existing mode: route to add-images endpoint ──────────────────
+    if (_addToExistingMode) {
+      const files     = zipFile.files;
+      const targetId  = document.getElementById('uploadTargetDataset').value;
+      if (!files.length || !targetId) return;
+
+      // Check image quota before submitting
+      const cfg        = PLAN_CONFIG[currentPlan] || PLAN_CONFIG.free;
+      const usedImages = Object.values(allDatasetsCache || {}).reduce((s, d) => s + (d.total || d.total_images || 0), 0);
+      if (usedImages >= cfg.maxImages) {
+        toast('Photo limit reached — upgrade your plan to add more photos.', 'error');
+        return;
+      }
+
+      const fd = new FormData();
+      if (files.length === 1 && files[0].name.endsWith('.zip')) {
+        fd.append('file', files[0]);
+      } else {
+        Array.from(files).forEach(f => fd.append('file', f));
+      }
+
+      uploadBtn.disabled = true;
+      document.getElementById('zipFormFields').style.display = 'none';
+      document.getElementById('limitWall').classList.remove('show');
+      updateInlineProgress('zip', 'Uploading…', 'Sending your photos…', 0, '');
+
+      const xhr = new XMLHttpRequest();
+      xhr.withCredentials = true;
+      xhr.upload.addEventListener('progress', e => {
+        if (!e.lengthComputable) return;
+        const pct    = Math.round((e.loaded / e.total) * 100);
+        const loaded = (e.loaded / 1024 / 1024).toFixed(1);
+        const total  = (e.total  / 1024 / 1024).toFixed(1);
+        updateInlineProgress('zip', 'Uploading', `${loaded} MB / ${total} MB`, pct, '');
+      });
+      xhr.upload.addEventListener('load', () => {
+        updateIndeterminate('zip', 'Almost there…', 'Getting photos ready…');
+      });
+      xhr.addEventListener('load', () => {
+        let d;
+        try { d = JSON.parse(xhr.responseText); } catch { d = {}; }
+        if (xhr.status < 200 || xhr.status >= 300) {
+          toast(`Error: ${d.detail || 'Upload failed'}`, 'error');
+          resetZipUpload();
+          loadPlanBanner();
+          return;
+        }
+        invalidateDatasetsCache();
+        loadGroups();
+        loadPlanBanner();
+        startReembeddingPolling(targetId);
+        // Show inline success
+        document.getElementById('zipProgressPanel').classList.remove('visible');
+        const suc = document.getElementById('zipSuccess');
+        document.getElementById('zipSuccessMeta').textContent = 'Photos added to your album — faces are being scanned.';
+        suc.classList.add('visible');
+      });
+      xhr.addEventListener('error', () => {
+        toast('Upload failed — please check your connection and try again', 'error');
+        resetZipUpload();
+      });
+      xhr.open('POST', `${API}/api/datasets/${targetId}/add-images`);
+      xhr.send(fd);
+      return;
+    }
+
+    // ── Normal mode: create new dataset ─────────────────────────────────────
     const files = zipFile.files;
     if (!files.length) return;
     const groupId = document.getElementById('uploadTargetGroup').value;
@@ -2742,9 +2828,12 @@
     document.getElementById('zipSelectedInfo').style.display = 'none';
     document.getElementById('datasetName').value = '';
     document.getElementById('uploadTargetGroup').value = (currentGroupId && currentGroupId !== '__ungrouped__') ? currentGroupId : '';
+    document.getElementById('uploadTargetDataset').value = '';
     uploadBtn.disabled = true;
     uploadBtn.style.display = '';
-    uploadBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload &amp; Find Faces`;
+    // Clear add-to-existing mode flag so loadPlanBanner can re-enter the
+    // correct mode cleanly (it calls applyLimitWall → _activateAddToExistingMode)
+    _addToExistingMode = false;
     loadPlanBanner();
   }
 
@@ -3289,29 +3378,146 @@
     applyLimitWall(cfg, datasetCount);
   }
 
+  // Tracks whether the upload panel is in "add to existing album" mode
+  let _addToExistingMode = false;
+
   function applyLimitWall(cfg, count) {
-    const wall        = document.getElementById('limitWall');
-    const formFields  = document.getElementById('zipFormFields');
-    const successEl   = document.getElementById('zipSuccess');
-    const progressEl  = document.getElementById('zipProgressPanel');
-    const maxDS       = cfg.maxDatasets;
+    const wall       = document.getElementById('limitWall');
+    const formFields = document.getElementById('zipFormFields');
+    const successEl  = document.getElementById('zipSuccess');
+    const progressEl = document.getElementById('zipProgressPanel');
+    const maxDS      = cfg.maxDatasets;
     const uploadActive = progressEl.classList.contains('visible')
                       || document.getElementById('driveProgressPanel').classList.contains('visible');
 
     if (count >= maxDS && !uploadActive) {
-      // Show ONLY the limit wall — hide everything else in the zip tab
-      wall.classList.add('show');
-      formFields.style.display = 'none';
-      successEl.classList.remove('visible');
-      progressEl.classList.remove('visible');
-      const maxLabel = maxDS >= 9999 ? 'unlimited events' : maxDS + (maxDS === 1 ? ' event' : ' events');
-      document.getElementById('limitWallMax').textContent = maxLabel;
-    } else {
-      // Hide wall — restore form (only if not mid-upload or showing success)
-      wall.classList.remove('show');
-      if (!uploadActive && !successEl.classList.contains('visible')) {
-        formFields.style.display = '';
+      // Check whether user has any albums they can still add photos to
+      const allDatasets = Object.values(allDatasetsCache || {});
+      if (allDatasets.length > 0) {
+        // ── Add-to-existing mode ──────────────────────────────────────────────
+        wall.classList.remove('show');
+        successEl.classList.remove('visible');
+        if (!successEl.classList.contains('visible')) formFields.style.display = '';
+        _activateAddToExistingMode(cfg, count);
+      } else {
+        // ── Full block: no albums exist at all, nowhere to upload ─────────────
+        wall.classList.add('show');
+        formFields.style.display = 'none';
+        successEl.classList.remove('visible');
+        progressEl.classList.remove('visible');
+        const maxLabel = maxDS >= 9999 ? 'unlimited events' : maxDS + (maxDS === 1 ? ' event' : ' events');
+        document.getElementById('limitWallMax').textContent = maxLabel;
+        _deactivateAddToExistingMode();
       }
+    } else {
+      // ── Normal mode ───────────────────────────────────────────────────────
+      wall.classList.remove('show');
+      if (!uploadActive && !successEl.classList.contains('visible')) formFields.style.display = '';
+      _deactivateAddToExistingMode();
+    }
+  }
+
+  function _activateAddToExistingMode(cfg, datasetCount) {
+    if (_addToExistingMode) return; // already active — don't flicker
+    _addToExistingMode = true;
+
+    // Swap labels
+    const label = document.getElementById('uploadSelectorLabel');
+    if (label) label.textContent = 'Album to add photos to';
+
+    // Swap selectors: hide group selector, show dataset selector
+    const groupSel   = document.getElementById('uploadTargetGroup');
+    const datasetSel = document.getElementById('uploadTargetDataset');
+    if (groupSel)   groupSel.style.display   = 'none';
+    if (datasetSel) datasetSel.style.display = 'block';
+
+    // Populate dataset selector with group-prefixed labels
+    if (datasetSel) {
+      const allDatasets = Object.values(allDatasetsCache || {});
+      datasetSel.innerHTML = '<option value="">— Select an album —</option>' +
+        allDatasets.map(ds => {
+          const groupName = (ds.group_id && groups[ds.group_id]) ? groups[ds.group_id].name : null;
+          const label     = groupName ? `${groupName} › ${ds.name || ds.id}` : (ds.name || ds.id);
+          const imgCount  = (ds.total || ds.total_images || 0);
+          const suffix    = imgCount ? ` (${imgCount.toLocaleString('en-IN')} photos)` : '';
+          return `<option value="${ds.id}">${escHtml(label + suffix)}</option>`;
+        }).join('');
+    }
+
+    // Hide album name field — irrelevant when adding to an existing album
+    const albumNameField = document.getElementById('albumNameField');
+    if (albumNameField) albumNameField.style.display = 'none';
+
+    // Show quota pill: images remaining
+    const maxImages  = cfg.maxImages;
+    const usedImages = Object.values(allDatasetsCache || {}).reduce((s, d) => s + (d.total || d.total_images || 0), 0);
+    const remaining  = maxImages - usedImages;
+    const pill       = document.getElementById('quotaPill');
+    if (pill) {
+      const pct = maxImages > 0 ? Math.round((usedImages / maxImages) * 100) : 100;
+      const isLow = pct >= 85;
+      pill.textContent = remaining > 0
+        ? `${remaining.toLocaleString('en-IN')} photos left`
+        : 'Photo limit reached';
+      pill.style.display      = '';
+      pill.style.background   = isLow ? '#fef2f2' : '#ecfdf5';
+      pill.style.color        = isLow ? '#dc2626'  : '#059669';
+      pill.style.border       = isLow ? '1px solid #fecaca' : '1px solid #a7f3d0';
+    }
+
+    // Replace hint with an upgrade nudge (non-blocking)
+    const hint = document.getElementById('uploadSelectorHint');
+    if (hint) {
+      hint.innerHTML = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="display:inline;vertical-align:-1px;margin-right:3px;color:var(--warn);"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      You've used all ${datasetCount} event groups on your plan. Pick an album below and keep uploading, or <a href="/pricing.html" style="color:var(--primary);font-weight:700;text-decoration:none;">upgrade</a> to create more groups.`;
+    }
+
+    // Rewire upload button label
+    const btn = document.getElementById('uploadBtn');
+    if (btn) {
+      btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Add Photos`;
+    }
+
+    // Enable/disable upload btn based on dataset selector
+    if (datasetSel) {
+      // Remove any previous listener before adding to avoid stacking on repeated calls
+      datasetSel.removeEventListener('change', _syncAddModeBtn);
+      datasetSel.addEventListener('change', _syncAddModeBtn);
+      _syncAddModeBtn();
+    }
+  }
+
+  function _syncAddModeBtn() {
+    const datasetSel = document.getElementById('uploadTargetDataset');
+    const zipFile    = document.getElementById('zipFile');
+    const btn        = document.getElementById('uploadBtn');
+    if (btn) btn.disabled = !(datasetSel?.value && zipFile?.files?.length);
+  }
+
+  function _deactivateAddToExistingMode() {
+    if (!_addToExistingMode) return;
+    _addToExistingMode = false;
+
+    const label = document.getElementById('uploadSelectorLabel');
+    if (label) label.textContent = 'Event Group';
+
+    const groupSel   = document.getElementById('uploadTargetGroup');
+    const datasetSel = document.getElementById('uploadTargetDataset');
+    if (groupSel)   groupSel.style.display   = 'block';
+    if (datasetSel) datasetSel.style.display = 'none';
+
+    const albumNameField = document.getElementById('albumNameField');
+    if (albumNameField) albumNameField.style.display = '';
+
+    const pill = document.getElementById('quotaPill');
+    if (pill) pill.style.display = 'none';
+
+    const hint = document.getElementById('uploadSelectorHint');
+    if (hint) hint.innerHTML = `Or <button onclick="showCreateGroupModal()" style="background:none;border:none;color:var(--primary);font-weight:700;cursor:pointer;font-size:12px;padding:0;font-family:'Plus Jakarta Sans',sans-serif;">create a new event group</button>`;
+
+    const btn = document.getElementById('uploadBtn');
+    if (btn) {
+      btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload &amp; Find Faces`;
     }
   }
 
