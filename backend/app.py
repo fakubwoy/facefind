@@ -987,6 +987,10 @@ def run_embedding_job(dataset_id: str):
     if not ds:
         return
 
+    # Evict any stale cached index so searches after re-indexing see the new data
+    with _index_cache_lock:
+        _index_cache.pop(dataset_id, None)
+
     dataset_dir = DATASETS_DIR / dataset_id
     emb_dir     = EMBEDDINGS_DIR / dataset_id
     emb_dir.mkdir(exist_ok=True)
@@ -2402,19 +2406,45 @@ async def add_images_to_dataset(
     total_imgs, capped = compress_images_in_dir(temp_dir, free_tier=is_free)
     log.info(f"[{dataset_id}] {'Free' if is_free else 'Paid'} tier cap on new images: {capped}/{total_imgs} processed")
 
-    for item in temp_dir.rglob("*"):
-        if item.is_file():
-            rel_path = item.relative_to(temp_dir)
-            target = dataset_dir / rel_path
-            target.parent.mkdir(parents=True, exist_ok=True)
-            _shutil.move(str(item), str(target))
+    # Collect new image paths before moving, so we can upload them to B2
+    new_image_paths = [item for item in temp_dir.rglob("*") if item.is_file()]
+
+    # ── If B2 is configured, upload the new images to B2 NOW ─────────────────
+    # run_embedding_job lists images exclusively from B2 when B2 is enabled,
+    # so new images must reach B2 before the re-index job runs.
+    use_b2 = b2.b2_configured()
+    if use_b2:
+        exts = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
+        for item in new_image_paths:
+            if item.suffix.lower() not in exts:
+                continue
+            try:
+                rel_path = str(item.relative_to(temp_dir).with_suffix('.jpg'))
+                b2.upload_bytes(
+                    b2.dataset_image_key(dataset_id, rel_path),
+                    item.read_bytes(),
+                    content_type="image/jpeg",
+                )
+                log.info(f"[{dataset_id}] Uploaded new image to B2: {rel_path}")
+            except Exception as exc:
+                log.warning(f"[{dataset_id}] B2 upload failed for {item.name}: {exc}")
+
+    for item in new_image_paths:
+        rel_path = item.relative_to(temp_dir)
+        target = dataset_dir / rel_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        _shutil.move(str(item), str(target))
 
     _shutil.rmtree(temp_dir)
+
+    # Evict stale in-memory index so the re-index result is picked up immediately
+    with _index_cache_lock:
+        _index_cache.pop(dataset_id, None)
 
     db_update_dataset_fields(dataset_id, status="queued")
     background_tasks.add_task(run_embedding_job, dataset_id)
 
-    log.info(f"[{dataset_id}] Images added, re-embedding started")
+    log.info(f"[{dataset_id}] {len(new_image_paths)} image(s) added, re-embedding started")
     return {"ok": True, "dataset_id": dataset_id, "status": "queued"}
 
 # ── Share endpoints ───────────────────────────────────────────────────────────
