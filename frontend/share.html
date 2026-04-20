@@ -13,6 +13,7 @@
   <meta property="og:image"       content="https://lenstagram.app/og-image.jpg" />
   <meta property="og:site_name"   content="Lenstagram" />
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700;9..144,800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Kaushan+Script&display=swap" rel="stylesheet">
 
@@ -1766,18 +1767,38 @@
     if (!matches.length) return;
     const btn = document.getElementById('dlAllBtn');
     btn.disabled = true;
-    btn.innerHTML = `<span>Preparing ${matches.length} photos…</span>`;
+    const zip = new JSZip();
     let done = 0;
     for (const m of matches) {
-      const dlSrc = `${API}/api/image/${currentResults.dataset_id}/${m.image_path}/watermarked?share_id=${shareId}`;
-      await downloadPhoto(dlSrc, m.image_path).catch(() => {});
+      // Use the same URL pattern as individual photo downloads
+      const dlSrc = `${API}/api/watermarked/${currentResults.dataset_id}?image_path=${encodeURIComponent(m.image_path)}&share_id=${shareId}`;
+      btn.innerHTML = `<span>Fetching ${done + 1}/${matches.length}…</span>`;
+      try {
+        const r = await fetch(dlSrc);
+        if (r.ok) {
+          const blob = await r.blob();
+          const filename = m.image_path.split('/').pop() || `photo_${done + 1}.jpg`;
+          zip.file(filename, blob);
+        }
+      } catch { /* skip failed images */ }
       done++;
-      btn.innerHTML = `<span>Downloading ${done}/${matches.length}…</span>`;
-      await new Promise(res => setTimeout(res, 300));
+    }
+    btn.innerHTML = `<span>Zipping…</span>`;
+    try {
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(zipBlob);
+      a.download = 'my-photos.zip';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(a.href), 100);
+      toast('All photos saved as ZIP!');
+    } catch {
+      toast('ZIP failed — try downloading individually.', '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>');
     }
     btn.disabled = false;
     btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download All`;
-    toast('All photos saved!');
   }
 
   /* ── Lightbox ───────────────────────────────────────────── */

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Lenstagram — My Dashboard</title>
   <meta name="robots" content="noindex, nofollow" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,700;9..144,800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Great+Vibes&family=Kaushan+Script&display=swap" rel="stylesheet">
   <style>
@@ -4688,17 +4689,37 @@
     if (!matches.length) return;
     const btn = document.getElementById('afp-dlAllBtn');
     btn.disabled = true;
+    const zip = new JSZip();
     let done = 0;
     for (const m of matches) {
       const src = `${API}/api/image/${afpCurrentData.dataset_id}/${m.image_path}`;
-      await afpDownload(src, m.image_path).catch(() => {});
+      btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Fetching ${done + 1}/${matches.length}…`;
+      try {
+        const r = await fetch(src);
+        if (r.ok) {
+          const blob = await r.blob();
+          const filename = m.image_path.split('/').pop() || `photo_${done + 1}.jpg`;
+          zip.file(filename, blob);
+        }
+      } catch { /* skip failed images */ }
       done++;
-      btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> ${done}/${matches.length}…`;
-      await new Promise(res => setTimeout(res, 280));
+    }
+    btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Zipping…`;
+    try {
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(zipBlob);
+      a.download = 'photos.zip';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(a.href), 100);
+      toast('All photos saved as ZIP!');
+    } catch {
+      toast('ZIP failed — try downloading individually.', 'error');
     }
     btn.disabled = false;
     btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download All`;
-    toast('All photos saved!');
   }
 
   function afpOpenLb(src, meta) {
