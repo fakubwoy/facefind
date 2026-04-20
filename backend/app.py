@@ -2670,6 +2670,91 @@ async def search_by_selfie(share_id: str, file: UploadFile = File(...), face_ind
         "dataset_id":    share["dataset_id"],
     }
 
+# ── Authenticated dataset search (admin / owner only) ─────────────────────────
+
+@app.post("/api/datasets/{dataset_id}/search")
+async def search_dataset_authenticated(
+    dataset_id: str,
+    request: Request,
+    file: UploadFile = File(...),
+    face_indices: str = Form(default=None),
+):
+    """
+    Same face-search logic as the public share endpoint, but authenticated.
+    Only the dataset owner can call this — no share link required.
+    """
+    user = require_auth(request)
+    ds = db_get_dataset(dataset_id)
+    if not ds:
+        raise HTTPException(404, "Dataset not found.")
+    if ds.get("user_id") != user["id"]:
+        raise HTTPException(403, "Not your dataset.")
+    if ds["status"] != "ready":
+        raise HTTPException(400, "Dataset not ready for search yet.")
+
+    contents = await file.read()
+    try:
+        img = decode_image(contents)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+    t0 = time.time()
+    model = get_face_model()
+    all_faces = model.get(img)
+    if not all_faces:
+        return JSONResponse({
+            "face_detected": False,
+            "matches": [],
+            "latency_ms": round((time.time() - t0) * 1000, 1),
+        })
+
+    all_faces_sorted = sorted(all_faces, key=lambda f: f.bbox[0])
+
+    # Return face thumbnails so the admin can pick if multiple faces detected
+    face_thumbs = []
+    for face in all_faces_sorted:
+        try:
+            x1, y1, x2, y2 = [int(v) for v in face.bbox]
+            pad = int((x2 - x1) * 0.2)
+            x1 = max(0, x1 - pad); y1 = max(0, y1 - pad)
+            x2 = min(img.shape[1], x2 + pad); y2 = min(img.shape[0], y2 + pad)
+            face_crop = img[y1:y2, x1:x2]
+            _, buf = cv2.imencode(".jpg", face_crop, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+            b64 = base64.b64encode(buf.tobytes()).decode()
+            face_thumbs.append(f"data:image/jpeg;base64,{b64}")
+        except Exception:
+            face_thumbs.append("")
+
+    if face_indices:
+        try:
+            selected = [int(i) for i in face_indices.split(",") if i.strip().isdigit()]
+            faces_to_search = [all_faces_sorted[i] for i in selected if i < len(all_faces_sorted)]
+        except Exception:
+            faces_to_search = all_faces_sorted
+    else:
+        faces_to_search = [max(all_faces_sorted, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))]
+
+    merged: dict = {}
+    for face in faces_to_search:
+        emb = face.normed_embedding.astype("float32")
+        results = search_in_dataset(dataset_id, emb, top_k=100)
+        for m in results:
+            key = m["image_path"]
+            if key not in merged or m["score"] > merged[key]["score"]:
+                merged[key] = m
+
+    sorted_results = sorted(merged.values(), key=lambda x: x["score"], reverse=True)
+
+    return {
+        "face_detected":  True,
+        "face_count":     len(all_faces_sorted),
+        "face_thumbs":    face_thumbs,
+        "matches":        sorted_results,
+        "latency_ms":     round((time.time() - t0) * 1000, 1),
+        "dataset_id":     dataset_id,
+    }
+
+
 # ── Image serving ─────────────────────────────────────────────────────────────
 
 @app.get("/api/image/{dataset_id}/{image_path:path}")
