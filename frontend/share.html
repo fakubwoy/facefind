@@ -590,6 +590,29 @@
 
     .no-face-state .btn-primary { max-width: 220px; margin: 0 auto; }
 
+    /* ── Back button ── */
+    .btn-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: none;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--muted);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 8px 16px;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: 16px;
+    }
+    .btn-back:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+      background: var(--primary-light);
+    }
+
     /* ── Face picker ── */
     .face-picker-state {
       display: none;
@@ -1258,6 +1281,12 @@
 
   <!-- Face picker -->
   <div class="face-picker-state" id="facePickerState">
+    <button class="btn-back" onclick="reset()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
+      </svg>
+      Back
+    </button>
     <div class="card">
       <div class="card-title">Multiple faces detected</div>
       <div class="card-sub">Tap the face you want to search for</div>
@@ -1282,6 +1311,12 @@
   <div class="results-state" id="resultsState">
     <div class="results-header">
       <div>
+        <button class="btn-back" onclick="reset()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
+          </svg>
+          Back
+        </button>
         <div class="results-title">Your <em>photos</em></div>
         <div class="results-meta">
           <span class="results-count" id="resultsCount"></span>
