@@ -2366,6 +2366,7 @@ async def add_images_to_dataset(
         raise HTTPException(400, "Please upload a ZIP file or one or more image files (JPG, PNG, WEBP, HEIC).")
 
     dataset_dir = DATASETS_DIR / dataset_id
+    dataset_dir.mkdir(parents=True, exist_ok=True)
     temp_dir = dataset_dir / f"_temp_{int(time.time())}"
     temp_dir.mkdir()
 
