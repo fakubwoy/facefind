@@ -3437,11 +3437,36 @@
       datasetSel.innerHTML = '<option value="">— Select an album —</option>' +
         allDatasets.map(ds => {
           const groupName = (ds.group_id && groups[ds.group_id]) ? groups[ds.group_id].name : null;
-          const label     = groupName ? `${groupName} › ${ds.name || ds.id}` : (ds.name || ds.id);
+          const dsLabel   = groupName ? `${groupName} › ${ds.name || ds.id}` : (ds.name || ds.id);
           const imgCount  = (ds.total || ds.total_images || 0);
           const suffix    = imgCount ? ` (${imgCount.toLocaleString('en-IN')} photos)` : '';
-          return `<option value="${ds.id}">${escHtml(label + suffix)}</option>`;
+          return `<option value="${ds.id}">${escHtml(dsLabel + suffix)}</option>`;
         }).join('');
+
+      // Single album: auto-select and replace dropdown with a locked display pill
+      if (allDatasets.length === 1) {
+        const ds        = allDatasets[0];
+        const groupName = (ds.group_id && groups[ds.group_id]) ? groups[ds.group_id].name : null;
+        const dsLabel   = groupName ? `${groupName} › ${ds.name || ds.id}` : (ds.name || ds.id);
+        const imgCount  = (ds.total || ds.total_images || 0);
+        const suffix    = imgCount ? ` · ${imgCount.toLocaleString('en-IN')} photos` : '';
+        datasetSel.value = ds.id;
+        datasetSel.style.display = 'none';
+        let lockedEl = document.getElementById('uploadDatasetLocked');
+        if (!lockedEl) {
+          lockedEl = document.createElement('div');
+          lockedEl.id = 'uploadDatasetLocked';
+          lockedEl.style.cssText = 'display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--primary-light);border:1.5px solid rgba(79,70,229,0.2);border-radius:var(--radius-sm);font-size:13px;font-weight:600;color:var(--primary);';
+          datasetSel.insertAdjacentElement('afterend', lockedEl);
+        }
+        lockedEl.style.display = 'flex';
+        lockedEl.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>${escHtml(dsLabel)}<span style="font-weight:400;color:var(--muted);font-size:12px;">${suffix}</span>`;
+      } else {
+        // Multiple albums: ensure dropdown is visible and locked pill is hidden
+        const lockedEl = document.getElementById('uploadDatasetLocked');
+        if (lockedEl) lockedEl.style.display = 'none';
+        datasetSel.style.display = 'block';
+      }
     }
 
     // Hide album name field — irrelevant when adding to an existing album
@@ -3503,8 +3528,10 @@
 
     const groupSel   = document.getElementById('uploadTargetGroup');
     const datasetSel = document.getElementById('uploadTargetDataset');
+    const lockedEl   = document.getElementById('uploadDatasetLocked');
     if (groupSel)   groupSel.style.display   = 'block';
     if (datasetSel) datasetSel.style.display = 'none';
+    if (lockedEl)   lockedEl.style.display   = 'none';
 
     const albumNameField = document.getElementById('albumNameField');
     if (albumNameField) albumNameField.style.display = '';
