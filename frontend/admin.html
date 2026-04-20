@@ -2147,14 +2147,20 @@
       const cfg = GC_THEMES[g.event_type || g.type] || GC_THEMES.other;
       const photoCount = (g.total_images || 0).toLocaleString('en-IN');
       const colCount   = g.dataset_count || 0;
+      // Build the delete button separately to avoid nested template literals,
+      // which cause a SyntaxError on some Chrome versions/OS combos.
+      const datePill = (g.event_date || g.date)
+        ? '<div class="gc-pill left"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> ' + escHtml(fmtEventDate(g.event_date || g.date)) + '</div>'
+        : '';
+      const deleteBtn = g.is_ungrouped
+        ? ''
+        : '<span class="btn-sm btn-sm-danger" onclick="event.stopPropagation();deleteGroup(' + JSON.stringify(g.id) + ')">Delete</span>';
       return `
         <div class="group-card gc-theme-${cfg.theme}" onclick="openGroup('${g.id}')">
           <div class="gc-accent-bar"></div>
           <div class="gc-cover">
             <div class="gc-monogram">${cfg.mono}</div>
-            ${(g.event_date || g.date) ? `<div class="gc-pill left">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-              ${escHtml(fmtEventDate(g.event_date || g.date))}</div>` : ''}
+            ${datePill}
             <div class="gc-pill right">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
               ${photoCount} photos
@@ -2170,7 +2176,7 @@
             </div>
             <div class="group-card-actions">
               <span class="btn-sm btn-sm-primary">Open &rarr;</span>
-              ${!g.is_ungrouped ? `<span class="btn-sm btn-sm-danger" onclick="event.stopPropagation();deleteGroup('${g.id}')">Delete</span>` : ''}
+              ${deleteBtn}
             </div>
           </div>
         </div>`;

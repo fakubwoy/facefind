@@ -1649,10 +1649,19 @@
         }
       }
 
-      function hiwStartTimer() { hiwTicker = setInterval(() => { hiwCur = (hiwCur + 1) % 3; hiwApply(hiwCur); }, 2400); }
+      function hiwStartTimer() {
+        // On desktop, slide 3 has a 1100ms toast animation — give it extra time to breathe.
+        // Slide 1 & 2 advance after 2400ms; slide 3 (index 2) stays for 3800ms on desktop.
+        const delay = (!isMobileHiw() && hiwCur === 2) ? 3800 : 2400;
+        hiwTicker = setTimeout(() => {
+          hiwCur = (hiwCur + 1) % 3;
+          hiwApply(hiwCur);
+          hiwStartTimer();
+        }, delay);
+      }
       const row = document.getElementById('hiwRow');
       if (row) {
-        row.addEventListener('mouseenter', () => clearInterval(hiwTicker));
+        row.addEventListener('mouseenter', () => clearTimeout(hiwTicker));
         row.addEventListener('mouseleave', hiwStartTimer);
 
         // Touch swipe support for mobile
@@ -1663,7 +1672,7 @@
           const dx = e.changedTouches[0].clientX - tsX;
           const dy = e.changedTouches[0].clientY - tsY;
           if (Math.abs(dx) < 30 || Math.abs(dx) < Math.abs(dy)) return; // ignore taps & vertical scrolls
-          clearInterval(hiwTicker);
+          clearTimeout(hiwTicker);
           if (dx < 0) hiwCur = Math.min(hiwCur + 1, 2); // swipe left → next
           else         hiwCur = Math.max(hiwCur - 1, 0); // swipe right → prev
           hiwApply(hiwCur);
@@ -1675,7 +1684,7 @@
       let hiwResizeTimer;
       window.addEventListener('resize', () => {
         clearTimeout(hiwResizeTimer);
-        hiwResizeTimer = setTimeout(() => { hiwLockHeight(); hiwApply(hiwCur); }, 120);
+        hiwResizeTimer = setTimeout(() => { hiwLockHeight(); clearTimeout(hiwTicker); hiwApply(hiwCur); hiwStartTimer(); }, 120);
       });
 
       // Lock height first (needs all cards briefly visible to measure), then animate
