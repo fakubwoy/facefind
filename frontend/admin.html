@@ -1276,6 +1276,216 @@
       .layout { padding: 12px 10px; }
       .section-tab { font-size: 11px; padding: 9px 10px 11px; }
     }
+
+    /* ── Photo Preview Panel ── */
+    .preview-panel {
+      display: none;
+      margin-top: 16px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      animation: fadeIn 0.25s ease;
+    }
+    .preview-panel.visible { display: block; }
+
+    .preview-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+      gap: 10px;
+    }
+    .preview-panel-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .preview-count-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 22px;
+      height: 22px;
+      padding: 0 7px;
+      background: var(--primary);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 800;
+      border-radius: 100px;
+    }
+    .preview-removed-badge {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      min-width: 22px;
+      height: 22px;
+      padding: 0 7px;
+      background: rgba(220,38,38,0.12);
+      color: var(--error);
+      font-size: 11px;
+      font-weight: 800;
+      border-radius: 100px;
+    }
+    .preview-removed-badge.visible { display: inline-flex; }
+    .preview-panel-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .preview-add-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--primary);
+      background: var(--primary-light);
+      border: 1.5px solid rgba(79,70,229,0.2);
+      border-radius: var(--radius-sm);
+      padding: 5px 12px;
+      cursor: pointer;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      transition: all 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+    .preview-add-btn input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+    .preview-add-btn:hover { background: rgba(79,70,229,0.15); border-color: var(--primary); }
+
+    .preview-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+      gap: 6px;
+      padding: 12px;
+      max-height: 320px;
+      overflow-y: auto;
+      background: var(--bg);
+    }
+    .preview-grid::-webkit-scrollbar { width: 4px; }
+    .preview-grid::-webkit-scrollbar-track { background: transparent; }
+    .preview-grid::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+
+    .preview-item {
+      position: relative;
+      aspect-ratio: 1;
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--surface2);
+      border: 2px solid transparent;
+      transition: border-color 0.15s, opacity 0.2s;
+      cursor: default;
+    }
+    .preview-item img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .preview-item-remove {
+      position: absolute;
+      top: 4px; right: 4px;
+      width: 20px; height: 20px;
+      background: rgba(0,0,0,0.65);
+      border: none;
+      border-radius: 50%;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.15s, background 0.15s;
+      padding: 0;
+    }
+    .preview-item:hover .preview-item-remove { opacity: 1; }
+    .preview-item-remove:hover { background: var(--error); }
+    .preview-item.removed {
+      opacity: 0.22;
+      border-color: var(--error);
+    }
+    .preview-item.removed .preview-item-remove {
+      opacity: 1;
+      background: var(--error);
+    }
+    /* Undo button shown on removed items */
+    .preview-item-undo {
+      display: none;
+      position: absolute;
+      bottom: 4px; left: 50%;
+      transform: translateX(-50%);
+      font-size: 10px;
+      font-weight: 700;
+      color: #fff;
+      background: rgba(0,0,0,0.65);
+      border: none;
+      border-radius: 4px;
+      padding: 2px 7px;
+      cursor: pointer;
+      white-space: nowrap;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .preview-item.removed .preview-item-undo { display: block; }
+
+    .preview-panel-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      gap: 10px;
+    }
+    .preview-footer-info {
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 500;
+      line-height: 1.4;
+    }
+    .preview-footer-info strong { color: var(--text); }
+
+    /* Drive preview (no thumbnails — just count) */
+    .drive-preview-panel {
+      display: none;
+      margin-top: 14px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      background: var(--bg);
+      animation: fadeIn 0.25s ease;
+    }
+    .drive-preview-panel.visible { display: flex; align-items: center; gap: 14px; }
+    .drive-preview-icon {
+      width: 42px; height: 42px; flex-shrink: 0;
+      background: var(--primary-light);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--primary);
+    }
+    .drive-preview-info { flex: 1; min-width: 0; }
+    .drive-preview-name {
+      font-size: 13px; font-weight: 700; color: var(--text);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .drive-preview-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .drive-preview-clear {
+      background: none; border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm); color: var(--muted);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 12px; font-weight: 600; padding: 5px 12px;
+      cursor: pointer; transition: all 0.2s; white-space: nowrap;
+    }
+    .drive-preview-clear:hover { border-color: var(--error); color: var(--error); background: rgba(220,38,38,0.05); }
   </style>
 </head>
 <body>
@@ -1594,6 +1804,30 @@
                   <input type="text" id="datasetName" placeholder="e.g. Reception, Day 2, Candids">
                 </div>
 
+                <!-- Photo Preview Panel (shown after file selection) -->
+                <div class="preview-panel" id="zipPreviewPanel">
+                  <div class="preview-panel-header">
+                    <div class="preview-panel-title">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                      Photo Preview
+                      <span class="preview-count-badge" id="zipPreviewCount">0</span>
+                      <span class="preview-removed-badge" id="zipRemovedBadge">0 removed</span>
+                    </div>
+                    <div class="preview-panel-actions">
+                      <label class="preview-add-btn">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        Add More
+                        <input type="file" id="zipAddMoreFile" accept=".zip,image/jpeg,image/png,image/webp,image/heic,image/heif" multiple onchange="zipAddMoreFiles(this.files)">
+                      </label>
+                    </div>
+                  </div>
+                  <div class="preview-grid" id="zipPreviewGrid"></div>
+                  <div class="preview-panel-footer">
+                    <div class="preview-footer-info" id="zipPreviewFooterInfo">—</div>
+                    <button class="btn-reset" style="margin:0;padding:5px 14px;font-size:12px;" onclick="clearZipPreview()">Clear All</button>
+                  </div>
+                </div>
+
                 <button id="uploadBtn" class="btn btn-primary" disabled>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                   Upload &amp; Find Faces
@@ -1664,6 +1898,18 @@
                 <div class="success-title">Photos ready!</div>
                 <div class="success-meta" id="driveSuccessMeta">Your album is ready to share.</div>
                 <button class="btn-reset" onclick="resetDriveUpload(); switchSection('events', document.querySelector('.section-tab'))">Go to Events</button>
+              </div>
+
+              <!-- Drive Preview (shown after URL is validated) -->
+              <div class="drive-preview-panel" id="drivePreviewPanel">
+                <div class="drive-preview-icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                </div>
+                <div class="drive-preview-info">
+                  <div class="drive-preview-name" id="drivePreviewName">—</div>
+                  <div class="drive-preview-meta" id="drivePreviewMeta">Google Drive folder linked</div>
+                </div>
+                <button class="drive-preview-clear" onclick="clearDrivePreview()">✕ Clear</button>
               </div>
 
               <button id="driveBtn" class="btn btn-primary">
@@ -2044,6 +2290,31 @@
           </div>
           <div class="drop-label"><strong>Drop photos or a ZIP here</strong> or click to browse</div>
         </div>
+
+        <!-- Add Images Preview Panel -->
+        <div class="preview-panel" id="addImagesPreviewPanel">
+          <div class="preview-panel-header">
+            <div class="preview-panel-title">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              Preview
+              <span class="preview-count-badge" id="addImagesPreviewCount">0</span>
+              <span class="preview-removed-badge" id="addImagesRemovedBadge">0 removed</span>
+            </div>
+            <div class="preview-panel-actions">
+              <label class="preview-add-btn">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add More
+                <input type="file" id="addImagesMoreFile" accept=".zip,image/jpeg,image/png,image/webp,image/heic,image/heif" multiple onchange="addImagesAddMore(this.files)">
+              </label>
+            </div>
+          </div>
+          <div class="preview-grid" id="addImagesPreviewGrid"></div>
+          <div class="preview-panel-footer">
+            <div class="preview-footer-info" id="addImagesPreviewFooter">—</div>
+            <button class="btn-reset" style="margin:0;padding:5px 14px;font-size:12px;" onclick="clearAddImagesPreview()">Clear All</button>
+          </div>
+        </div>
+
         <button class="btn btn-primary" id="addImagesBtn" disabled onclick="addImagesSubmit()">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
           Add Photos
@@ -2906,13 +3177,8 @@
   }
 
   zipFile.addEventListener('change', () => {
-    if (_addToExistingMode) {
-      const datasetSel = document.getElementById('uploadTargetDataset');
-      uploadBtn.disabled = !(zipFile.files.length && datasetSel?.value);
-    } else {
-      uploadBtn.disabled = !zipFile.files.length;
-    }
     if (zipFile.files.length) showZipFilesInfo(zipFile.files);
+    if (zipFile.files.length) _triggerZipPreview(Array.from(zipFile.files));
   });
 
   dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
@@ -2928,13 +3194,9 @@
     const dt = new DataTransfer();
     files.forEach(f => dt.items.add(f));
     zipFile.files = dt.files;
-    if (_addToExistingMode) {
-      const datasetSel = document.getElementById('uploadTargetDataset');
-      uploadBtn.disabled = !(dt.files.length && datasetSel?.value);
-    } else {
-      uploadBtn.disabled = false;
-    }
     showZipFilesInfo(dt.files);
+    // Trigger preview instead of directly enabling upload
+    _triggerZipPreview(files);
   });
 
   uploadBtn.addEventListener('click', () => {
@@ -3290,8 +3552,10 @@
   }
 
   addImagesFile.addEventListener('change', () => {
-    addImagesBtn.disabled = !addImagesFile.files.length;
-    if (addImagesFile.files.length) showAddImagesFilesInfo(addImagesFile.files);
+    if (addImagesFile.files.length) {
+      showAddImagesFilesInfo(addImagesFile.files);
+      _triggerAddImagesPreview(Array.from(addImagesFile.files));
+    }
   });
 
   addImagesDropZone.addEventListener('dragover', e => { e.preventDefault(); addImagesDropZone.classList.add('dragover'); });
@@ -3307,20 +3571,144 @@
     const dt = new DataTransfer();
     files.forEach(f => dt.items.add(f));
     addImagesFile.files = dt.files;
-    addImagesBtn.disabled = false;
     showAddImagesFilesInfo(dt.files);
+    _triggerAddImagesPreview(files);
   });
 
-  function addImagesSubmit() {
-    const files = addImagesFile.files;
-    if (!files.length || !currentAddImagesDatasetId) return;
-    const targetId = currentAddImagesDatasetId;
-    const fd = new FormData();
-    if (files.length === 1 && files[0].name.endsWith('.zip')) {
-      fd.append('file', files[0]);
+  // ── Add Images preview state ─────────────────────────────────────────────────
+  let _addImagesPreviewItems = [];
+
+  function _triggerAddImagesPreview(files) {
+    const isZip = files.length === 1 && files[0].name.toLowerCase().endsWith('.zip');
+    if (isZip) {
+      _addImagesPreviewItems = [{ file: files[0], url: null, removed: false, isZip: true }];
+      _renderAddImagesPreview();
+      _openAddImagesPreview();
     } else {
-      Array.from(files).forEach(f => fd.append('file', f));
+      _addImagesPreviewItems = files.map(f => ({ file: f, url: null, removed: false }));
+      _loadPreviewThumbs(_addImagesPreviewItems, () => {
+        _renderAddImagesPreview();
+        _openAddImagesPreview();
+      });
     }
+  }
+
+  function _openAddImagesPreview() {
+    document.getElementById('addImagesPreviewPanel').classList.add('visible');
+    _syncAddImagesBtn();
+  }
+
+  function _renderAddImagesPreview() {
+    const grid    = document.getElementById('addImagesPreviewGrid');
+    const active  = _addImagesPreviewItems.filter(i => !i.removed);
+    const removed = _addImagesPreviewItems.filter(i => i.removed);
+
+    document.getElementById('addImagesPreviewCount').textContent = active.length;
+
+    const rb = document.getElementById('addImagesRemovedBadge');
+    if (removed.length > 0) {
+      rb.textContent = removed.length + ' removed';
+      rb.classList.add('visible');
+    } else {
+      rb.classList.remove('visible');
+    }
+
+    const totalSize = active.reduce((s, i) => s + i.file.size, 0);
+    document.getElementById('addImagesPreviewFooter').innerHTML =
+      `<strong>${active.length}</strong> photo${active.length !== 1 ? 's' : ''} · <strong>${(totalSize / 1024 / 1024).toFixed(1)} MB</strong>` +
+      (removed.length ? ` &nbsp;·&nbsp; ${removed.length} excluded` : '');
+
+    grid.innerHTML = '';
+    _addImagesPreviewItems.forEach((item, idx) => {
+      const div = document.createElement('div');
+      div.className = 'preview-item' + (item.removed ? ' removed' : '');
+
+      if (item.isZip) {
+        div.innerHTML = `
+          <div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:var(--primary-light);color:var(--primary);">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+            <span style="font-size:9px;font-weight:700;text-align:center;padding:0 4px;word-break:break-all;">${item.file.name.length > 12 ? item.file.name.slice(0,10)+'…' : item.file.name}</span>
+          </div>`;
+      } else {
+        const img = document.createElement('img');
+        img.src = item.url;
+        img.alt = item.file.name;
+        div.appendChild(img);
+      }
+
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'preview-item-remove';
+      removeBtn.title = item.removed ? 'Add back' : 'Remove';
+      removeBtn.innerHTML = item.removed
+        ? `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>`
+        : `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+      removeBtn.addEventListener('click', () => { _addImagesPreviewItems[idx].removed = !_addImagesPreviewItems[idx].removed; _renderAddImagesPreview(); _syncAddImagesBtn(); });
+      div.appendChild(removeBtn);
+
+      const undoBtn = document.createElement('button');
+      undoBtn.className = 'preview-item-undo';
+      undoBtn.textContent = 'Undo';
+      undoBtn.addEventListener('click', () => { _addImagesPreviewItems[idx].removed = false; _renderAddImagesPreview(); _syncAddImagesBtn(); });
+      div.appendChild(undoBtn);
+
+      grid.appendChild(div);
+    });
+  }
+
+  function _syncAddImagesBtn() {
+    const active = _addImagesPreviewItems.filter(i => !i.removed);
+    addImagesBtn.disabled = active.length === 0;
+  }
+
+  function clearAddImagesPreview() {
+    _addImagesPreviewItems = [];
+    document.getElementById('addImagesPreviewPanel').classList.remove('visible');
+    document.getElementById('addImagesPreviewGrid').innerHTML = '';
+    addImagesFile.value = '';
+    document.getElementById('addImagesSelectedInfo').style.display = 'none';
+    addImagesBtn.disabled = true;
+  }
+
+  function addImagesAddMore(files) {
+    if (!files || !files.length) return;
+    const newItems = Array.from(files).map(f => ({ file: f, url: null, removed: false }));
+    _loadPreviewThumbs(newItems, () => {
+      _addImagesPreviewItems = _addImagesPreviewItems.concat(newItems);
+      _renderAddImagesPreview();
+      _syncAddImagesBtn();
+    });
+  }
+
+  function addImagesSubmit() {
+    // If preview is active, use filtered file list
+    const usePreview = _addImagesPreviewItems.length > 0;
+    const activeItems = usePreview ? _addImagesPreviewItems.filter(i => !i.removed) : null;
+
+    if (usePreview && (!activeItems || !activeItems.length)) {
+      toast('No photos to add — undo some removals first.', 'error');
+      return;
+    }
+
+    const targetId = currentAddImagesDatasetId;
+    if (!targetId) return;
+
+    const fd = new FormData();
+    if (usePreview) {
+      if (activeItems.length === 1 && activeItems[0].isZip) {
+        fd.append('file', activeItems[0].file);
+      } else {
+        activeItems.forEach(item => fd.append('file', item.file));
+      }
+    } else {
+      const files = addImagesFile.files;
+      if (!files.length) return;
+      if (files.length === 1 && files[0].name.endsWith('.zip')) {
+        fd.append('file', files[0]);
+      } else {
+        Array.from(files).forEach(f => fd.append('file', f));
+      }
+    }
+
     document.getElementById('addImagesUploadForm').style.display = 'none';
     document.getElementById('addSuccess').classList.remove('visible');
     updateInlineProgress('add', 'Uploading…', 'Sending your photos…', 0, '');
@@ -3363,6 +3751,10 @@
     document.getElementById('addSuccess').classList.remove('visible');
     document.getElementById('addImagesFile').value = '';
     document.getElementById('addImagesSelectedInfo').style.display = 'none';
+    // Clear preview
+    _addImagesPreviewItems = [];
+    document.getElementById('addImagesPreviewPanel').classList.remove('visible');
+    document.getElementById('addImagesPreviewGrid').innerHTML = '';
     addImagesBtn.disabled = true;
     addImagesBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Add Photos`;
     document.getElementById('addRing').style.stroke  = '';
@@ -4335,6 +4727,233 @@
 
   // Background refresh intentionally removed — data is refreshed on user actions
   // and active uploads are handled by dedicated polling intervals.
+
+  // ── Photo Preview Panel ──────────────────────────────────────────────────────
+  // Stores {file, url, removed} objects for all selected files
+  let _previewItems = [];
+
+  function _triggerZipPreview(files) {
+    if (!files || !files.length) return;
+    const isZip = files.length === 1 && files[0].name.toLowerCase().endsWith('.zip');
+    if (isZip) {
+      _previewItems = [{ file: files[0], url: null, removed: false, isZip: true }];
+      _renderZipPreview();
+      zipPreviewOpen();
+    } else {
+      _previewItems = files.map(f => ({ file: f, url: null, removed: false }));
+      _loadPreviewThumbs(_previewItems, () => {
+        _renderZipPreview();
+        zipPreviewOpen();
+      });
+    }
+  }
+
+  function _loadPreviewThumbs(items, cb) {
+    let pending = items.filter(i => !i.isZip).length;
+    if (!pending) { cb(); return; }
+    items.forEach(item => {
+      if (item.isZip) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        item.url = e.target.result;
+        pending--;
+        if (pending === 0) cb();
+      };
+      reader.readAsDataURL(item.file);
+    });
+  }
+
+  function zipPreviewOpen() {
+    document.getElementById('zipPreviewPanel').classList.add('visible');
+    _syncUploadBtn();
+  }
+
+  function _renderZipPreview() {
+    const grid = document.getElementById('zipPreviewGrid');
+    const active = _previewItems.filter(i => !i.removed);
+    const removed = _previewItems.filter(i => i.removed);
+
+    document.getElementById('zipPreviewCount').textContent = active.length;
+
+    const rb = document.getElementById('zipRemovedBadge');
+    if (removed.length > 0) {
+      rb.textContent = removed.length + ' removed';
+      rb.classList.add('visible');
+    } else {
+      rb.classList.remove('visible');
+    }
+
+    const totalSize = active.reduce((s, i) => s + i.file.size, 0);
+    document.getElementById('zipPreviewFooterInfo').innerHTML =
+      `<strong>${active.length}</strong> photo${active.length !== 1 ? 's' : ''} · <strong>${(totalSize / 1024 / 1024).toFixed(1)} MB</strong> to upload` +
+      (removed.length ? ` &nbsp;·&nbsp; ${removed.length} excluded` : '');
+
+    grid.innerHTML = '';
+    _previewItems.forEach((item, idx) => {
+      const div = document.createElement('div');
+      div.className = 'preview-item' + (item.removed ? ' removed' : '');
+      div.dataset.idx = idx;
+
+      if (item.isZip) {
+        div.innerHTML = `
+          <div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:var(--primary-light);color:var(--primary);">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+            <span style="font-size:10px;font-weight:700;text-align:center;padding:0 4px;word-break:break-all;">${item.file.name.length > 14 ? item.file.name.slice(0,12)+'…' : item.file.name}</span>
+          </div>`;
+      } else {
+        const img = document.createElement('img');
+        img.src = item.url;
+        img.alt = item.file.name;
+        div.appendChild(img);
+      }
+
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'preview-item-remove';
+      removeBtn.title = item.removed ? 'Add back' : 'Remove this photo';
+      removeBtn.innerHTML = item.removed
+        ? `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>`
+        : `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+      removeBtn.addEventListener('click', () => _toggleRemoveItem(idx));
+      div.appendChild(removeBtn);
+
+      const undoBtn = document.createElement('button');
+      undoBtn.className = 'preview-item-undo';
+      undoBtn.textContent = 'Undo';
+      undoBtn.addEventListener('click', () => _toggleRemoveItem(idx));
+      div.appendChild(undoBtn);
+
+      grid.appendChild(div);
+    });
+  }
+
+  function _toggleRemoveItem(idx) {
+    _previewItems[idx].removed = !_previewItems[idx].removed;
+    _renderZipPreview();
+    _syncUploadBtn();
+  }
+
+  function _syncUploadBtn() {
+    const active = _previewItems.filter(i => !i.removed);
+    const btn = document.getElementById('uploadBtn');
+    if (!btn) return;
+    if (_previewItems.length === 0) {
+      // No preview active — let existing logic handle it
+      return;
+    }
+    if (active.length === 0) {
+      btn.disabled = true;
+      return;
+    }
+    if (_addToExistingMode) {
+      const datasetSel = document.getElementById('uploadTargetDataset');
+      btn.disabled = !(datasetSel?.value);
+    } else {
+      btn.disabled = false;
+    }
+  }
+
+  function clearZipPreview() {
+    _previewItems = [];
+    document.getElementById('zipPreviewPanel').classList.remove('visible');
+    document.getElementById('zipPreviewGrid').innerHTML = '';
+    zipFile.value = '';
+    document.getElementById('zipSelectedInfo').style.display = 'none';
+    document.getElementById('uploadBtn').disabled = true;
+  }
+
+  function zipAddMoreFiles(files) {
+    if (!files || !files.length) return;
+    const newItems = Array.from(files).map(f => ({ file: f, url: null, removed: false }));
+    _loadPreviewThumbs(newItems, () => {
+      _previewItems = _previewItems.concat(newItems);
+      _renderZipPreview();
+      _syncUploadBtn();
+    });
+  }
+
+  // ── Override upload submission to use only non-removed files ─────────────────
+  document.getElementById('uploadBtn').addEventListener('click', function(e) {
+    if (!_previewItems.length) return; // no preview active, let existing handler run normally
+    if (e._fromPreview) return; // synthetic re-dispatch — don't re-intercept
+
+    const activeItems = _previewItems.filter(i => !i.removed);
+    if (!activeItems.length) { toast('No photos to upload — add some first or undo removals.', 'error'); return; }
+
+    // Stop the existing listener from firing with stale file list
+    e.stopImmediatePropagation();
+
+    // Rebuild the file input with only the active (non-removed) files
+    const dt = new DataTransfer();
+    activeItems.forEach(item => dt.items.add(item.file));
+
+    // Temporarily patch zipFile.files via DataTransfer reassignment
+    const origDescriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'files');
+    Object.defineProperty(zipFile, 'files', {
+      value: dt.files,
+      configurable: true,
+      writable: true,
+    });
+
+    // Update the info label
+    document.getElementById('zipFileName').textContent = `${activeItems.length} photo${activeItems.length !== 1 ? 's' : ''} selected`;
+    document.getElementById('zipFileSize').textContent = `${(activeItems.reduce((s,i) => s+i.file.size,0)/1024/1024).toFixed(1)} MB`;
+    document.getElementById('zipSelectedInfo').style.display = 'block';
+
+    // Fire a synthetic click that the existing listener will handle
+    const syntheticClick = new MouseEvent('click', { bubbles: false, cancelable: true });
+    syntheticClick._fromPreview = true;
+    uploadBtn.dispatchEvent(syntheticClick);
+
+    // Restore original descriptor after a tick
+    setTimeout(() => {
+      try { Object.defineProperty(zipFile, 'files', origDescriptor || { configurable: true }); } catch(e) {}
+    }, 200);
+  }, true); // capture — fires before the existing bubble-phase listener
+
+  // ── Patch resetZipUpload to also clear preview ───────────────────────────────
+  setTimeout(() => {
+    const origFn = resetZipUpload;
+    window.resetZipUpload = function() {
+      origFn();
+      _previewItems = [];
+      const panel = document.getElementById('zipPreviewPanel');
+      if (panel) panel.classList.remove('visible');
+      const grid = document.getElementById('zipPreviewGrid');
+      if (grid) grid.innerHTML = '';
+    };
+  }, 0);
+
+  // ── Drive Preview Panel ──────────────────────────────────────────────────────
+  const _driveInput = document.getElementById('driveFolderUrl');
+  if (_driveInput) {
+    _driveInput.addEventListener('input', _updateDrivePreview);
+    _driveInput.addEventListener('paste', () => setTimeout(_updateDrivePreview, 50));
+  }
+
+  function _updateDrivePreview() {
+    const url = (_driveInput?.value || '').trim();
+    const panel = document.getElementById('drivePreviewPanel');
+    const nameEl = document.getElementById('drivePreviewName');
+    const metaEl = document.getElementById('drivePreviewMeta');
+    if (!panel) return;
+    if (url && url.includes('drive.google.com')) {
+      const match = url.match(/\/folders\/([^/?&]+)/);
+      const folderId = match ? match[1] : '';
+      nameEl.textContent = folderId
+        ? 'Folder ID: …' + folderId.slice(-16)
+        : 'Google Drive folder linked';
+      metaEl.textContent = 'Photos will be imported from this folder · thumbnails not available until import';
+      panel.classList.add('visible');
+    } else {
+      panel.classList.remove('visible');
+    }
+  }
+
+  function clearDrivePreview() {
+    if (_driveInput) _driveInput.value = '';
+    document.getElementById('drivePreviewPanel')?.classList.remove('visible');
+    document.getElementById('driveAccessWarn')?.classList.remove('show');
+  }
 </script>
 </body>
 </html>
