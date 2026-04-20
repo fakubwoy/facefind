@@ -194,6 +194,14 @@ def init_db():
                     attempted_at DOUBLE PRECISION
                 );
             """)
+            # Migration: free trial duration on 100% off codes (NULL = no auto-expiry)
+            cur.execute("""
+                ALTER TABLE discount_codes ADD COLUMN IF NOT EXISTS free_months INT DEFAULT NULL;
+            """)
+            # Migration: track when a free-trial plan should auto-expire to free
+            cur.execute("""
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_free_until DOUBLE PRECISION DEFAULT NULL;
+            """)
             # Migration: add previous_plan + proration fields to razorpay_orders
             cur.execute("""
                 ALTER TABLE razorpay_orders ADD COLUMN IF NOT EXISTS previous_plan TEXT DEFAULT NULL;
@@ -1649,7 +1657,13 @@ def validate_discount_code(code: str, user_id: str, interval: str = "monthly") -
         return {"valid": False, "discount_pct": 0,
                 "reason": f"This code is only valid for {dc_interval} billing."}
 
-    return {"valid": True, "discount_pct": dc["discount_pct"], "reason": "ok", "code": code}
+    return {
+        "valid":        True,
+        "discount_pct": dc["discount_pct"],
+        "free_months":  dc.get("free_months"),  # None means no timed trial
+        "reason":       "ok",
+        "code":         code,
+    }
 
 
 def consume_discount_code(code: str, user_id: str, order_id: str = None):
@@ -2117,6 +2131,7 @@ def me(request: Request):
         "scheduled_downgrade_at":       user.get("scheduled_downgrade_at"),
         "scheduled_downgrade_interval": user.get("scheduled_downgrade_interval"),
         "plan_cycle_start":             user.get("plan_cycle_start"),
+        "plan_free_until":              user.get("plan_free_until"),   # non-null = active free trial
     }
 
 # ── Dataset endpoints ─────────────────────────────────────────────────────────
@@ -3025,15 +3040,25 @@ async def create_order(request: Request):
     if is_upgrade and charge_paise == 0:
         now = time.time()
         new_credits = max((credits_paise + loyalty_discount) - (get_plan_price(plan, target_interval) - proration_credit), 0)
+
+        # If this is a timed free trial via discount code, compute expiry timestamp
+        free_until = None
+        if discount_code_str and discount_pct == 100:
+            dc_info = validate_discount_code(discount_code_str, user["id"], target_interval)
+            fm = dc_info.get("free_months")
+            if fm:
+                free_until = now + int(fm) * 30 * 86400  # approx 30 days/month
+
         with get_db() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
                     UPDATE users SET plan=%s, plan_cycle_start=%s, credits_paise=%s,
                            plan_interval=%s,
+                           plan_free_until=%s,
                            loyalty_discount_used=CASE WHEN %s>0 THEN TRUE ELSE loyalty_discount_used END,
                            scheduled_downgrade=NULL, scheduled_downgrade_at=NULL
                     WHERE id=%s
-                """, (plan, now, new_credits, target_interval, loyalty_discount, user["id"]))
+                """, (plan, now, new_credits, target_interval, free_until, loyalty_discount, user["id"]))
                 cur.execute("""
                     INSERT INTO razorpay_orders
                       (order_id, user_id, plan, amount_paise, status, created_at, previous_plan, credit_applied_paise, plan_interval)
@@ -3770,6 +3795,100 @@ async def admin_add_credits(request: Request):
     return {"ok": True, "email": target_email, "credits_added_paise": amount_paise}
 
 
+@app.post("/api/billing/expire-free-trials")
+async def expire_free_trials(request: Request):
+    """
+    Cron endpoint: downgrade users whose free-trial period has ended.
+    Run daily alongside send-renewal-reminders.
+    Protected by ADMIN_SECRET.
+
+    Finds all users where plan_free_until IS NOT NULL AND plan_free_until < now,
+    downgrades them to free, clears plan_free_until, and sends a notification email.
+    """
+    check_admin_secret(request)
+    now = time.time()
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT id, email, name, plan
+                FROM users
+                WHERE plan_free_until IS NOT NULL
+                  AND plan_free_until < %s
+                  AND plan != 'free'
+            """, (now,))
+            expired = [dict(r) for r in cur.fetchall()]
+
+    if not expired:
+        return {"ok": True, "expired": [], "count": 0}
+
+    plan_labels = {
+        "personal_lite": "Personal Lite", "personal_pro": "Personal Pro",
+        "personal_max":  "Personal Max",  "photo_starter": "Studio Starter",
+        "photo_pro":     "Studio Pro",
+    }
+
+    results = []
+    for row in expired:
+        try:
+            with get_db() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        UPDATE users
+                        SET plan='free',
+                            plan_cycle_start=NULL,
+                            plan_free_until=NULL,
+                            plan_interval='monthly',
+                            scheduled_downgrade=NULL,
+                            scheduled_downgrade_at=NULL
+                        WHERE id=%s
+                    """, (row["id"],))
+                    # Revoke any active license keys
+                    cur.execute(
+                        "UPDATE license_keys SET revoked=TRUE WHERE user_id=%s AND revoked=FALSE",
+                        (row["id"],)
+                    )
+                conn.commit()
+
+            # Invalidate cached session
+            with get_db() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT token FROM sessions WHERE user_id=%s", (row["id"],))
+                    session_rows = cur.fetchall()
+            for sr in session_rows:
+                cache_delete(f"session:{sr['token']}")
+
+            plan_label = plan_labels.get(row["plan"], row["plan"])
+            html = f"""
+            <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:480px;margin:0 auto;background:#f9f7f4;padding:32px 24px">
+              <div style="text-align:center;margin-bottom:24px">
+                <span style="font-size:28px;font-weight:800;color:#4f46e5;letter-spacing:-1px">Lenstagram</span>
+              </div>
+              <div style="background:#fff;border-radius:16px;padding:36px;box-shadow:0 4px 16px rgba(0,0,0,0.07)">
+                <h2 style="margin:0 0 8px;font-size:20px;color:#1c1917">Your free trial has ended</h2>
+                <p style="margin:0 0 24px;font-size:14px;color:#78716c;line-height:1.65">
+                  Hi {row['name']}, your complimentary <strong style="color:#1c1917">{plan_label}</strong> trial has now ended
+                  and your account has been moved back to the free plan.
+                </p>
+                <p style="margin:0 0 24px;font-size:14px;color:#78716c;line-height:1.65">
+                  Upgrade any time to restore full access to your datasets and features.
+                </p>
+                <a href="https://www.lenstagram.com/billing"
+                   style="display:block;text-align:center;background:#4f46e5;color:#fff;font-weight:700;font-size:14px;padding:12px 24px;border-radius:10px;text-decoration:none;">
+                  Upgrade now
+                </a>
+              </div>
+            </div>
+            """
+            send_email(row["email"], "Your Lenstagram free trial has ended", html)
+            log.info(f"Free trial expired: user={row['id']} was on {row['plan']}, now free")
+            results.append({"user_id": row["id"], "email": row["email"], "previous_plan": row["plan"]})
+        except Exception as e:
+            log.warning(f"Failed to expire free trial for user {row['id']}: {e}")
+
+    return {"ok": True, "expired": results, "count": len(results)}
+
+
 @app.post("/api/billing/send-renewal-reminders")
 async def send_renewal_reminders(request: Request):
     """
@@ -4394,35 +4513,44 @@ async def admin_create_discount(request: Request):
     interval = (body.get("interval") or "both").strip()
     max_uses = int(body.get("max_uses", 10))
     expires_days = body.get("expires_days")
+    free_months = body.get("free_months")  # optional int: months of free access before auto-downgrade
     created_by = (body.get("created_by") or "admin").strip()
 
     if discount_pct < 1 or discount_pct > 100:
         raise HTTPException(400, "discount_pct must be 1-100.")
     if interval not in ("monthly", "annual", "both"):
         raise HTTPException(400, "interval must be monthly, annual, or both.")
+    if free_months is not None:
+        free_months = int(free_months)
+        if free_months < 1:
+            raise HTTPException(400, "free_months must be a positive integer.")
+        if discount_pct != 100:
+            raise HTTPException(400, "free_months only makes sense with discount_pct=100.")
 
     expires_at = time.time() + int(expires_days) * 86400 if expires_days else None
 
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO discount_codes (code, discount_pct, interval, max_uses, use_count, expires_at, created_by, created_at)
-                VALUES (%s, %s, %s, %s, 0, %s, %s, %s)
+                INSERT INTO discount_codes (code, discount_pct, interval, max_uses, use_count, expires_at, created_by, created_at, free_months)
+                VALUES (%s, %s, %s, %s, 0, %s, %s, %s, %s)
                 ON CONFLICT (code) DO UPDATE SET
                     discount_pct=EXCLUDED.discount_pct,
                     interval=EXCLUDED.interval,
                     max_uses=EXCLUDED.max_uses,
-                    expires_at=EXCLUDED.expires_at
-            """, (code, discount_pct, interval, max_uses, expires_at, created_by, time.time()))
+                    expires_at=EXCLUDED.expires_at,
+                    free_months=EXCLUDED.free_months
+            """, (code, discount_pct, interval, max_uses, expires_at, created_by, time.time(), free_months))
         conn.commit()
 
-    log.info(f"Discount code created: {code} ({discount_pct}% off, {interval}, max_uses={max_uses})")
+    log.info(f"Discount code created: {code} ({discount_pct}% off, {interval}, max_uses={max_uses}, free_months={free_months})")
     return {
         "ok": True,
         "code": code,
         "discount_pct": discount_pct,
         "interval": interval,
         "max_uses": max_uses,
+        "free_months": free_months,
         "expires_at": expires_at,
     }
 
