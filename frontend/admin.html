@@ -194,17 +194,105 @@
     .welcome-icon { color: var(--accent); }
     .welcome p { font-size: 15px; color: var(--muted); line-height: 1.6; }
 
-    /* ── Nav Tabs (top-level sections) ── */
+    /* ── Workflow Stepper ── */
+    .workflow-stepper {
+      display: flex;
+      align-items: stretch;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 8px;
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+    }
+    .workflow-step {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 18px;
+      cursor: pointer;
+      border: none;
+      background: none;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      text-align: left;
+      transition: background 0.18s;
+      position: relative;
+      border-right: 1px solid var(--border);
+    }
+    .workflow-step:last-child { border-right: none; }
+    .workflow-step:hover { background: var(--bg); }
+    .workflow-step.active { background: var(--primary-light); }
+    .workflow-step.active .ws-num { background: var(--primary); color: #fff; }
+    .workflow-step.done .ws-num { background: var(--success); color: #fff; }
+    .workflow-step.done .ws-num::after { content: '✓'; font-size: 11px; }
+    .workflow-step.done .ws-num span { display: none; }
+    .ws-num {
+      width: 26px; height: 26px; border-radius: 50%;
+      background: var(--surface2); border: 1.5px solid var(--border2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 800; color: var(--muted);
+      flex-shrink: 0; transition: all 0.2s;
+    }
+    .ws-label { font-size: 13px; font-weight: 700; color: var(--text2); }
+    .workflow-step.active .ws-label { color: var(--primary); }
+    .workflow-step.done .ws-label { color: var(--success); }
+    .ws-desc { font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+    /* ── Next Step Banner ── */
+    .next-step-banner {
+      display: none;
+      align-items: center;
+      gap: 14px;
+      background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+      border: 1.5px solid rgba(5,150,105,0.25);
+      border-radius: var(--radius-sm);
+      padding: 14px 18px;
+      margin-bottom: 20px;
+      animation: fadeIn 0.3s ease;
+    }
+    .next-step-banner.show { display: flex; }
+    .next-step-banner.info {
+      background: var(--primary-light);
+      border-color: rgba(79,70,229,0.2);
+    }
+    .nsb-icon {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: rgba(5,150,105,0.12); color: var(--success);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .next-step-banner.info .nsb-icon { background: var(--primary-light); color: var(--primary); }
+    .nsb-body { flex: 1; min-width: 0; }
+    .nsb-title { font-size: 13px; font-weight: 700; color: var(--text); }
+    .nsb-desc { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.5; }
+    .nsb-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--primary); color: #fff;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 12px; font-weight: 700;
+      padding: 8px 16px; border-radius: var(--radius-sm);
+      border: none; cursor: pointer;
+      white-space: nowrap; flex-shrink: 0;
+      transition: all 0.2s;
+      text-decoration: none;
+    }
+    .nsb-btn:hover { background: var(--primary-dark); }
+    .nsb-btn.green { background: var(--success); }
+    .nsb-btn.green:hover { background: #047857; }
+
+    /* ── Section tabs (secondary, below stepper) ── */
     .section-nav {
       display: flex;
-      gap: 6px;
-      margin-bottom: 28px;
+      gap: 4px;
+      margin-bottom: 24px;
       border-bottom: 2px solid var(--border);
       padding-bottom: 0;
+      margin-top: 14px;
     }
     .section-tab {
-      padding: 10px 18px 12px;
-      font-size: 13px;
+      padding: 9px 16px 11px;
+      font-size: 12px;
       font-weight: 700;
       color: var(--muted);
       background: none;
@@ -216,12 +304,65 @@
       transition: all 0.2s;
       display: flex;
       align-items: center;
-      gap: 7px;
+      gap: 6px;
     }
     .section-tab:hover { color: var(--text); }
     .section-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
     .section-panel { display: none; }
     .section-panel.active { display: block; }
+
+    /* ── Quick-action card (empty state with CTA) ── */
+    .quick-action-card {
+      background: var(--surface);
+      border: 2px dashed var(--border2);
+      border-radius: var(--radius);
+      padding: 40px 28px;
+      text-align: center;
+    }
+    .qa-icon {
+      width: 64px; height: 64px;
+      background: var(--primary-light);
+      border-radius: 18px;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--primary);
+      margin: 0 auto 20px;
+    }
+    .qa-title { font-family: 'Fraunces', serif; font-size: 20px; font-weight: 800; color: var(--text); margin-bottom: 8px; letter-spacing: -0.4px; }
+    .qa-desc { font-size: 14px; color: var(--muted); line-height: 1.65; max-width: 380px; margin: 0 auto 24px; }
+    .qa-steps {
+      display: flex;
+      justify-content: center;
+      gap: 0;
+      margin-bottom: 28px;
+      flex-wrap: wrap;
+    }
+    .qa-step {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+    }
+    .qa-step-num {
+      width: 22px; height: 22px; border-radius: 50%;
+      background: var(--surface2); border: 1.5px solid var(--border2);
+      font-size: 11px; font-weight: 800; color: var(--muted);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .qa-step-arrow { padding: 0 10px; color: var(--border2); font-size: 16px; }
+    .qa-btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color: #fff; font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 14px; font-weight: 700;
+      padding: 13px 28px; border-radius: var(--radius-sm);
+      border: none; cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 4px 14px rgba(79,70,229,0.3);
+    }
+    .qa-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(79,70,229,0.4); }
 
     /* ── Main grid ── */
     .grid {
@@ -1663,6 +1804,46 @@
       </a>
     </div>
 
+    <!-- Workflow Stepper -->
+    <div class="workflow-stepper" id="workflowStepper">
+      <button class="workflow-step active" id="ws-1" onclick="switchSection('events', document.querySelector('.section-tab'))">
+        <div class="ws-num"><span>1</span></div>
+        <div>
+          <div class="ws-label">Create Event</div>
+          <div class="ws-desc">Name &amp; date your event</div>
+        </div>
+      </button>
+      <button class="workflow-step" id="ws-2" onclick="switchSection('upload', document.querySelectorAll('.section-tab')[1])">
+        <div class="ws-num"><span>2</span></div>
+        <div>
+          <div class="ws-label">Upload Photos</div>
+          <div class="ws-desc">ZIP file or Google Drive</div>
+        </div>
+      </button>
+      <button class="workflow-step" id="ws-3" onclick="switchSection('events', document.querySelector('.section-tab'))">
+        <div class="ws-num"><span>3</span></div>
+        <div>
+          <div class="ws-label">Share with Guests</div>
+          <div class="ws-desc">Generate your guest link</div>
+        </div>
+      </button>
+    </div>
+
+    <!-- Contextual next-step banner (shown dynamically by JS) -->
+    <div class="next-step-banner info" id="nextStepBanner" style="display:none;">
+      <div class="nsb-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>
+      </div>
+      <div class="nsb-body">
+        <div class="nsb-title" id="nsbTitle">Next: Upload photos to your event</div>
+        <div class="nsb-desc" id="nsbDesc">Head to Upload Photos and select your event to add your first album.</div>
+      </div>
+      <button class="nsb-btn" id="nsbBtn" onclick="handleNsbClick()">
+        <span id="nsbBtnLabel">Upload Photos</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+    </div>
+
     <!-- Section navigation -->
     <div class="section-nav">
       <button class="section-tab active" onclick="switchSection('events', this)">
@@ -1694,20 +1875,39 @@
           </button>
         </div>
         <div id="groupsGrid">
-          <div class="empty">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:12px;color:var(--muted)"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-            <div style="font-weight:700;color:var(--text);font-size:15px;margin-bottom:6px;">No events yet</div>
-            Create your first event group — like "Priya &amp; Rahul Wedding 2025" — then upload photos. Share the link with guests so they can find themselves instantly.
+          <div class="quick-action-card">
+            <div class="qa-icon">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            </div>
+            <div class="qa-title">Create your first event</div>
+            <div class="qa-desc">Lenstagram lets guests instantly find their own photos using just a selfie — no app or login needed.</div>
+            <div class="qa-steps">
+              <div class="qa-step"><div class="qa-step-num">1</div> Create event</div>
+              <div class="qa-step-arrow">→</div>
+              <div class="qa-step"><div class="qa-step-num">2</div> Upload photos</div>
+              <div class="qa-step-arrow">→</div>
+              <div class="qa-step"><div class="qa-step-num">3</div> Share link</div>
+            </div>
+            <button class="qa-btn" onclick="showCreateGroupModal()">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Create your first event
+            </button>
           </div>
         </div>
       </div>
 
       <!-- Group Detail view (hidden until clicked) -->
       <div id="groupDetailView" style="display:none;">
-        <button class="back-btn" onclick="showGroupsList()">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-          All Events
-        </button>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
+          <button class="back-btn" style="margin-bottom:0;" onclick="showGroupsList()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+            All Events
+          </button>
+          <button onclick="goUploadForGroup(currentGroupId)" style="display:inline-flex;align-items:center;gap:7px;font-family:'Plus Jakarta Sans',sans-serif;font-size:12px;font-weight:700;color:var(--primary);background:var(--primary-light);border:1.5px solid rgba(79,70,229,0.25);padding:7px 14px;border-radius:var(--radius-sm);cursor:pointer;transition:all 0.2s;" onmouseover="this.style.background='rgba(79,70,229,0.15)'" onmouseout="this.style.background='var(--primary-light)'">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Upload Photos
+          </button>
+        </div>
         <div class="grid">
           <!-- Left: collections list -->
           <div>
@@ -1719,12 +1919,10 @@
                 <span id="groupDetailTitle">Photos</span>
               </div>
               <div class="dataset-list" id="datasetList">
-                <div class="empty">No photos uploaded yet. Head to the Upload tab to get started.</div>
+                <div class="empty">No photos uploaded yet.</div>
               </div>
             </div>
           </div>
-
-          <!-- Right: share + settings -->
           <div>
             <div class="card" id="shareCard">
               <div class="card-title">
@@ -1734,9 +1932,24 @@
                 Share This Event
               </div>
 
-              <p style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.6;">Pick an album below and create a share link. Guests open the link, snap a selfie, and instantly see every photo they're in — no login, no app needed.</p>
+              <p style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.6;">Guests open the link, snap a selfie, and instantly see every photo they're in — no login, no app needed.</p>
 
-              <!-- Watermark settings -->
+              <!-- How-to steps -->
+              <div id="shareHowTo" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;background:var(--bg);border-radius:var(--radius-sm);padding:14px 16px;border:1.5px solid var(--border);">
+                <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:2px;">How to share</div>
+                <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text2);">
+                  <div style="width:20px;height:20px;border-radius:50%;background:var(--primary-light);color:var(--primary);font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">1</div>
+                  <span>Select an album from the <strong>Photos list on the left</strong> using "Use for sharing"</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text2);">
+                  <div style="width:20px;height:20px;border-radius:50%;background:var(--primary-light);color:var(--primary);font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">2</div>
+                  <span>Click <strong>"Create Share Link"</strong> below</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text2);">
+                  <div style="width:20px;height:20px;border-radius:50%;background:var(--primary-light);color:var(--primary);font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">3</div>
+                  <span>Copy the link or QR code to <strong>share with guests</strong></span>
+                </div>
+              </div>
               <div id="watermarkSection" style="background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:16px;margin-bottom:16px;">
                 <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:12px;display:flex;align-items:center;gap:6px;">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
@@ -2672,13 +2885,30 @@
       const gId = groupId || currentGroupId;
       if (gId && gId !== '__ungrouped__') {
         const sel = document.getElementById('uploadTargetGroup');
-        if (sel) sel.value = gId;
+        if (sel) { sel.value = gId; sel.dispatchEvent(new Event('change')); }
       }
     }
     // Refresh the Find My Photos selectors with latest data
     if (name === 'find') {
       afpPopulateSelectors();
     }
+    // Sync stepper active indicator to current tab
+    syncStepperToSection(name);
+  }
+
+  function syncStepperToSection(name) {
+    const ws1 = document.getElementById('ws-1');
+    const ws2 = document.getElementById('ws-2');
+    const ws3 = document.getElementById('ws-3');
+    if (!ws1) return;
+    [ws1, ws2, ws3].forEach(el => { if (!el.classList.contains('done')) el.classList.remove('active'); });
+    if (name === 'events' && ws1 && !ws1.classList.contains('done')) ws1.classList.add('active');
+    if (name === 'upload' && ws2 && !ws2.classList.contains('done')) ws2.classList.add('active');
+  }
+
+  function goUploadForGroup(groupId) {
+    showGroupsList();
+    setTimeout(() => switchSection('upload', document.querySelectorAll('.section-tab')[1], groupId), 50);
   }
 
   function switchTab(name, btn) {
@@ -2808,11 +3038,23 @@
     const grid = document.getElementById('groupsGrid');
     const groupList = Object.values(groups);
     if (!groupList.length) {
-      grid.innerHTML = `<div class="empty">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:12px;color:var(--muted)"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-        <div style="font-weight:700;color:var(--text);font-size:15px;margin-bottom:6px;">No events yet</div>
-        Create your first event group — like "Priya &amp; Rahul Wedding 2025" — then upload photos. Guests can find themselves instantly with just a selfie.
+      grid.innerHTML = `<div class="quick-action-card">
+        <div class="qa-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+        <div class="qa-title">Create your first event</div>
+        <div class="qa-desc">Lenstagram lets guests find their own photos with a selfie — no app needed. Start by creating an event like "Priya &amp; Rahul Wedding 2025".</div>
+        <div class="qa-steps">
+          <div class="qa-step"><div class="qa-step-num">1</div> Create event</div>
+          <div class="qa-step-arrow">→</div>
+          <div class="qa-step"><div class="qa-step-num">2</div> Upload photos</div>
+          <div class="qa-step-arrow">→</div>
+          <div class="qa-step"><div class="qa-step-num">3</div> Share link</div>
+        </div>
+        <button class="qa-btn" onclick="showCreateGroupModal()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Create your first event
+        </button>
       </div>`;
+      updateWorkflowState(false, false);
       return;
     }
 
@@ -2848,7 +3090,7 @@
         : '';
       const deleteBtn = g.is_ungrouped
         ? ''
-        : '<span class="btn-sm btn-sm-danger" onclick="event.stopPropagation();deleteGroup(' + JSON.stringify(g.id) + ')">Delete</span>';
+        : '<button class="btn-sm btn-sm-danger" onclick="deleteGroupCard(event,' + JSON.stringify(g.id) + ')">Delete</button>';
       return `
         <div class="group-card gc-theme-${cfg.theme}" onclick="openGroup('${g.id}')">
           <div class="gc-accent-bar"></div>
@@ -2909,7 +3151,85 @@
     }
 
     grid.innerHTML = html;
+
+    // Compute overall state for stepper
+    const realGroups = Object.values(groups).filter(g => !g.is_ungrouped);
+    const hasEvents = realGroups.length > 0;
+    const hasPhotos = realGroups.some(g => (g.total_images || 0) > 0);
+    const hasShare  = realGroups.some(g => g.share_id);
+    updateWorkflowState(hasEvents, hasPhotos, hasShare);
+    updateNewEventBtn(realGroups.length);
   }
+
+  // ── Workflow stepper helpers ────────────────────────────────────────────────
+  let _nsbAction = null;
+
+  function updateWorkflowState(hasEvents, hasPhotos, hasShare) {
+    const ws1 = document.getElementById('ws-1');
+    const ws2 = document.getElementById('ws-2');
+    const ws3 = document.getElementById('ws-3');
+    const banner = document.getElementById('nextStepBanner');
+
+    if (!ws1) return;
+
+    // Reset
+    [ws1, ws2, ws3].forEach(el => el.classList.remove('done', 'active'));
+
+    if (!hasEvents) {
+      ws1.classList.add('active');
+      banner.style.display = 'none';
+    } else if (!hasPhotos) {
+      ws1.classList.add('done');
+      ws2.classList.add('active');
+      // Show banner: nudge to upload
+      banner.style.display = 'flex';
+      banner.classList.add('info');
+      document.getElementById('nsbTitle').textContent = 'Next: Upload photos to your event';
+      document.getElementById('nsbDesc').textContent  = 'Go to Upload Photos and select your event to add your first album.';
+      document.getElementById('nsbBtnLabel').textContent = 'Upload Photos →';
+      _nsbAction = () => switchSection('upload', document.querySelectorAll('.section-tab')[1]);
+    } else if (!hasShare) {
+      ws1.classList.add('done');
+      ws2.classList.add('done');
+      ws3.classList.add('active');
+      // Show banner: nudge to share
+      banner.style.display = 'flex';
+      banner.classList.remove('info');
+      document.getElementById('nsbTitle').textContent = '🎉 Photos uploaded! Now create a share link';
+      document.getElementById('nsbDesc').textContent  = 'Open an event, pick an album, and click "Create Share Link" to share with guests.';
+      document.getElementById('nsbBtnLabel').textContent = 'Open Event →';
+      const firstGroupId = Object.values(groups).find(g => !g.is_ungrouped && (g.total_images || 0) > 0)?.id;
+      _nsbAction = firstGroupId ? () => { switchSection('events', document.querySelector('.section-tab')); openGroup(firstGroupId); } : null;
+      const btn = document.getElementById('nsbBtn');
+      if (btn) btn.style.display = firstGroupId ? '' : 'none';
+    } else {
+      ws1.classList.add('done');
+      ws2.classList.add('done');
+      ws3.classList.add('done');
+      banner.style.display = 'none';
+    }
+  }
+
+  function handleNsbClick() {
+    if (_nsbAction) _nsbAction();
+  }
+
+  function updateNewEventBtn(groupCount) {
+    const cfg = PLAN_CONFIG[currentPlan] || PLAN_CONFIG.free;
+    const atLimit = groupCount >= cfg.maxGroups;
+    // Find the header "New Event" button (not the onboarding card button)
+    const btns = document.querySelectorAll('#eventsListView .section-header .btn-primary');
+    btns.forEach(btn => {
+      if (atLimit) {
+        btn.style.opacity = '0.65';
+        btn.title = `You've reached your ${cfg.label} event limit (${cfg.maxGroups}). Upgrade to add more.`;
+      } else {
+        btn.style.opacity = '';
+        btn.title = '';
+      }
+    });
+  }
+
   function populateGroupSelectors() {
     const sel = document.getElementById('uploadTargetGroup');
     const prevVal = sel.value; // remember what was selected
@@ -2945,6 +3265,9 @@
       document.getElementById('shareUrl').textContent = shareUrl;
       document.getElementById('shareBox').classList.add('visible');
       generateQRCanvas(shareUrl, document.getElementById('qrCanvas'));
+      // Hide how-to once share is created
+      const howTo = document.getElementById('shareHowTo');
+      if (howTo) howTo.style.display = 'none';
 
       // Load share details to restore watermark settings (paid users only)
       fetch(`${API}/api/shares/${g.share_id}`, { credentials: 'include' })
@@ -2962,6 +3285,9 @@
         .catch(() => {});
     } else {
       document.getElementById('shareBox').classList.remove('visible');
+      // Show how-to steps since no share link created yet
+      const howTo = document.getElementById('shareHowTo');
+      if (howTo) howTo.style.display = '';
     }
   }
 
@@ -2975,10 +3301,46 @@
   }
 
   function showCreateGroupModal() {
+    const cfg = PLAN_CONFIG[currentPlan] || PLAN_CONFIG.free;
+    const realGroupCount = Object.values(groups).filter(g => !g.is_ungrouped).length;
+    if (realGroupCount >= cfg.maxGroups) {
+      const max = cfg.maxGroups;
+      const label = max === 1 ? '1 event' : `${max} events`;
+      showGroupLimitModal(label);
+      return;
+    }
     document.getElementById('newGroupName').value = '';
     document.getElementById('newGroupDate').value = '';
     document.getElementById('createGroupModal').classList.add('show');
     setTimeout(() => document.getElementById('newGroupName').focus(), 100);
+  }
+
+  function showGroupLimitModal(limitLabel) {
+    // Reuse the existing modal system — inject into a generic confirm modal or build inline
+    // Build a toast-style blocking modal
+    const existing = document.getElementById('groupLimitModal');
+    if (existing) { existing.classList.add('show'); return; }
+
+    const div = document.createElement('div');
+    div.id = 'groupLimitModal';
+    div.className = 'modal-overlay show';
+    div.innerHTML = `
+      <div class="modal" style="max-width:420px;text-align:center;">
+        <div style="width:56px;height:56px;border-radius:16px;background:#fffbeb;color:var(--warn);display:flex;align-items:center;justify-content:center;margin:0 auto 18px;">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </div>
+        <h3 style="margin-bottom:8px;">Event limit reached</h3>
+        <p class="modal-sub" style="margin-bottom:20px;">Your <strong>${(PLAN_CONFIG[currentPlan]||PLAN_CONFIG.free).label}</strong> plan includes <strong>${limitLabel}</strong>. Upgrade to create more events and upload more photos.</p>
+        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+          <a href="/pricing.html" class="btn btn-primary" style="width:auto;margin-top:0;text-decoration:none;padding:11px 22px;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>
+            Upgrade plan
+          </a>
+          <button class="btn btn-secondary" style="width:auto;margin-top:0;padding:11px 22px;" onclick="document.getElementById('groupLimitModal').classList.remove('show')">Maybe later</button>
+        </div>
+      </div>`;
+    div.addEventListener('click', e => { if (e.target === div) div.classList.remove('show'); });
+    document.body.appendChild(div);
   }
 
   async function createGroup() {
@@ -3006,6 +3368,12 @@
     } catch(e) {
       toast('Error: ' + e.message, 'error');
     }
+  }
+
+  function deleteGroupCard(e, groupId) {
+    e.stopPropagation();
+    e.preventDefault();
+    deleteGroup(groupId);
   }
 
   async function deleteGroup(groupId) {
@@ -3040,7 +3408,18 @@
       }
 
       if (!datasets.length) {
-        list.innerHTML = `<div class="empty">No photos here yet.<br>Go to the <button onclick="switchSection('upload', document.querySelector('.section-tab:nth-child(2)'), '${escHtml(currentGroupId || '')}')" style="background:none;border:none;color:var(--primary);font-weight:700;cursor:pointer;font-size:13px;font-family:'Plus Jakarta Sans',sans-serif;">Upload tab</button> to add your first album.</div>`;
+        const gidSafe = escHtml(currentGroupId || '');
+        list.innerHTML = `<div style="text-align:center;padding:32px 20px;border:2px dashed var(--border2);border-radius:var(--radius);background:var(--bg);">
+          <div style="width:52px;height:52px;background:var(--primary-light);border-radius:14px;display:flex;align-items:center;justify-content:center;color:var(--primary);margin:0 auto 16px;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          </div>
+          <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:6px;">No photos uploaded yet</div>
+          <div style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:18px;max-width:280px;margin-left:auto;margin-right:auto;">Upload a ZIP file or import from Google Drive to get started.</div>
+          <button onclick="goUploadForGroup('${gidSafe}')" style="display:inline-flex;align-items:center;gap:8px;background:var(--primary);color:#fff;font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:700;padding:10px 22px;border-radius:var(--radius-sm);border:none;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.background='var(--primary-dark)'" onmouseout="this.style.background='var(--primary)'">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Upload Photos to this Event
+          </button>
+        </div>`;
         return;
       }
       list.innerHTML = datasets.map(ds => renderDatasetItem(ds)).join('');
@@ -3095,7 +3474,12 @@
     document.querySelectorAll('.dataset-item').forEach(el => el.classList.remove('selected'));
     btn.closest('.dataset-item').classList.add('selected');
     document.getElementById('shareBtn').disabled = false;
-    toast('Album selected — now create your share link!');
+    toast('Album selected — scroll down and click "Create Share Link"!', 'success');
+    // Scroll share button into view
+    setTimeout(() => {
+      const shareBtn = document.getElementById('shareBtn');
+      if (shareBtn) shareBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 200);
   }
 
   // ── Image Browser ────────────────────────────────────────────────────────
@@ -4269,12 +4653,12 @@
 
   // ── Plan Banner ─────────────────────────────────────────────────────────────
   const PLAN_CONFIG = {
-    free:          { label: 'Starter (Free)',   maxDatasets: 1,    maxImages: 100,    iconClass: 'free', isProPhoto: false },
-    personal_lite: { label: 'Lite',             maxDatasets: 5,    maxImages: 2000,   iconClass: 'paid', isProPhoto: false },
-    personal_pro:  { label: 'Pro',              maxDatasets: 15,   maxImages: 10000,  iconClass: 'paid', isProPhoto: false },
-    personal_max:  { label: 'Max',              maxDatasets: 30,   maxImages: 30000,  iconClass: 'paid', isProPhoto: false },
-    photo_starter: { label: 'Studio Starter',   maxDatasets: 50,   maxImages: 100000, iconClass: 'pro',  isProPhoto: true  },
-    photo_pro:     { label: 'Studio Pro',       maxDatasets: 9999, maxImages: 500000, iconClass: 'pro',  isProPhoto: true  },
+    free:          { label: 'Starter (Free)',   maxGroups: 1,    maxDatasets: 1,    maxImages: 100,    iconClass: 'free', isProPhoto: false },
+    personal_lite: { label: 'Lite',             maxGroups: 5,    maxDatasets: 5,    maxImages: 2000,   iconClass: 'paid', isProPhoto: false },
+    personal_pro:  { label: 'Pro',              maxGroups: 15,   maxDatasets: 15,   maxImages: 10000,  iconClass: 'paid', isProPhoto: false },
+    personal_max:  { label: 'Max',              maxGroups: 30,   maxDatasets: 30,   maxImages: 30000,  iconClass: 'paid', isProPhoto: false },
+    photo_starter: { label: 'Studio Starter',   maxGroups: 50,   maxDatasets: 50,   maxImages: 100000, iconClass: 'pro',  isProPhoto: true  },
+    photo_pro:     { label: 'Studio Pro',       maxGroups: 9999, maxDatasets: 9999, maxImages: 500000, iconClass: 'pro',  isProPhoto: true  },
   };
 
   let currentPlan = 'free';
