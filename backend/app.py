@@ -122,6 +122,32 @@ def init_db():
                     created_at   DOUBLE PRECISION
                 );
             """)
+            # Migration: allow one share per (dataset_id, permission) instead of one per dataset
+            # This enables separate view and contribute links with their own share_ids.
+            cur.execute("""
+                DO $$
+                BEGIN
+                    -- Drop the old UNIQUE(dataset_id) constraint if it exists
+                    IF EXISTS (
+                        SELECT 1 FROM pg_constraint
+                        WHERE conrelid = 'shares'::regclass
+                          AND contype = 'u'
+                          AND conname = 'shares_dataset_id_key'
+                    ) THEN
+                        ALTER TABLE shares DROP CONSTRAINT shares_dataset_id_key;
+                    END IF;
+                    -- Add unique per (dataset_id, permission) if not already there
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_constraint
+                        WHERE conrelid = 'shares'::regclass
+                          AND contype = 'u'
+                          AND conname = 'shares_dataset_permission_key'
+                    ) THEN
+                        ALTER TABLE shares ADD CONSTRAINT shares_dataset_permission_key
+                            UNIQUE (dataset_id, permission);
+                    END IF;
+                END $$;
+            """)
             # Migration: add user_id to datasets table if it doesn't exist yet
             cur.execute("""
                 ALTER TABLE datasets ADD COLUMN IF NOT EXISTS user_id TEXT NOT NULL DEFAULT '';
@@ -2519,10 +2545,13 @@ async def create_share(request: Request):
         if group:
             watermark_text = group.get("watermark_text") or ""
 
-    # 5. Check if share already exists
+    # 5. Check if share already exists for this (dataset_id, permission) pair
     with get_db() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT share_id FROM shares WHERE dataset_id = %s LIMIT 1", (dataset_id,))
+            cur.execute(
+                "SELECT share_id FROM shares WHERE dataset_id = %s AND COALESCE(permission, 'view') = %s LIMIT 1",
+                (dataset_id, permission)
+            )
             existing = cur.fetchone()
             
     if existing:

@@ -3839,7 +3839,7 @@
       if (!vr.ok) throw new Error(vd.detail || 'Failed');
       _lastViewShareId = vd.share_id;
 
-      // PATCH to update watermark + permission on existing share
+      // PATCH to update watermark + permission on existing view share
       await fetch(`${API}/api/shares/${vd.share_id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -3847,35 +3847,41 @@
         credentials: 'include'
       }).catch(() => {});
 
-      // ── Create contribute share if requested ───────────────────────────────
+      // ── Create a SEPARATE contribute share if requested ────────────────────
+      // Each share type gets its own share_id so that the viewer link and
+      // contributor link are truly independent — no URL parameter tricks needed.
+      // The server enforces permission per share_id, so stripping params from
+      // the viewer URL cannot grant upload access.
       let contribShareId = null;
       if (wantContribute) {
         const cPayload = { dataset_id: selectedDatasetId, permission: 'contribute' };
         if (currentGroupId && currentGroupId !== '__ungrouped__') cPayload.group_id = currentGroupId;
         cPayload.watermark_text = watermarkText || '';
-        // Use a different share row by appending a marker to dataset_id lookup?
-        // Actually the backend enforces one share per dataset — so we embed permission
-        // in the same share by PATCHing. We create a SECOND share with contribute permission
-        // by temporarily passing a flag. Backend now stores permission per share.
-        // Since backend uses UNIQUE(dataset_id), we need a workaround:
-        // We use the existing share_id and PATCH it to 'contribute' if user wants contribute,
-        // OR we store both in one share (the contribute link = same URL + ?contribute=1 sentinel
-        // that share.html checks). Simplest: same share_id, permission='contribute',
-        // view-only guests just get ?mode=view appended.
-        contribShareId = vd.share_id;
-        await fetch(`${API}/api/shares/${vd.share_id}`, {
-          method: 'PATCH',
+        const cr = await fetch(`${API}/api/shares`, {
+          method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ watermark_text: watermarkText || '', permission: 'contribute' }),
+          body: JSON.stringify(cPayload),
           credentials: 'include'
-        }).catch(() => {});
+        });
+        const cd = await cr.json();
+        if (cr.ok) {
+          contribShareId = cd.share_id;
+          // Keep watermark in sync
+          await fetch(`${API}/api/shares/${contribShareId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ watermark_text: watermarkText || '', permission: 'contribute' }),
+            credentials: 'include'
+          }).catch(() => {});
+        }
       }
       _lastContribShareId = contribShareId;
 
       // ── Render results ─────────────────────────────────────────────────────
-      const baseUrl = `${BASE_URL}/share.html?id=${vd.share_id}`;
-      const viewUrl    = wantContribute ? baseUrl + '&mode=view' : baseUrl;
-      const contribUrl = baseUrl; // full link = contribute (no mode restriction)
+      // View link uses the view share_id — no extra params needed.
+      // Contribute link uses a completely different share_id.
+      const viewUrl    = `${BASE_URL}/share.html?id=${vd.share_id}`;
+      const contribUrl = contribShareId ? `${BASE_URL}/share.html?id=${contribShareId}` : null;
 
       document.getElementById('shareUrl').textContent = viewUrl;
       document.getElementById('shareBoxLabel').textContent = wantContribute ? 'View-Only Link' : 'Your Share Link';
@@ -3884,7 +3890,7 @@
         : 'Anyone with this link can find their photos instantly — no account needed.';
 
       const contribSection = document.getElementById('contributeUrlSection');
-      if (wantContribute && contribSection) {
+      if (wantContribute && contribUrl && contribSection) {
         document.getElementById('contributeUrl').textContent = contribUrl;
         contribSection.style.display = '';
       } else if (contribSection) {
