@@ -127,7 +127,7 @@ def init_db():
             cur.execute("""
                 DO $$
                 BEGIN
-                    -- Drop the old UNIQUE(dataset_id) constraint if it exists (either known name)
+                    -- Drop the old UNIQUE(dataset_id) constraint (either known name)
                     IF EXISTS (
                         SELECT 1 FROM pg_constraint
                         WHERE conrelid = 'shares'::regclass
@@ -2576,49 +2576,27 @@ async def create_share(request: Request):
             cache_delete(f"share:{existing['share_id']}")
         return {"share_id": existing["share_id"]}
 
-    # 6. Create new share
+    # 6. Create new share — insert permission + watermark atomically.
+    # ON CONFLICT (dataset_id) DO UPDATE handles the case where the old
+    # single-dataset-id unique constraint is still live on the DB, ensuring
+    # RETURNING always gives back the real persisted share_id (never phantom).
     share_id = str(uuid.uuid4())[:12]
-    share = {
-        "share_id":     share_id,
-        "dataset_id":   dataset_id,
-        "dataset_name": ds["name"],
-        "created_at":   time.time(),
-    }
-    db_insert_share(share)
-
-    # Re-fetch the canonical share_id for this (dataset_id, permission) in case
-    # the insert was a silent no-op due to ON CONFLICT DO NOTHING (race condition
-    # or old unique constraint still present on the DB). Without this, the caller
-    # receives a phantom share_id that was never written, causing all subsequent
-    # GET / PATCH calls to 404.
+    wm = (watermark_text[:80] if watermark_text else None)
     with get_db() as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                "SELECT share_id FROM shares WHERE dataset_id = %s AND COALESCE(permission, 'view') = %s LIMIT 1",
-                (dataset_id, permission)
-            )
-            real_row = cur.fetchone()
-    if real_row:
-        share_id = real_row["share_id"]
-
-    # Store permission
-    with get_db() as conn:
-        with conn.cursor() as cur:
-            cur.execute("UPDATE shares SET permission=%s WHERE share_id=%s", (permission, share_id))
+            cur.execute("""
+                INSERT INTO shares (share_id, dataset_id, dataset_name, created_at, permission, watermark_text)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (dataset_id) DO UPDATE
+                    SET permission     = EXCLUDED.permission,
+                        watermark_text = EXCLUDED.watermark_text
+                RETURNING share_id
+            """, (share_id, dataset_id, ds["name"], time.time(), permission, wm))
+            row = cur.fetchone()
         conn.commit()
+    if row:
+        share_id = row["share_id"]
     cache_delete(f"share:{share_id}")
-    
-    # 7. Apply watermark if provided
-    if watermark_text:
-        with get_db() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "UPDATE shares SET watermark_text=%s WHERE share_id=%s",
-                    (watermark_text[:80], share_id)
-                )
-            conn.commit()
-        cache_delete(f"share:{share_id}")
-        
     return {"share_id": share_id}
 
 
