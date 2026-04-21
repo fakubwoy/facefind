@@ -1075,7 +1075,75 @@
     /* ── Contributor mode overrides ── */
     body.contrib-mode .hero { display: none; }
     body.contrib-mode #stepsBar { display: none !important; }
-    body.contrib-mode #uploadCard { display: none !important; }
+    /* uploadCard visibility in contrib-mode is fully managed by JS state */
+    body.contrib-mode #uploadCard { display: none; }
+    body.contrib-mode.search-mode #uploadCard { display: block; }
+    body.contrib-mode.search-mode #contribModeCard { display: none; }
+    /* The toggle bar is always visible in contrib mode regardless of sub-mode */
+    #contribToggleBar { display: none; }
+    body.contrib-mode #contribToggleBar { display: flex; }
+
+    /* ── Mode toggle button ── */
+    .mode-toggle-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      padding: 5px;
+      margin-bottom: 24px;
+      width: 100%;
+    }
+
+    .mode-toggle-btn {
+      flex: 1;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 11px 16px;
+      border-radius: 8px;
+      border: none;
+      background: none;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .mode-toggle-btn.active {
+      background: var(--primary);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(79,70,229,0.3);
+    }
+
+    .mode-toggle-btn:hover:not(.active) { color: var(--text); background: var(--bg); }
+
+    .mode-toggle-btn svg { flex-shrink: 0; }
+
+    /* Processing status indicator */
+    .reindex-status {
+      display: none;
+      align-items: center; gap: 10px;
+      padding: 12px 16px;
+      background: #fffbeb;
+      border: 1.5px solid #fcd34d;
+      border-radius: var(--radius-sm);
+      margin-top: 12px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #92400e;
+    }
+    .reindex-status.show { display: flex; }
+    .reindex-status.done { background: #f0fdf4; border-color: #86efac; color: #166534; }
+    .reindex-spinner {
+      width: 16px; height: 16px; flex-shrink: 0;
+      border: 2.5px solid #fcd34d;
+      border-top-color: #d97706;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    .reindex-status.done .reindex-spinner { display: none; }
 
     .contrib-hero {
       padding: 52px 0 36px;
@@ -2366,8 +2434,22 @@
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
 
   /* ── State management ───────────────────────────────────── */
+  const isContribMode = () => document.body.classList.contains('contrib-mode');
+
   function setState(state) {
-    document.getElementById('uploadCard').style.display = state === 'upload' ? '' : 'none';
+    const inContrib = isContribMode();
+
+    // In contrib search-mode, uploadCard visibility is controlled by CSS classes;
+    // we only touch it when NOT in contrib mode, or when contrib+search mode
+    if (!inContrib) {
+      document.getElementById('uploadCard').style.display = state === 'upload' ? '' : 'none';
+    } else {
+      // In contrib mode: uploadCard shown only in search-mode AND state=upload
+      const inSearch = document.body.classList.contains('search-mode');
+      document.getElementById('uploadCard').style.display =
+        (inSearch && state === 'upload') ? '' : (state === 'upload' ? '' : 'none');
+    }
+
     document.getElementById('loadingState').classList.toggle('show', state === 'loading');
     document.getElementById('noFaceState').classList.toggle('show', state === 'noface');
     document.getElementById('facePickerState').style.display = state === 'facepicker' ? 'block' : 'none';
@@ -2376,11 +2458,22 @@
     // Widen the layout container when showing results grid
     document.querySelector('.layout').classList.toggle('results-wide', state === 'results');
 
-    if (state === 'upload' || state === 'results') {
-      document.getElementById('stepsBar').style.display = 'flex';
-      document.getElementById('uploadCard').classList.add('visible');
+    const stepsBar = document.getElementById('stepsBar');
+    if (inContrib) {
+      // In contrib mode, steps bar is only shown during search mode
+      const inSearch = document.body.classList.contains('search-mode');
+      if (inSearch) {
+        stepsBar.style.display = (state === 'upload' || state === 'results') ? 'flex' : 'none';
+      } else {
+        stepsBar.style.display = 'none';
+      }
     } else {
-      document.getElementById('stepsBar').style.display = 'none';
+      if (state === 'upload' || state === 'results') {
+        stepsBar.style.display = 'flex';
+        document.getElementById('uploadCard').classList.add('visible');
+      } else {
+        stepsBar.style.display = 'none';
+      }
     }
   }
 
@@ -2397,7 +2490,12 @@
     searchBtn.disabled = true;
     hideError();
     setStep(1);
-    setState('upload');
+    // In contrib mode, resetting from search goes back to upload mode
+    if (isContribMode()) {
+      setContribMode('upload');
+    } else {
+      setState('upload');
+    }
   }
 
   function showError(msg) {
@@ -2604,6 +2702,12 @@ toast(`Photos uploaded! They'll be searchable soon.`, '<svg width="16" height="1
             </div>
           </div>
 
+          <!-- Reindex processing status -->
+          <div class="reindex-status" id="contribReindexStatus">
+            <div class="reindex-spinner"></div>
+            <span id="contribReindexText">AI is indexing your photos…</span>
+          </div>
+
           <button class="contrib-upload-btn" id="contribModeUploadBtn" disabled onclick="contribModeUpload()">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             Upload Photos
@@ -2611,30 +2715,130 @@ toast(`Photos uploaded! They'll be searchable soon.`, '<svg width="16" height="1
         </div>
       </div>
 
-      <!-- Secondary: selfie search -->
-      <div class="contrib-search-section">
-        <div class="contrib-search-label">
-          <div class="contrib-search-label-text">Find yourself in the album</div>
-          <div class="contrib-search-divider"></div>
-          <div class="contrib-search-badge">Optional</div>
-        </div>
+      <!-- Mode toggle bar -->
+      <div class="mode-toggle-bar" id="contribModeToggleBar">
+        <button class="mode-toggle-btn active" id="modeBtnUpload" onclick="setContribMode('upload')">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Upload Photos
+        </button>
+        <button class="mode-toggle-btn" id="modeBtnSearch" onclick="setContribMode('search')">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          Find My Photos
+        </button>
       </div>`;
+
+    // Create a persistent toggle bar outside contribModeCard so it survives mode switches
+    const toggleBar = document.createElement('div');
+    toggleBar.className = 'mode-toggle-bar';
+    toggleBar.id = 'contribToggleBar';
+    toggleBar.innerHTML = `
+      <button class="mode-toggle-btn active" id="modeBtnUpload" onclick="setContribMode('upload')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Upload Photos
+      </button>
+      <button class="mode-toggle-btn" id="modeBtnSearch" onclick="setContribMode('search')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        Find My Photos
+      </button>
+    `;
 
     // Insert before the main upload card
     layout.insertBefore(contribCard, uploadCard);
+    // Insert the persistent toggle bar right after contribCard
+    contribCard.after(toggleBar);
     obs.observe(contribCard);
 
-    // Move the existing upload card (selfie search) below, and restyle it as secondary
-    uploadCard.style.cssText = 'display:block;';
+    // Configure the existing upload card for selfie search (hidden by default in contrib mode)
     uploadCard.querySelector('.card-title').textContent = 'Upload a selfie to find your photos';
     uploadCard.querySelector('.card-sub').textContent = 'Use face search to instantly find every photo you appear in';
 
     // Remove the contribute tab from the selfie search card — not needed here
     const contribTabBtn = document.getElementById('tabBtnContribute');
     if (contribTabBtn) contribTabBtn.style.display = 'none';
+  }
 
-    // Show steps for the selfie search section
-    document.getElementById('stepsBar').style.cssText = '';
+  function setContribMode(mode) {
+    const uploadBtn  = document.getElementById('modeBtnUpload');
+    const searchBtn2 = document.getElementById('modeBtnSearch');
+    if (mode === 'search') {
+      document.body.classList.add('search-mode');
+      if (uploadBtn)  uploadBtn.classList.remove('active');
+      if (searchBtn2) searchBtn2.classList.add('active');
+      // Show steps bar for search mode
+      const sb = document.getElementById('stepsBar');
+      if (sb) sb.style.cssText = '';
+      setState('upload');
+      setStep(1);
+    } else {
+      document.body.classList.remove('search-mode');
+      if (uploadBtn)  uploadBtn.classList.add('active');
+      if (searchBtn2) searchBtn2.classList.remove('active');
+      const sb = document.getElementById('stepsBar');
+      if (sb) sb.style.display = 'none';
+      // Reset any ongoing search state cleanly without recursive loop
+      selfieFile.value = '';
+      uploadedFile = null; currentFile = null; currentResults = null;
+      selfiePreview.classList.remove('show');
+      dropInner.style.display = '';
+      capturedBlob = null;
+      stopCamera();
+      capturedPrev.classList.remove('show');
+      selectedFaces = new Set();
+      document.getElementById('facePickerGrid').innerHTML = '';
+      searchBtn.disabled = true;
+      hideError();
+      setStep(1);
+      // Explicitly hide all search state elements
+      document.getElementById('loadingState').classList.remove('show');
+      document.getElementById('noFaceState').classList.remove('show');
+      document.getElementById('facePickerState').style.display = 'none';
+      document.getElementById('resultsState').classList.remove('show');
+      document.querySelector('.layout').classList.remove('results-wide');
+    }
+  }
+
+  /* ── Reindex polling after contributor upload ────────────── */
+  let _reindexPollTimer = null;
+
+  function startReindexPolling() {
+    const statusEl = document.getElementById('contribReindexStatus');
+    const textEl   = document.getElementById('contribReindexText');
+    if (!statusEl) return;
+
+    clearInterval(_reindexPollTimer);
+    statusEl.classList.remove('done');
+    statusEl.classList.add('show');
+    textEl.textContent = 'AI is indexing your photos…';
+
+    let attempts = 0;
+    const MAX_ATTEMPTS = 60; // poll for up to ~3 minutes
+
+    _reindexPollTimer = setInterval(async () => {
+      attempts++;
+      if (attempts > MAX_ATTEMPTS) {
+        clearInterval(_reindexPollTimer);
+        textEl.textContent = 'Processing is taking longer than usual — photos will be searchable soon.';
+        return;
+      }
+      try {
+        const r = await fetch(`${API}/api/shares/${shareId}/status`);
+        if (!r.ok) return;
+        const d = await r.json();
+        const status = d.status || 'unknown';
+        if (status === 'ready') {
+          clearInterval(_reindexPollTimer);
+          statusEl.classList.add('done');
+          textEl.textContent = `✓ Indexing complete — your photos are now searchable!`;
+          // Auto-hide after 6 seconds
+          setTimeout(() => statusEl.classList.remove('show'), 6000);
+        } else if (status === 'processing' || status === 'compressing' || status === 'uploading') {
+          const pct = d.total > 0 ? Math.round((d.processed / d.total) * 100) : 0;
+          textEl.textContent = `Indexing photos… ${d.processed || 0}/${d.total || '?'} (${pct}%)`;
+        } else {
+          textEl.textContent = `Processing… (${status})`;
+        }
+      } catch { /* ignore transient errors */ }
+    }, 3000);
   }
 
   function contribModeHandleDrop(e) {
@@ -2776,12 +2980,19 @@ toast(`Photos uploaded! They'll be searchable soon.`, '<svg width="16" height="1
 
       document.getElementById('contribModeSuccessText').textContent =
         `${d.saved} photo${d.saved !== 1 ? 's' : ''} uploaded successfully!`;
+      // Update the sub-text to show processing is starting
+      const successEl = document.getElementById('contribModeSuccess');
+      const subEl = successEl.querySelector('.contrib-success-sub');
+      if (subEl) subEl.textContent = 'AI is indexing your photos — they\'ll be searchable shortly.';
       sucEl.style.display = 'flex';
       _contribQueueFiles = [];
       document.getElementById('contribModeFile').value = '';
       document.getElementById('contribModePreviewPanel').classList.remove('visible');
       toast(`${d.saved} photo${d.saved !== 1 ? 's' : ''} added to the album!`,
         '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>');
+
+      // Start polling reindex status
+      startReindexPolling();
     } catch(e) {
       progBar.style.display = 'none';
       progLbl.style.display = 'none';

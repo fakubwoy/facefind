@@ -2769,16 +2769,34 @@ async def contribute_photos(
     dataset_dir.mkdir(parents=True, exist_ok=True)
 
     saved = 0
+    saved_files: list[tuple[str, bytes]] = []  # (safe_name, raw_bytes)
     for f in files:
         safe_name = f"contrib_{uuid.uuid4().hex[:8]}_{Path(f.filename).name}"
         dest = dataset_dir / safe_name
         raw = await f.read()
         dest.write_bytes(raw)
+        saved_files.append((safe_name, raw))
         saved += 1
 
-    # Re-trigger embed pipeline so new photos are indexed
-    is_free = True  # contributor uploads always get free-tier processing
-    background_tasks.add_task(compress_upload_and_embed, ds["id"], is_free)
+    # If B2 is configured, upload new photos to B2 immediately so run_embedding_job
+    # can see them alongside the already-stored dataset images.
+    if b2.b2_configured():
+        for safe_name, raw in saved_files:
+            try:
+                b2.upload_bytes(
+                    b2.dataset_image_key(ds["id"], safe_name),
+                    raw,
+                    content_type="image/jpeg",
+                )
+                log.info(f"[{ds['id']}] Contributor photo uploaded to B2: {safe_name}")
+            except Exception as exc:
+                log.warning(f"[{ds['id']}] B2 upload failed for {safe_name}: {exc}")
+        # Use run_embedding_job which reads the full B2 dataset (old + new images)
+        background_tasks.add_task(run_embedding_job, ds["id"])
+    else:
+        # Local mode: full compress+embed pipeline over the local dir
+        is_free = True
+        background_tasks.add_task(compress_upload_and_embed, ds["id"], is_free)
 
     log.info(f"Contributor upload: {saved} photos added to dataset {ds['id']} via share {share_id}")
     return {"ok": True, "saved": saved, "dataset_id": ds["id"], "dataset_status": "processing"}
