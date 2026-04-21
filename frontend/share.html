@@ -1151,19 +1151,26 @@
 
     <!-- Tabs -->
     <div class="input-tabs">
-      <button class="tab-btn active" onclick="switchTab('upload', this)">
+      <button class="tab-btn active" id="tabBtnUpload" onclick="switchTab('upload', this)">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
           <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
         </svg>
         Upload Photo
       </button>
-      <button class="tab-btn" onclick="switchTab('camera', this)">
+      <button class="tab-btn" id="tabBtnCamera" onclick="switchTab('camera', this)">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
           <circle cx="12" cy="13" r="4"/>
         </svg>
         Take Selfie
+      </button>
+      <button class="tab-btn" id="tabBtnContribute" onclick="switchTab('contribute', this)" style="display:none;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+        Add Photos
       </button>
     </div>
 
@@ -1238,6 +1245,47 @@
           Photo captured
         </span>
         <div style="width:80px;"></div>
+      </div>
+    </div>
+
+    <!-- Contribute panel -->
+    <div class="tab-panel" id="tab-contribute" style="display:none;">
+      <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:20px;margin-bottom:4px;">
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px;display:flex;align-items:center;gap:8px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Add Your Photos to This Album
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.6;">Upload photos you took at this event — they'll be added to the shared album so everyone can find them with a selfie.</p>
+        <div id="contribDropZone" style="border:2px dashed var(--border);border-radius:10px;padding:28px 16px;text-align:center;cursor:pointer;transition:border-color 0.2s;background:var(--bg);"
+          onclick="document.getElementById('contribFile').click()"
+          ondragover="event.preventDefault();this.style.borderColor='var(--primary)'"
+          ondragleave="this.style.borderColor=''"
+          ondrop="contribHandleDrop(event)">
+          <input type="file" id="contribFile" accept="image/*,.zip" multiple style="display:none;" onchange="contribHandleFiles(this.files)">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--muted);margin-bottom:8px;">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          <div style="font-size:13px;font-weight:600;color:var(--text2);">Drop photos here, or <span style="color:var(--primary);">browse</span></div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px;">JPG, PNG, WEBP · Max 50 photos per upload</div>
+        </div>
+
+        <!-- File list preview -->
+        <div id="contribFileList" style="display:none;margin-top:12px;max-height:140px;overflow-y:auto;font-size:12px;color:var(--text2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;background:var(--bg);">
+        </div>
+
+        <!-- Progress / result -->
+        <div id="contribProgress" style="display:none;margin-top:12px;padding:12px 14px;background:var(--primary-light);border-radius:8px;font-size:13px;color:var(--primary);font-weight:600;">
+          <span id="contribProgressText">Uploading…</span>
+        </div>
+        <div id="contribSuccess" style="display:none;margin-top:12px;padding:12px 14px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;font-size:13px;color:#059669;font-weight:600;display:flex;align-items:center;gap:8px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          <span id="contribSuccessText">Photos added!</span>
+        </div>
+
+        <button id="contribUploadBtn" class="btn-primary" disabled onclick="contribUpload()" style="margin-top:14px;font-size:14px;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Upload Photos
+        </button>
       </div>
     </div>
 
@@ -1390,8 +1438,9 @@
     ? 'http://localhost:8000'
     : location.origin;
 
-  const params  = new URLSearchParams(location.search);
-  const shareId = params.get('id');
+  const params   = new URLSearchParams(location.search);
+  const shareId  = params.get('id');
+  const viewMode = params.get('mode') === 'view'; // true = view-only even if share is contribute
 
   /* ── Scroll animations ─────────────────────────────────── */
   const obs = new IntersectionObserver(entries => {
@@ -1429,6 +1478,19 @@
       const name = shareData.dataset_name || 'Photo Collection';
       setAlbumName(name);
       document.title = `Lenstagram — ${name}`;
+
+      // Show "Add Photos" tab only if this is a contribute link AND not restricted to view
+      const isContribute = shareData.permission === 'contribute' && !viewMode;
+      const contribTab = document.getElementById('tabBtnContribute');
+      if (contribTab) contribTab.style.display = isContribute ? '' : 'none';
+
+      // Show a banner if this is a view-only restricted link
+      if (shareData.permission === 'contribute' && viewMode) {
+        const banner = document.createElement('div');
+        banner.style.cssText = 'background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;font-size:12px;color:#92400e;margin-bottom:12px;display:flex;align-items:center;gap:8px;';
+        banner.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>You have a view-only link for this album. Ask the photographer for the full link to add your own photos.';
+        document.getElementById('uploadCard').insertBefore(banner, document.getElementById('uploadCard').firstChild);
+      }
     } catch {
       setAlbumName('Link not found');
       showError('This share link is invalid or has expired.');
@@ -1443,10 +1505,22 @@
   /* ── Tab switching ──────────────────────────────────────── */
   function switchTab(name, btn) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    // For contribute tab, we manage display manually since it uses display:none not active class
+    document.querySelectorAll('.tab-panel').forEach(p => {
+      p.classList.remove('active');
+      if (p.id === 'tab-contribute') p.style.display = 'none';
+    });
     btn.classList.add('active');
-    document.getElementById('tab-' + name).classList.add('active');
+    const panel = document.getElementById('tab-' + name);
+    if (name === 'contribute') {
+      panel.style.display = '';
+    } else {
+      panel.classList.add('active');
+    }
     if (name !== 'camera') stopCamera();
+    // Hide search btn when on contribute tab
+    const sb = document.getElementById('searchBtn');
+    if (sb) sb.style.display = name === 'contribute' ? 'none' : '';
   }
 
   /* ── Step indicator ─────────────────────────────────────── */
@@ -1863,6 +1937,79 @@
   }
 
   function hideError() { document.getElementById('errorBanner').classList.remove('show'); }
+
+  /* ── Contribute upload logic ─────────────────────────────── */
+  let _contribFiles = [];
+
+  function contribHandleDrop(e) {
+    e.preventDefault();
+    document.getElementById('contribDropZone').style.borderColor = '';
+    const files = Array.from(e.dataTransfer.files).filter(f =>
+      /\.(jpe?g|png|webp|heic|heif|bmp)$/i.test(f.name)
+    );
+    if (!files.length) { toast('Please drop image files (JPG, PNG, WEBP)', '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>'); return; }
+    _contribFiles = files.slice(0, 50);
+    contribRenderFileList();
+  }
+
+  function contribHandleFiles(fileList) {
+    const files = Array.from(fileList).filter(f =>
+      /\.(jpe?g|png|webp|heic|heif|bmp)$/i.test(f.name)
+    );
+    if (!files.length) return;
+    _contribFiles = files.slice(0, 50);
+    contribRenderFileList();
+  }
+
+  function contribRenderFileList() {
+    const list = document.getElementById('contribFileList');
+    const btn  = document.getElementById('contribUploadBtn');
+    if (!_contribFiles.length) { list.style.display = 'none'; btn.disabled = true; return; }
+    list.style.display = '';
+    list.innerHTML = _contribFiles.map((f, i) =>
+      `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border);">
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;">${f.name}</span>
+        <span style="color:var(--muted);flex-shrink:0;margin-left:8px;">${(f.size/1024/1024).toFixed(1)} MB</span>
+      </div>`
+    ).join('') + `<div style="padding-top:6px;font-weight:700;color:var(--primary);">${_contribFiles.length} photo${_contribFiles.length !== 1 ? 's' : ''} selected</div>`;
+    btn.disabled = false;
+    document.getElementById('contribSuccess').style.display = 'none';
+    document.getElementById('contribProgress').style.display = 'none';
+  }
+
+  async function contribUpload() {
+    if (!_contribFiles.length || !shareId) return;
+    const btn = document.getElementById('contribUploadBtn');
+    btn.disabled = true;
+    document.getElementById('contribSuccess').style.display = 'none';
+    document.getElementById('contribProgress').style.display = '';
+    document.getElementById('contribProgressText').textContent = `Uploading ${_contribFiles.length} photo${_contribFiles.length !== 1 ? 's' : ''}…`;
+
+    try {
+      const fd = new FormData();
+      _contribFiles.forEach(f => fd.append('file', f));
+      const r = await fetch(`${API}/api/shares/${shareId}/contribute`, {
+        method: 'POST',
+        body: fd,
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || 'Upload failed');
+
+      document.getElementById('contribProgress').style.display = 'none';
+const sucEl = document.getElementById('contribSuccess');
+sucEl.style.display = 'flex';
+document.getElementById('contribSuccessText').textContent =
+  `${d.saved} photo${d.saved !== 1 ? 's' : ''} added! They'll be searchable once processed.`;
+_contribFiles = [];
+document.getElementById('contribFileList').style.display = 'none';
+document.getElementById('contribFile').value = '';
+toast(`Photos uploaded! They'll be searchable soon.`, '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>');
+} catch(e) {
+  document.getElementById('contribProgress').style.display = 'none';
+  showError('Upload failed: ' + e.message);
+  btn.disabled = false;
+}
+  }
 
   /* ── Init ───────────────────────────────────────────────── */
   loadShare();

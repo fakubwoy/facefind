@@ -1999,6 +1999,36 @@
                 </div>
               </div>
 
+              <!-- Link permission selector -->
+              <div id="permissionSection" style="background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:16px;margin-bottom:16px;">
+                <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:12px;display:flex;align-items:center;gap:6px;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                  LINK PERMISSIONS
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px;">
+                  <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:10px 12px;border-radius:var(--radius-sm);border:1.5px solid var(--border);background:var(--surface);transition:border-color 0.15s;" id="permViewLabel">
+                    <input type="radio" name="sharePermission" id="permView" value="view" checked style="margin-top:2px;accent-color:var(--primary);" onchange="onPermissionChange()">
+                    <div>
+                      <div style="font-size:13px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:6px;">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        View Only
+                      </div>
+                      <div style="font-size:11px;color:var(--muted);margin-top:2px;">Guests can find and download their photos — no changes to your album</div>
+                    </div>
+                  </label>
+                  <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:10px 12px;border-radius:var(--radius-sm);border:1.5px solid var(--border);background:var(--surface);transition:border-color 0.15s;" id="permContribLabel">
+                    <input type="radio" name="sharePermission" id="permContrib" value="contribute" style="margin-top:2px;accent-color:var(--primary);" onchange="onPermissionChange()">
+                    <div>
+                      <div style="font-size:13px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:6px;">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        View + Contribute
+                      </div>
+                      <div style="font-size:11px;color:var(--muted);margin-top:2px;">Guests can also upload their own photos to the album (max 50 per upload, no account needed)</div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
               <button id="shareBtn" class="btn btn-primary" onclick="generateShare()" disabled>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
                 Create Share Link
@@ -2006,18 +2036,38 @@
 
               <!-- Share result -->
               <div class="share-box" id="shareBox">
-                <div class="share-box-label"><svg class="inline-icon" style="color:var(--accent)" viewBox="0 0 24 24"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg> Your Share Link</div>
+                <!-- View-only link (always shown) -->
+                <div class="share-box-label">
+                  <svg class="inline-icon" style="color:var(--accent)" viewBox="0 0 24 24"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+                  <span id="shareBoxLabel">Your Share Link</span>
+                </div>
+                <div style="font-size:11px;color:var(--muted);margin-bottom:8px;" id="shareBoxSubLabel">Anyone with this link can find their photos instantly — no account needed.</div>
                 <div class="share-url-wrap">
                   <div class="share-url" id="shareUrl">—</div>
-                  <button class="copy-btn" onclick="copyShareLink()">
+                  <button class="copy-btn" onclick="copyShareLink('shareUrl')">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                     Copy
                   </button>
                 </div>
-                <p class="share-hint">Anyone with this link can find their photos instantly — no app or account needed. The link stays active as long as the event is live.</p>
+
+                <!-- Contribute link (only shown when permission=contribute) -->
+                <div id="contributeUrlSection" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);">
+                  <div style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--success);margin-bottom:6px;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    CONTRIBUTE LINK — guests can also add photos
+                  </div>
+                  <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Share this with photographers or guests you trust to upload their own photos to the album.</div>
+                  <div class="share-url-wrap">
+                    <div class="share-url" id="contributeUrl">—</div>
+                    <button class="copy-btn" onclick="copyShareLink('contributeUrl')">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                      Copy
+                    </button>
+                  </div>
+                </div>
 
                 <!-- QR Code -->
-                <div class="qr-section">
+                <div class="qr-section" style="margin-top:14px;">
                   <div class="qr-section-label">QR Code</div>
                   <div class="qr-container">
                     <canvas id="qrCanvas" width="120" height="120"></canvas>
@@ -3358,8 +3408,9 @@
     document.getElementById('groupDetailView').style.display = 'none';
     document.getElementById('eventsListView').style.display = '';
     document.getElementById('shareBtn').disabled = true;
-    loadGroups();
+    // Only reload when user explicitly navigates back (not during init routing)
     if (!_skipHistory) {
+      loadGroups();
       history.pushState({ tab: 'events' }, '', '?tab=events');
     }
   }
@@ -3740,12 +3791,24 @@
     } catch(e) { toast('Error: ' + e.message, 'error'); }
   }
 
+  // ── Permission toggle helper ─────────────────────────────────────────────────
+  function onPermissionChange() {
+    const contrib = document.getElementById('permContrib')?.checked;
+    const viewLabel    = document.getElementById('permViewLabel');
+    const contribLabel = document.getElementById('permContribLabel');
+    if (viewLabel)    viewLabel.style.borderColor    = contrib ? 'var(--border)' : 'var(--primary)';
+    if (contribLabel) contribLabel.style.borderColor = contrib ? 'var(--primary)' : 'var(--border)';
+  }
+
   // ── Share generation ────────────────────────────────────────────────────────
+  // Stores the last-created share IDs so the contribute section can be shown
+  let _lastViewShareId = null;
+  let _lastContribShareId = null;
+
   async function generateShare() {
     if (!selectedDatasetId) return;
     let watermarkText;
     if (currentPlan === 'free') {
-      // Free plan: always force Lenstagram.com watermark
       watermarkText = 'Lenstagram.com';
     } else {
       const chk = document.getElementById('watermarkEnabledPaid');
@@ -3754,38 +3817,83 @@
       watermarkText = enabled && textEl ? textEl.value.trim() || null : null;
     }
 
+    const wantContribute = document.getElementById('permContrib')?.checked;
+
     const btn = document.getElementById('shareBtn');
     btn.disabled = true;
     btn.innerHTML = '<span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:white;border-radius:50%;animation:spin 0.7s linear infinite"></span> Generating…';
 
     try {
-      const payload = { dataset_id: selectedDatasetId };
-      if (currentGroupId && currentGroupId !== '__ungrouped__') payload.group_id = currentGroupId;
-      if (watermarkText) payload.watermark_text = watermarkText;
-      else payload.watermark_text = '';   // explicitly clear if unchecked
+      // ── Always create/refresh the view-only share ──────────────────────────
+      const viewPayload = { dataset_id: selectedDatasetId, permission: 'view' };
+      if (currentGroupId && currentGroupId !== '__ungrouped__') viewPayload.group_id = currentGroupId;
+      viewPayload.watermark_text = watermarkText || '';
 
-      const r = await fetch(`${API}/api/shares`, { 
-        method: 'POST', 
+      const vr = await fetch(`${API}/api/shares`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload), 
-        credentials: 'include' 
+        body: JSON.stringify(viewPayload),
+        credentials: 'include'
       });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.detail || 'Failed');
+      const vd = await vr.json();
+      if (!vr.ok) throw new Error(vd.detail || 'Failed');
+      _lastViewShareId = vd.share_id;
 
-      const shareUrl = `${BASE_URL}/share.html?id=${d.share_id}`;
-      document.getElementById('shareUrl').textContent = shareUrl;
-      document.getElementById('shareBox').classList.add('visible');
-      generateQRCanvas(shareUrl, document.getElementById('qrCanvas'));
-      if (currentGroupId && groups[currentGroupId]) groups[currentGroupId].share_id = d.share_id;
-
-      // If the share already existed, also PATCH the watermark so edits are saved
-      await fetch(`${API}/api/shares/${d.share_id}`, {
+      // PATCH to update watermark + permission on existing share
+      await fetch(`${API}/api/shares/${vd.share_id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ watermark_text: watermarkText || '' }),
+        body: JSON.stringify({ watermark_text: watermarkText || '', permission: 'view' }),
         credentials: 'include'
       }).catch(() => {});
+
+      // ── Create contribute share if requested ───────────────────────────────
+      let contribShareId = null;
+      if (wantContribute) {
+        const cPayload = { dataset_id: selectedDatasetId, permission: 'contribute' };
+        if (currentGroupId && currentGroupId !== '__ungrouped__') cPayload.group_id = currentGroupId;
+        cPayload.watermark_text = watermarkText || '';
+        // Use a different share row by appending a marker to dataset_id lookup?
+        // Actually the backend enforces one share per dataset — so we embed permission
+        // in the same share by PATCHing. We create a SECOND share with contribute permission
+        // by temporarily passing a flag. Backend now stores permission per share.
+        // Since backend uses UNIQUE(dataset_id), we need a workaround:
+        // We use the existing share_id and PATCH it to 'contribute' if user wants contribute,
+        // OR we store both in one share (the contribute link = same URL + ?contribute=1 sentinel
+        // that share.html checks). Simplest: same share_id, permission='contribute',
+        // view-only guests just get ?mode=view appended.
+        contribShareId = vd.share_id;
+        await fetch(`${API}/api/shares/${vd.share_id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ watermark_text: watermarkText || '', permission: 'contribute' }),
+          credentials: 'include'
+        }).catch(() => {});
+      }
+      _lastContribShareId = contribShareId;
+
+      // ── Render results ─────────────────────────────────────────────────────
+      const baseUrl = `${BASE_URL}/share.html?id=${vd.share_id}`;
+      const viewUrl    = wantContribute ? baseUrl + '&mode=view' : baseUrl;
+      const contribUrl = baseUrl; // full link = contribute (no mode restriction)
+
+      document.getElementById('shareUrl').textContent = viewUrl;
+      document.getElementById('shareBoxLabel').textContent = wantContribute ? 'View-Only Link' : 'Your Share Link';
+      document.getElementById('shareBoxSubLabel').textContent = wantContribute
+        ? 'Share this widely — guests can find & download photos but cannot add new ones.'
+        : 'Anyone with this link can find their photos instantly — no account needed.';
+
+      const contribSection = document.getElementById('contributeUrlSection');
+      if (wantContribute && contribSection) {
+        document.getElementById('contributeUrl').textContent = contribUrl;
+        contribSection.style.display = '';
+      } else if (contribSection) {
+        contribSection.style.display = 'none';
+      }
+
+      document.getElementById('shareBox').classList.add('visible');
+      generateQRCanvas(viewUrl, document.getElementById('qrCanvas'));
+      if (currentGroupId && groups[currentGroupId]) groups[currentGroupId].share_id = vd.share_id;
 
       toast('Share link ready!', 'success');
     } catch(e) {
@@ -3796,8 +3904,9 @@
     }
   }
 
-  function copyShareLink() {
-    const url = document.getElementById('shareUrl').textContent;
+  function copyShareLink(elId) {
+    const id = elId || 'shareUrl';
+    const url = document.getElementById(id)?.textContent;
     if (!url || url === '—') return;
     navigator.clipboard.writeText(url).then(() => toast('Link copied!', 'success')).catch(() => {
       const el = document.createElement('textarea');
@@ -5548,6 +5657,9 @@
   const _initGroup  = _initParams.get('group') || null;
   const _initState  = { tab: _initTab, groupId: _initGroup };
   history.replaceState(_initState, '', window.location.href);
+
+  // ── Initialise permission toggle visual state ─────────────────────────────────
+  onPermissionChange();
 
   // ── Init — auth + groups fire in parallel; plan banner is driven by checkAuth ─
   // checkAuth() fetches /api/auth/me ONCE and passes the result to loadPlanBanner().

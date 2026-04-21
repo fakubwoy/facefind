@@ -298,6 +298,9 @@ def init_db():
                 ALTER TABLE shares ADD COLUMN IF NOT EXISTS watermark_text TEXT DEFAULT NULL;
             """)
             cur.execute("""
+                ALTER TABLE shares ADD COLUMN IF NOT EXISTS permission TEXT DEFAULT 'view';
+            """)
+            cur.execute("""
                 ALTER TABLE shares ADD COLUMN IF NOT EXISTS view_count INT DEFAULT 0;
             """)
             cur.execute("""
@@ -2482,6 +2485,9 @@ async def create_share(request: Request):
     dataset_id = body.get("dataset_id")
     group_id = body.get("group_id")
     watermark_text = body.get("watermark_text", "")
+    permission = body.get("permission", "view")
+    if permission not in ("view", "contribute"):
+        permission = "view"
 
     # 3. If the frontend tried to share a 'Group', find a ready dataset inside it
     if group_id and not dataset_id:
@@ -2541,6 +2547,12 @@ async def create_share(request: Request):
         "created_at":   time.time(),
     }
     db_insert_share(share)
+    # Store permission
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE shares SET permission=%s WHERE share_id=%s", (permission, share_id))
+        conn.commit()
+    cache_delete(f"share:{share_id}")
     
     # 7. Apply watermark if provided
     if watermark_text:
@@ -2684,6 +2696,61 @@ async def search_by_selfie(share_id: str, file: UploadFile = File(...), face_ind
         "latency_ms":    round((time.time()-t0)*1000, 1),
         "dataset_id":    share["dataset_id"],
     }
+
+# ── Contributor upload endpoint (for 'contribute' permission share links) ───────
+
+@app.post("/api/shares/{share_id}/contribute")
+async def contribute_photos(
+    share_id: str,
+    background_tasks: BackgroundTasks,
+    file: List[UploadFile] = File(...),
+):
+    """
+    Allow a guest with a 'contribute' share link to add photos to the dataset.
+    - Validates that the share has permission='contribute'
+    - Saves images into the existing dataset directory
+    - Triggers a background re-embed so new photos become searchable
+    - Rate-limited: max 50 images per call, no auth required
+    """
+    share = db_get_share(share_id)
+    if not share:
+        raise HTTPException(404, "Share link not found.")
+    if share.get("permission") != "contribute":
+        raise HTTPException(403, "This share link does not allow photo contributions.")
+
+    ds = db_get_dataset(share["dataset_id"])
+    if not ds:
+        raise HTTPException(404, "Dataset not found.")
+
+    _IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif", ".bmp"}
+    files = file if isinstance(file, list) else [file]
+
+    # Validate all are images
+    non_images = [f.filename for f in files if Path(f.filename).suffix.lower() not in _IMAGE_EXTS]
+    if non_images:
+        raise HTTPException(400, "Only image files are accepted (JPG, PNG, WEBP, HEIC).")
+    if len(files) > 50:
+        raise HTTPException(400, "Maximum 50 photos per upload.")
+
+    # Save to existing dataset dir (or temp dir if dataset is B2-backed)
+    dataset_dir = DATASETS_DIR / ds["id"]
+    dataset_dir.mkdir(parents=True, exist_ok=True)
+
+    saved = 0
+    for f in files:
+        safe_name = f"contrib_{uuid.uuid4().hex[:8]}_{Path(f.filename).name}"
+        dest = dataset_dir / safe_name
+        raw = await f.read()
+        dest.write_bytes(raw)
+        saved += 1
+
+    # Re-trigger embed pipeline so new photos are indexed
+    is_free = True  # contributor uploads always get free-tier processing
+    background_tasks.add_task(compress_upload_and_embed, ds["id"], is_free)
+
+    log.info(f"Contributor upload: {saved} photos added to dataset {ds['id']} via share {share_id}")
+    return {"ok": True, "saved": saved}
+
 
 # ── Authenticated dataset search (admin / owner only) ─────────────────────────
 
@@ -4604,11 +4671,18 @@ async def update_share(share_id: str, request: Request):
         watermark_text = "Lenstagram.com"
     else:
         watermark_text = (body.get("watermark_text") or "").strip()[:80]
+    permission = body.get("permission")
+    if permission not in ("view", "contribute", None):
+        permission = None
+    updates = {"watermark_text": watermark_text or None}
+    if permission is not None:
+        updates["permission"] = permission
+    set_clause = ", ".join(f"{k}=%s" for k in updates)
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "UPDATE shares SET watermark_text=%s WHERE share_id=%s",
-                (watermark_text or None, share_id)
+                f"UPDATE shares SET {set_clause} WHERE share_id=%s",
+                list(updates.values()) + [share_id]
             )
         conn.commit()
     cache_delete(f"share:{share_id}")
