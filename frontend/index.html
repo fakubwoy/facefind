@@ -1144,7 +1144,7 @@
         <a href="#use-cases" class="nav-link">Moments</a>
         <a href="/pricing.html" class="nav-link">Pricing</a>
         <a href="#faq" class="nav-link">FAQ</a>
-        <a href="/login.html" class="nav-cta">Get Started Free</a>
+        <a href="/login.html" class="nav-cta" id="ctaNav">Get Started Free</a>
       </div>
       <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">
         <span></span><span></span><span></span>
@@ -1168,7 +1168,7 @@
         Your photos capture the magic. Lenstagram makes sure everyone gets to experience it. With a simple selfie, guests instantly uncover every smile, tear, and dance move they were part of.
       </p>
       <div class="hero-actions">
-        <a href="/login.html" class="btn-primary">
+        <a href="/login.html" class="btn-primary" id="ctaHero">
           Start sharing joy
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <path d="M5 12h14M12 5l7 7-7 7" />
@@ -1420,7 +1420,7 @@
         <div class="privacy-title">Sacred memories stay safe</div>
         <p class="privacy-desc">We treat your clients' most vulnerable, beautiful moments with the utmost respect. Lenstagram keeps everything completely private and secure. No selling data, no creepy third-party tracking—just a safe haven for your art and their cherished memories.</p>
       </div>
-      <a href="/login.html" class="btn-white">Start your free trial <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+      <a href="/login.html" class="btn-white" id="ctaBanner">Start your free trial <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <path d="M5 12h14M12 5l7 7-7 7" />
         </svg></a>
     </div>
@@ -1725,6 +1725,27 @@
         if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
     });
+
+    // ── Auth check: redirect CTAs to /admin.html if already logged in ──
+    (function() {
+      const API = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+        ? 'http://localhost:8000' : window.location.origin;
+      if (!document.cookie.includes('ff_token')) return;
+      fetch(`${API}/api/auth/me`, { credentials: 'include' })
+        .then(r => {
+          if (!r.ok) return;
+          const dest = '/admin.html';
+          ['ctaNav', 'ctaHero', 'ctaBanner'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.href = dest;
+          });
+          // Also update the footer "Sign in" link
+          document.querySelectorAll('a[href="/login.html"]').forEach(el => {
+            el.href = dest;
+          });
+        })
+        .catch(() => {});
+    })();
   </script>
 </body>
 </html>
