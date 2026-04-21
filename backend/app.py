@@ -2781,10 +2781,31 @@ async def contribute_photos(
     background_tasks.add_task(compress_upload_and_embed, ds["id"], is_free)
 
     log.info(f"Contributor upload: {saved} photos added to dataset {ds['id']} via share {share_id}")
-    return {"ok": True, "saved": saved}
+    return {"ok": True, "saved": saved, "dataset_id": ds["id"], "dataset_status": "processing"}
 
 
 # ── Authenticated dataset search (admin / owner only) ─────────────────────────
+
+@app.get("/api/shares/{share_id}/status")
+def get_share_status(share_id: str):
+    """
+    Public endpoint — no auth required.
+    Returns the processing status of the dataset behind a share link.
+    Used by the contributor page to poll reindexing progress after upload.
+    """
+    share = db_get_share(share_id)
+    if not share:
+        raise HTTPException(404, "Share link not found.")
+    ds = db_get_dataset(share["dataset_id"])
+    if not ds:
+        raise HTTPException(404, "Dataset not found.")
+    return {
+        "status":     ds.get("status", "unknown"),
+        "total":      ds.get("total", 0),
+        "processed":  ds.get("processed", 0),
+        "face_count": ds.get("face_count", 0),
+    }
+
 
 @app.post("/api/datasets/{dataset_id}/search")
 async def search_dataset_authenticated(

@@ -1403,6 +1403,74 @@
     .contrib-success-text { font-size: 14px; font-weight: 600; color: #166534; }
     .contrib-success-sub  { font-size: 12px; color: #16a34a; margin-top: 2px; }
 
+    /* ── Reindex status panel ── */
+    .reindex-panel {
+      margin-top: 16px;
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      display: none;
+    }
+    .reindex-panel.show { display: block; }
+    .reindex-panel.done { background: #f0fdf4; border-color: #86efac; }
+    .reindex-panel.done .reindex-spinner { display: none; }
+    .reindex-panel.done .reindex-check { display: flex; }
+    .reindex-header {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 13px; font-weight: 600; color: #15803d;
+    }
+    .reindex-spinner {
+      width: 16px; height: 16px; flex-shrink: 0;
+      border: 2px solid #86efac; border-top-color: #16a34a;
+      border-radius: 50%; animation: spin 0.8s linear infinite;
+    }
+    .reindex-check {
+      width: 16px; height: 16px; flex-shrink: 0;
+      background: #16a34a; border-radius: 50%;
+      display: none; align-items: center; justify-content: center; color: #fff;
+    }
+    .reindex-bar-wrap {
+      margin-top: 8px; height: 5px;
+      background: #bbf7d0; border-radius: 99px; overflow: hidden;
+    }
+    .reindex-bar-fill {
+      height: 100%; width: 5%;
+      background: #16a34a; border-radius: 99px;
+      transition: width 0.5s ease;
+    }
+    .reindex-label {
+      margin-top: 6px; font-size: 11px; color: #16a34a;
+    }
+
+    /* ── View my pics CTA ── */
+    .contrib-find-cta {
+      margin-top: 20px;
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .contrib-find-cta.show { display: flex; }
+    .contrib-find-cta-title {
+      font-size: 14px; font-weight: 700; color: var(--text);
+    }
+    .contrib-find-cta-sub {
+      font-size: 12px; color: var(--muted); margin-top: -4px;
+    }
+    .contrib-find-btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--primary); color: #fff;
+      border: none; border-radius: var(--radius-sm);
+      padding: 10px 18px; font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: opacity 0.15s;
+      align-self: flex-start;
+    }
+    .contrib-find-btn:hover { opacity: 0.88; }
+
     /* ── Perks strip ── */
     .contrib-perks {
       display: grid;
@@ -2506,8 +2574,33 @@ toast(`Photos uploaded! They'll be searchable soon.`, '<svg width="16" height="1
             </div>
             <div>
               <div class="contrib-success-text" id="contribModeSuccessText">Photos uploaded!</div>
-              <div class="contrib-success-sub">They'll appear in search results once AI processing finishes.</div>
+              <div class="contrib-success-sub" id="contribModeSuccessSub">Your photos are being processed…</div>
             </div>
+          </div>
+
+          <!-- Reindex status panel -->
+          <div class="reindex-panel" id="reindexPanel">
+            <div class="reindex-header">
+              <div class="reindex-spinner" id="reindexSpinner"></div>
+              <div class="reindex-check" id="reindexCheck">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <span id="reindexHeading">AI is indexing your photos…</span>
+            </div>
+            <div class="reindex-bar-wrap">
+              <div class="reindex-bar-fill" id="reindexBarFill"></div>
+            </div>
+            <div class="reindex-label" id="reindexLabel">Starting…</div>
+          </div>
+
+          <!-- Find my pics CTA (appears after upload, scrolls to selfie search) -->
+          <div class="contrib-find-cta" id="contribFindCta">
+            <div class="contrib-find-cta-title">Want to find your own photos?</div>
+            <div class="contrib-find-cta-sub">Upload a selfie below and AI will find every photo you appear in — even ones other contributors uploaded.</div>
+            <button class="contrib-find-btn" onclick="contribScrollToSearch()">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              Find my photos
+            </button>
           </div>
 
           <button class="contrib-upload-btn" id="contribModeUploadBtn" disabled onclick="contribModeUpload()">
@@ -2653,12 +2746,20 @@ toast(`Photos uploaded! They'll be searchable soon.`, '<svg width="16" height="1
 
       document.getElementById('contribModeSuccessText').textContent =
         `${d.saved} photo${d.saved !== 1 ? 's' : ''} uploaded successfully!`;
+      document.getElementById('contribModeSuccessSub').textContent =
+        'Your photos are being processed — this usually takes under a minute.';
       sucEl.style.display = 'flex';
       _contribQueueFiles = [];
       document.getElementById('contribModeFile').value = '';
       document.getElementById('contribModeQueue').style.display = 'none';
       toast(`${d.saved} photo${d.saved !== 1 ? 's' : ''} added to the album!`,
         '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>');
+
+      // Show the find-my-pics CTA immediately
+      document.getElementById('contribFindCta').classList.add('show');
+
+      // Start polling reindex status
+      startReindexPolling();
     } catch(e) {
       progBar.style.display = 'none';
       progLbl.style.display = 'none';
@@ -2666,6 +2767,70 @@ toast(`Photos uploaded! They'll be searchable soon.`, '<svg width="16" height="1
         '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>');
       btn.disabled = false;
     }
+  }
+
+  /* ── Reindex status polling ──────────────────────────────── */
+  let _reindexTimer = null;
+
+  function startReindexPolling() {
+    const panel   = document.getElementById('reindexPanel');
+    const fill    = document.getElementById('reindexBarFill');
+    const label   = document.getElementById('reindexLabel');
+    const heading = document.getElementById('reindexHeading');
+    const check   = document.getElementById('reindexCheck');
+
+    panel.classList.add('show');
+    fill.style.width = '5%';
+    label.textContent = 'Starting…';
+
+    if (_reindexTimer) clearInterval(_reindexTimer);
+
+    _reindexTimer = setInterval(async () => {
+      try {
+        const r = await fetch(`${API}/api/shares/${shareId}/status`);
+        if (!r.ok) return;
+        const s = await r.json();
+
+        const status = s.status || 'processing';
+        const total  = s.total  || 0;
+        const done   = s.processed || 0;
+
+        if (status === 'ready') {
+          clearInterval(_reindexTimer);
+          fill.style.width = '100%';
+          label.textContent = `Done! ${s.face_count || ''} faces indexed — your photos are searchable.`;
+          heading.textContent = 'Photos indexed and ready!';
+          panel.classList.add('done');
+          document.getElementById('contribModeSuccessSub').textContent =
+            'Your photos are indexed and ready to search!';
+          // nudge them to try the selfie search
+          document.getElementById('contribFindCta').classList.add('show');
+          toast('Your photos are now searchable!',
+            '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>');
+        } else if (status === 'processing' || status === 'compressing' || status === 'uploading') {
+          const pct = total > 0 ? Math.round((done / total) * 90) + 5 : 40;
+          fill.style.width = pct + '%';
+          const statusLabels = {
+            compressing: 'Compressing photos…',
+            uploading:   'Uploading to cloud…',
+            processing:  total > 0 ? `Indexing ${done} / ${total} photos…` : 'Indexing photos…',
+          };
+          label.textContent = statusLabels[status] || 'Processing…';
+          heading.textContent = 'AI is indexing your photos…';
+        } else if (status === 'error') {
+          clearInterval(_reindexTimer);
+          label.textContent = 'Processing error — please try again or contact support.';
+          heading.textContent = 'Something went wrong';
+          fill.style.background = '#ef4444';
+          fill.style.width = '100%';
+        }
+      } catch(_) { /* network hiccup — just wait for next tick */ }
+    }, 2500);
+  }
+
+  function contribScrollToSearch() {
+    const card = document.getElementById('uploadCard');
+    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   /* ── Init ───────────────────────────────────────────────── */
