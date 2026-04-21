@@ -127,7 +127,7 @@ def init_db():
             cur.execute("""
                 DO $$
                 BEGIN
-                    -- Drop the old UNIQUE(dataset_id) constraint if it exists
+                    -- Drop the old UNIQUE(dataset_id) constraint if it exists (either known name)
                     IF EXISTS (
                         SELECT 1 FROM pg_constraint
                         WHERE conrelid = 'shares'::regclass
@@ -135,6 +135,14 @@ def init_db():
                           AND conname = 'shares_dataset_id_key'
                     ) THEN
                         ALTER TABLE shares DROP CONSTRAINT shares_dataset_id_key;
+                    END IF;
+                    IF EXISTS (
+                        SELECT 1 FROM pg_constraint
+                        WHERE conrelid = 'shares'::regclass
+                          AND contype = 'u'
+                          AND conname = 'shares_dataset_id_unique'
+                    ) THEN
+                        ALTER TABLE shares DROP CONSTRAINT shares_dataset_id_unique;
                     END IF;
                     -- Add unique per (dataset_id, permission) if not already there
                     IF NOT EXISTS (
@@ -512,6 +520,7 @@ def db_insert_share(share: dict):
             cur.execute("""
                 INSERT INTO shares (share_id, dataset_id, dataset_name, created_at)
                 VALUES (%(share_id)s, %(dataset_id)s, %(dataset_name)s, %(created_at)s)
+                ON CONFLICT DO NOTHING
             """, share)
         conn.commit()
     cache_set(f"share:{share['share_id']}", share, ttl=300)
