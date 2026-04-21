@@ -2577,9 +2577,8 @@ async def create_share(request: Request):
         return {"share_id": existing["share_id"]}
 
     # 6. Create new share — insert permission + watermark atomically.
-    # ON CONFLICT (dataset_id) DO UPDATE handles the case where the old
-    # single-dataset-id unique constraint is still live on the DB, ensuring
-    # RETURNING always gives back the real persisted share_id (never phantom).
+    # ON CONFLICT (dataset_id, permission) keeps view and contribute as separate rows,
+    # updating only the watermark if the share already exists for that permission type.
     share_id = str(uuid.uuid4())[:12]
     wm = (watermark_text[:80] if watermark_text else None)
     with get_db() as conn:
@@ -2587,9 +2586,8 @@ async def create_share(request: Request):
             cur.execute("""
                 INSERT INTO shares (share_id, dataset_id, dataset_name, created_at, permission, watermark_text)
                 VALUES (%s, %s, %s, %s, %s, %s)
-                ON CONFLICT (dataset_id) DO UPDATE
-                    SET permission     = EXCLUDED.permission,
-                        watermark_text = EXCLUDED.watermark_text
+                ON CONFLICT (dataset_id, permission) DO UPDATE
+                    SET watermark_text = EXCLUDED.watermark_text
                 RETURNING share_id
             """, (share_id, dataset_id, ds["name"], time.time(), permission, wm))
             row = cur.fetchone()

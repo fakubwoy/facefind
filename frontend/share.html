@@ -2614,31 +2614,6 @@ toast(`Photos uploaded! They'll be searchable soon.`, '<svg width="16" height="1
     contribCard.id = 'contribModeCard';
     contribCard.className = 'fade-up';
     contribCard.innerHTML = `
-      <!-- Perks strip -->
-      <div class="contrib-perks">
-        <div class="contrib-perk">
-          <div class="contrib-perk-icon" style="background:#dcfce7;color:#16a34a;">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-          </div>
-          <div class="contrib-perk-title">Easy Upload</div>
-          <div class="contrib-perk-desc">Drag & drop up to 50 photos at once — JPG, PNG, WEBP</div>
-        </div>
-        <div class="contrib-perk">
-          <div class="contrib-perk-icon" style="background:#ede9fe;color:#7c3aed;">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          </div>
-          <div class="contrib-perk-title">AI Indexed</div>
-          <div class="contrib-perk-desc">Your photos are processed so guests can find themselves instantly</div>
-        </div>
-        <div class="contrib-perk">
-          <div class="contrib-perk-icon" style="background:#fef3c7;color:#d97706;">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-          </div>
-          <div class="contrib-perk-title">Shared With All</div>
-          <div class="contrib-perk-desc">Every photo you upload enriches the shared album for everyone</div>
-        </div>
-      </div>
-
       <!-- Upload card -->
       <div class="contrib-upload-card">
         <div class="contrib-upload-header">
@@ -2732,10 +2707,9 @@ toast(`Photos uploaded! They'll be searchable soon.`, '<svg width="16" height="1
       </button>
     `;
 
-    // Insert before the main upload card
+    // Insert the persistent toggle bar first, then contribCard below it
+    layout.insertBefore(toggleBar, uploadCard);
     layout.insertBefore(contribCard, uploadCard);
-    // Insert the persistent toggle bar right after contribCard
-    contribCard.after(toggleBar);
     obs.observe(contribCard);
 
     // Configure the existing upload card for selfie search (hidden by default in contrib mode)
