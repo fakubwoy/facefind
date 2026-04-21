@@ -2715,17 +2715,7 @@ toast(`Photos uploaded! They'll be searchable soon.`, '<svg width="16" height="1
         </div>
       </div>
 
-      <!-- Mode toggle bar -->
-      <div class="mode-toggle-bar" id="contribModeToggleBar">
-        <button class="mode-toggle-btn active" id="modeBtnUpload" onclick="setContribMode('upload')">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-          Upload Photos
-        </button>
-        <button class="mode-toggle-btn" id="modeBtnSearch" onclick="setContribMode('search')">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          Find My Photos
-        </button>
-      </div>`;
+      `;
 
     // Create a persistent toggle bar outside contribModeCard so it survives mode switches
     const toggleBar = document.createElement('div');
