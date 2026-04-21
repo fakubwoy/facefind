@@ -2817,6 +2817,149 @@ def serve_thumb(dataset_id: str, image_path: str):
     return FileResponse(str(thumb_path), media_type="image/jpeg",
                         headers={"Cache-Control": "public, max-age=604800, immutable"})
 
+# ── Dataset image management endpoints ───────────────────────────────────────
+
+@app.get("/api/datasets/{dataset_id}/images")
+def list_dataset_images(dataset_id: str, request: Request):
+    """
+    Return a paginated list of all image paths in a dataset.
+    Owner-only. Used by the admin image browser.
+    Query params: page (default 1), per_page (default 60, max 200)
+    """
+    user = require_auth(request)
+    ds = db_get_dataset(dataset_id)
+    if not ds:
+        raise HTTPException(404, "Dataset not found.")
+    if ds["user_id"] != user["id"]:
+        raise HTTPException(403, "Not your dataset.")
+
+    page     = max(1, int(request.query_params.get("page", 1)))
+    per_page = min(200, max(1, int(request.query_params.get("per_page", 60))))
+    exts     = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
+
+    if b2.b2_configured():
+        all_keys = [
+            k for k in b2.list_keys(f"datasets/{dataset_id}/")
+            if Path(k).suffix.lower() in exts
+        ]
+        # Strip the "datasets/{dataset_id}/" prefix to get rel paths
+        prefix   = f"datasets/{dataset_id}/"
+        rel_keys = [k[len(prefix):] for k in all_keys]
+    else:
+        dataset_dir = DATASETS_DIR / dataset_id
+        if not dataset_dir.exists():
+            rel_keys = []
+        else:
+            rel_keys = [
+                str(p.relative_to(dataset_dir))
+                for p in dataset_dir.rglob("*")
+                if p.suffix.lower() in exts
+            ]
+
+    rel_keys.sort()
+    total     = len(rel_keys)
+    start     = (page - 1) * per_page
+    page_keys = rel_keys[start: start + per_page]
+
+    return {
+        "dataset_id": dataset_id,
+        "total":      total,
+        "page":       page,
+        "per_page":   per_page,
+        "pages":      max(1, (total + per_page - 1) // per_page),
+        "images":     page_keys,
+    }
+
+
+
+
+@app.delete("/api/datasets/{dataset_id}/images/{image_path:path}")
+def delete_dataset_image(dataset_id: str, image_path: str,
+                          request: Request, background_tasks: BackgroundTasks):
+    """
+    Delete a single image from a dataset, then trigger a background re-index.
+    Owner-only.
+    """
+    user = require_auth(request)
+    ds = db_get_dataset(dataset_id)
+    if not ds:
+        raise HTTPException(404, "Dataset not found.")
+    if ds["user_id"] != user["id"]:
+        raise HTTPException(403, "Not your dataset.")
+
+    deleted = False
+
+    if b2.b2_configured():
+        b2_key = f"datasets/{dataset_id}/{image_path}"
+        try:
+            # Use the generic b2 delete — works for any key
+            b2_client = b2.get_b2_client()
+            bucket    = b2_client.get_bucket_by_name(b2.B2_BUCKET_NAME)
+            # list_file_names to get the fileId needed for deletion
+            file_list = bucket.ls(folder_to_list=b2_key, latest_only=True)
+            for file_version, _ in file_list:
+                file_version.delete()
+                deleted = True
+                break
+            # Best-effort: delete cached thumb
+            try:
+                thumb_key = b2_key + ".thumb.jpg"
+                thumb_list = bucket.ls(folder_to_list=thumb_key, latest_only=True)
+                for tv, _ in thumb_list:
+                    tv.delete()
+                    break
+            except Exception:
+                pass
+        except Exception as e:
+            log.warning(f"B2 delete failed for datasets/{dataset_id}/{image_path}: {e}")
+            raise HTTPException(500, f"Failed to delete image from B2 storage: {e}")
+    else:
+        local_path = DATASETS_DIR / dataset_id / image_path
+        if local_path.exists():
+            local_path.unlink()
+            deleted = True
+            thumb_path = THUMBS_DIR / dataset_id / (image_path + ".thumb.jpg")
+            if thumb_path.exists():
+                thumb_path.unlink()
+
+    if not deleted and not b2.b2_configured():
+        raise HTTPException(404, "Image not found.")
+
+    # Decrement total; mark dataset as queued so UI shows re-indexing state
+    new_total = max(0, (ds.get("total") or 1) - 1)
+    db_update_dataset_fields(dataset_id, total=new_total, status="queued")
+
+    # Evict stale in-memory FAISS index
+    with _index_cache_lock:
+        _index_cache.pop(dataset_id, None)
+
+    background_tasks.add_task(run_embedding_job, dataset_id)
+    log.info(f"[{dataset_id}] Image deleted: {image_path} by user {user['id']} — re-indexing queued")
+    return {"ok": True, "deleted": image_path, "reindexing": True}
+
+
+@app.post("/api/datasets/{dataset_id}/reindex")
+def reindex_dataset(dataset_id: str, request: Request, background_tasks: BackgroundTasks):
+    """
+    Manually trigger a full re-index of a dataset.
+    Owner-only. Safe to call multiple times.
+    """
+    user = require_auth(request)
+    ds = db_get_dataset(dataset_id)
+    if not ds:
+        raise HTTPException(404, "Dataset not found.")
+    if ds["user_id"] != user["id"]:
+        raise HTTPException(403, "Not your dataset.")
+
+    with _index_cache_lock:
+        _index_cache.pop(dataset_id, None)
+
+    db_update_dataset_fields(dataset_id, status="queued")
+    background_tasks.add_task(run_embedding_job, dataset_id)
+    log.info(f"[{dataset_id}] Manual reindex triggered by user {user['id']}")
+    return {"ok": True, "dataset_id": dataset_id, "status": "queued"}
+
+
 # ── Download & license endpoints ──────────────────────────────────────────────
 
 @app.get("/api/download/info")

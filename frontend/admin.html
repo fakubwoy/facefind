@@ -1487,6 +1487,107 @@
       cursor: pointer; transition: all 0.2s; white-space: nowrap;
     }
     .drive-preview-clear:hover { border-color: var(--error); color: var(--error); background: rgba(220,38,38,0.05); }
+
+    /* ── Image Browser Modal ─────────────────────────────────────────── */
+    #imageBrowserModal { z-index: 1100; }
+    #imageBrowserModal .modal {
+      max-width: 960px; width: 96vw;
+      max-height: 90vh; display: flex; flex-direction: column; padding: 0; overflow: hidden;
+    }
+    .ib-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 18px 22px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .ib-header-left { display: flex; flex-direction: column; gap: 2px; }
+    .ib-title { font-size: 16px; font-weight: 700; color: var(--text1); }
+    .ib-subtitle { font-size: 12px; color: var(--muted); }
+    .ib-header-actions { display: flex; gap: 8px; align-items: center; }
+    .ib-grid-wrap {
+      flex: 1; overflow-y: auto; padding: 16px 18px;
+    }
+    .ib-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 10px;
+    }
+    .ib-tile {
+      position: relative; border-radius: 10px; overflow: hidden;
+      background: var(--surface); border: 1.5px solid var(--border);
+      aspect-ratio: 1 / 1; cursor: pointer;
+      transition: border-color 0.15s, transform 0.12s;
+    }
+    .ib-tile:hover { border-color: var(--primary); transform: scale(1.02); }
+    .ib-tile img {
+      width: 100%; height: 100%; object-fit: cover; display: block;
+      background: var(--surface2);
+    }
+    .ib-tile-del {
+      position: absolute; top: 5px; right: 5px;
+      width: 22px; height: 22px; border-radius: 50%;
+      background: rgba(220,38,38,0.88); border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; transition: opacity 0.15s;
+      color: #fff; font-size: 13px; font-weight: 700; line-height: 1;
+    }
+    .ib-tile:hover .ib-tile-del { opacity: 1; }
+    .ib-tile-del:hover { background: #dc2626; transform: scale(1.1); }
+    .ib-tile-overlay {
+      position: absolute; inset: 0; background: rgba(220,38,38,0.18);
+      display: none; align-items: center; justify-content: center;
+    }
+    .ib-tile.deleting .ib-tile-overlay { display: flex; }
+    .ib-tile.deleting img { opacity: 0.4; }
+    .ib-empty {
+      grid-column: 1 / -1; text-align: center; padding: 48px 20px;
+      color: var(--muted); font-size: 14px;
+    }
+    .ib-spinner-tile {
+      width: 18px; height: 18px; border: 2.5px solid rgba(255,255,255,0.4);
+      border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite;
+    }
+    .ib-footer {
+      padding: 12px 18px; border-top: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      flex-shrink: 0; gap: 12px;
+    }
+    .ib-pagination { display: flex; align-items: center; gap: 6px; }
+    .ib-page-btn {
+      padding: 5px 12px; border-radius: 7px; border: 1.5px solid var(--border);
+      background: none; color: var(--text2); font-size: 12px; font-weight: 600;
+      cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; transition: all 0.15s;
+    }
+    .ib-page-btn:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+    .ib-page-btn:disabled { opacity: 0.35; cursor: default; }
+    .ib-page-info { font-size: 12px; color: var(--muted); }
+    .ib-reindex-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 14px; border-radius: 8px;
+      background: none; border: 1.5px solid var(--border);
+      color: var(--text2); font-size: 12px; font-weight: 600;
+      cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; transition: all 0.15s;
+    }
+    .ib-reindex-btn:hover { border-color: var(--primary); color: var(--primary); background: rgba(79,70,229,0.05); }
+    .ib-reindex-btn.running { opacity: 0.6; pointer-events: none; }
+    .ib-loading {
+      display: flex; align-items: center; justify-content: center;
+      padding: 60px 20px; color: var(--muted); font-size: 14px; gap: 10px;
+    }
+    .ib-lightbox {
+      display: none; position: fixed; inset: 0; z-index: 1200;
+      background: rgba(0,0,0,0.88); align-items: center; justify-content: center;
+    }
+    .ib-lightbox.open { display: flex; }
+    .ib-lightbox img { max-width: 92vw; max-height: 88vh; border-radius: 10px; object-fit: contain; }
+    .ib-lightbox-close {
+      position: fixed; top: 18px; right: 22px; background: none; border: none;
+      color: #fff; font-size: 28px; cursor: pointer; line-height: 1; opacity: 0.7;
+    }
+    .ib-lightbox-close:hover { opacity: 1; }
+    .btn-view-photos {
+      border-color: rgba(79,70,229,0.3) !important;
+      color: var(--primary) !important;
+    }
+    .btn-view-photos:hover { background: rgba(79,70,229,0.07) !important; border-color: var(--primary) !important; }
   </style>
 </head>
 <body>
@@ -2342,6 +2443,48 @@
     </div>
   </div>
 
+  <!-- ── Image Browser Modal ─────────────────────────────────────────────── -->
+  <div class="modal-overlay" id="imageBrowserModal">
+    <div class="modal">
+      <div class="ib-header">
+        <div class="ib-header-left">
+          <div class="ib-title" id="ibTitle">Album Photos</div>
+          <div class="ib-subtitle" id="ibSubtitle">Loading…</div>
+        </div>
+        <div class="ib-header-actions">
+          <button class="ib-reindex-btn" id="ibReindexBtn" onclick="ibReindex()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            Refresh Face Data
+          </button>
+          <button class="modal-close" onclick="closeImageBrowser()" style="position:static;transform:none;margin-left:8px;">×</button>
+        </div>
+      </div>
+
+      <div class="ib-grid-wrap" id="ibGridWrap">
+        <div class="ib-loading" id="ibLoading">
+          <div style="width:20px;height:20px;border:2.5px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin 0.7s linear infinite;"></div>
+          Loading your photos…
+        </div>
+        <div class="ib-grid" id="ibGrid" style="display:none;"></div>
+      </div>
+
+      <div class="ib-footer">
+        <div class="ib-pagination">
+          <button class="ib-page-btn" id="ibPrevBtn" onclick="ibLoadPage(ibState.page - 1)" disabled>← Prev</button>
+          <span class="ib-page-info" id="ibPageInfo">—</span>
+          <button class="ib-page-btn" id="ibNextBtn" onclick="ibLoadPage(ibState.page + 1)" disabled>Next →</button>
+        </div>
+        <div style="font-size:12px;color:var(--muted);" id="ibTotalInfo">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Image Browser Lightbox ──────────────────────────────────────────── -->
+  <div class="ib-lightbox" id="ibLightbox" onclick="ibCloseLightbox()">
+    <button class="ib-lightbox-close" onclick="ibCloseLightbox()">×</button>
+    <img id="ibLightboxImg" src="" alt="">
+  </div>
+
 <script>
   // ── QR generation (simple canvas-based, no external library needed) ─────────
   function generateQRCanvas(url, canvas) {
@@ -2910,12 +3053,12 @@
 
   function renderDatasetItem(ds) {
     const statusBadge = {
-      queued:      '<span class="badge badge-queued">Waiting</span>',
-      compressing: '<span class="badge badge-compressing">Preparing</span>',
-      downloading: '<span class="badge badge-downloading">Fetching</span>',
-      processing:  '<span class="badge badge-processing">Scanning…</span>',
+      queued:      '<span class="badge badge-queued">In queue</span>',
+      compressing: '<span class="badge badge-compressing">Getting ready…</span>',
+      downloading: '<span class="badge badge-downloading">Importing…</span>',
+      processing:  '<span class="badge badge-processing">Finding faces…</span>',
       ready:       '<span class="badge badge-ready">Ready</span>',
-      error:       '<span class="badge badge-error">Error</span>',
+      error:       '<span class="badge badge-error">Something went wrong</span>',
     }[ds.status] || `<span class="badge">${ds.status}</span>`;
 
     const faceCount = ds.face_count ? `<span class="dataset-size"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="4"/><path d="M11 7a4 4 0 0 1 4 4"/></svg>${ds.face_count.toLocaleString('en-IN')} faces</span>` : '';
@@ -2934,6 +3077,9 @@
       </div>
       <div class="dataset-actions">
         ${selectBtn}
+        ${ds.status === 'ready' ? `<button class="btn-add btn-view-photos" onclick="openImageBrowser('${ds.id}', '${escHtml(ds.name || ds.id)}')">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> View Photos
+        </button>` : ''}
         <button class="btn-add" onclick="openAddImages('${ds.id}', '${escHtml(ds.name || ds.id)}')">
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add Photos
         </button>
@@ -2951,6 +3097,184 @@
     document.getElementById('shareBtn').disabled = false;
     toast('Album selected — now create your share link!');
   }
+
+  // ── Image Browser ────────────────────────────────────────────────────────
+  const ibState = { datasetId: null, name: '', page: 1, pages: 1, total: 0 };
+
+  function openImageBrowser(datasetId, name) {
+    ibState.datasetId = datasetId;
+    ibState.name      = name;
+    ibState.page      = 1;
+    document.getElementById('ibTitle').textContent    = name || 'Album Photos';
+    document.getElementById('ibSubtitle').textContent = 'Loading…';
+    document.getElementById('imageBrowserModal').classList.add('show');
+    ibLoadPage(1);
+  }
+
+  function closeImageBrowser() {
+    document.getElementById('imageBrowserModal').classList.remove('show');
+    ibState.datasetId = null;
+    document.getElementById('ibGrid').innerHTML    = '';
+    document.getElementById('ibGrid').style.display = 'none';
+    document.getElementById('ibLoading').style.display = 'flex';
+    // Refresh group list in case images were deleted / reindex triggered
+    loadGroups();
+  }
+
+  async function ibLoadPage(page) {
+    if (!ibState.datasetId) return;
+    page = Math.max(1, page);
+
+    // Show loading state
+    document.getElementById('ibLoading').style.display = 'flex';
+    document.getElementById('ibGrid').style.display    = 'none';
+    document.getElementById('ibPrevBtn').disabled      = true;
+    document.getElementById('ibNextBtn').disabled      = true;
+    document.getElementById('ibSubtitle').textContent  = 'Loading…';
+
+    try {
+      const resp = await fetch(
+        `${API}/api/datasets/${ibState.datasetId}/images?page=${page}&per_page=60`,
+        { credentials: 'include' }
+      );
+      if (!resp.ok) throw new Error((await resp.json()).detail || 'Failed to load');
+      const data = await resp.json();
+
+      ibState.page  = data.page;
+      ibState.pages = data.pages;
+      ibState.total = data.total;
+
+      document.getElementById('ibSubtitle').textContent =
+        `${data.total.toLocaleString('en-IN')} photo${data.total !== 1 ? 's' : ''}`;
+      document.getElementById('ibPageInfo').textContent =
+        `Page ${data.page} of ${data.pages}`;
+      document.getElementById('ibTotalInfo').textContent =
+        `${data.total.toLocaleString('en-IN')} photos total`;
+
+      document.getElementById('ibPrevBtn').disabled = data.page <= 1;
+      document.getElementById('ibNextBtn').disabled = data.page >= data.pages;
+
+      ibRenderGrid(data.images, data.dataset_id);
+
+    } catch (e) {
+      document.getElementById('ibLoading').textContent = 'Couldn\'t load photos — please try again';
+      toast('Couldn\'t load photos — please try again', 'error');
+    }
+  }
+
+  function ibRenderGrid(images, datasetId) {
+    const grid = document.getElementById('ibGrid');
+    grid.innerHTML = '';
+
+    if (!images || images.length === 0) {
+      grid.innerHTML = '<div class="ib-empty">No photos in this album yet.</div>';
+      document.getElementById('ibLoading').style.display = 'none';
+      grid.style.display = 'grid';
+      return;
+    }
+
+    images.forEach(imgPath => {
+      const thumbUrl = `${API}/api/thumb/${datasetId}/${imgPath}`;
+      const fullUrl  = `${API}/api/image/${datasetId}/${imgPath}`;
+
+      const tile = document.createElement('div');
+      tile.className = 'ib-tile';
+      tile.dataset.path = imgPath;
+      tile.innerHTML = `
+        <img src="${thumbUrl}" alt="" loading="lazy" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 fill=%22%23f3f4f6%22/><text x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22%239ca3af%22 font-size=%2212%22>No preview</text></svg>'">
+        <button class="ib-tile-del" title="Delete photo" onclick="event.stopPropagation(); ibDeleteImage('${escHtml(imgPath)}', this)">×</button>
+        <div class="ib-tile-overlay"><div class="ib-spinner-tile"></div></div>
+      `;
+      tile.addEventListener('click', () => ibOpenLightbox(fullUrl));
+      grid.appendChild(tile);
+    });
+
+    document.getElementById('ibLoading').style.display = 'none';
+    grid.style.display = 'grid';
+  }
+
+  async function ibDeleteImage(imgPath, btn) {
+    if (!ibState.datasetId) return;
+    if (!confirm(`Remove "${imgPath.split('/').pop()}" from this album?\n\nFace matching will be updated automatically.`)) return;
+
+    const tile = btn.closest('.ib-tile');
+    tile.classList.add('deleting');
+    btn.disabled = true;
+
+    try {
+      const resp = await fetch(
+        `${API}/api/datasets/${ibState.datasetId}/images/${encodeURIComponent(imgPath)}`,
+        { method: 'DELETE', credentials: 'include' }
+      );
+      if (!resp.ok) throw new Error((await resp.json()).detail || 'Could not remove photo');
+
+      // Animate tile out
+      tile.style.transition = 'opacity 0.25s, transform 0.25s';
+      tile.style.opacity    = '0';
+      tile.style.transform  = 'scale(0.85)';
+      setTimeout(() => tile.remove(), 260);
+
+      ibState.total = Math.max(0, ibState.total - 1);
+      document.getElementById('ibSubtitle').textContent =
+        `${ibState.total.toLocaleString('en-IN')} photo${ibState.total !== 1 ? 's' : ''} · updating…`;
+      document.getElementById('ibTotalInfo').textContent =
+        `${ibState.total.toLocaleString('en-IN')} photos total`;
+
+      toast('Photo removed — updating face matching in the background');
+
+    } catch (e) {
+      tile.classList.remove('deleting');
+      btn.disabled = false;
+      toast('Couldn\'t remove this photo — please try again', 'error');
+    }
+  }
+
+  async function ibReindex() {
+    if (!ibState.datasetId) return;
+    const btn = document.getElementById('ibReindexBtn');
+    btn.classList.add('running');
+    btn.querySelector('svg').style.animation = 'spin 0.7s linear infinite';
+    try {
+      const resp = await fetch(
+        `${API}/api/datasets/${ibState.datasetId}/reindex`,
+        { method: 'POST', credentials: 'include' }
+      );
+      if (!resp.ok) throw new Error((await resp.json()).detail || 'Update failed');
+      toast('Face matching is being updated — this runs in the background');
+      document.getElementById('ibSubtitle').textContent =
+        `${ibState.total.toLocaleString('en-IN')} photos · updating…`;
+    } catch (e) {
+      toast('Something went wrong — please try again', 'error');
+    } finally {
+      setTimeout(() => {
+        btn.classList.remove('running');
+        btn.querySelector('svg').style.animation = '';
+      }, 2000);
+    }
+  }
+
+  function ibOpenLightbox(fullUrl) {
+    const lb  = document.getElementById('ibLightbox');
+    const img = document.getElementById('ibLightboxImg');
+    img.src   = fullUrl;
+    lb.classList.add('open');
+  }
+
+  function ibCloseLightbox() {
+    document.getElementById('ibLightbox').classList.remove('open');
+    document.getElementById('ibLightboxImg').src = '';
+  }
+
+  // Close image browser lightbox on Escape
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      if (document.getElementById('ibLightbox').classList.contains('open')) {
+        ibCloseLightbox();
+      } else if (document.getElementById('imageBrowserModal').classList.contains('show')) {
+        closeImageBrowser();
+      }
+    }
+  });
 
   async function deleteDataset(id) {
     if (!confirm('Delete this album? This cannot be undone.')) return;
@@ -3434,20 +3758,20 @@
         const pct = modelLoading ? -1
                   : d.total > 0 ? Math.round((d.processed / d.total) * 100) : 0;
         const phase = modelLoading ? 'Identifying faces…'
-                    : d.status === 'processing'  ? 'Recognising faces…'
-                    : d.status === 'downloading' ? 'Fetching from Google Drive'
-                    : d.status === 'compressing' ? 'Preparing photos'
+                    : d.status === 'processing'  ? 'Finding faces…'
+                    : d.status === 'downloading' ? 'Importing from Google Drive…'
+                    : d.status === 'compressing' ? 'Getting photos ready…'
                     : d.status === 'ready'        ? 'All done!'
                     : d.status === 'error'         ? 'Something went wrong'
                     : 'In queue…';
         const detail = modelLoading
           ? 'Getting things ready, this takes a moment…'
           : d.status === 'processing' && d.total > 0
-          ? `${d.processed} of ${d.total} photos scanned`
+          ? `${d.processed} of ${d.total} photos checked`
           : d.status === 'downloading'
           ? 'Fetching your photos from Google Drive…'
           : d.status === 'ready'
-          ? `${d.face_count} people recognised`
+          ? `${d.face_count} people found`
           : d.error || '—';
         const etp = d.eta_seconds > 0
           ? (d.eta_seconds > 3600 ? `${Math.round(d.eta_seconds/3600)}h` : d.eta_seconds > 60 ? `${Math.round(d.eta_seconds/60)} min` : `${d.eta_seconds}s`)
