@@ -424,7 +424,7 @@ def db_list_datasets(user_id: str) -> dict:
             cur.execute("SELECT * FROM datasets WHERE user_id = %s ORDER BY created_at DESC", (user_id,))
             rows = cur.fetchall()
     result = {row["id"]: dict(row) for row in rows}
-    cache_set(f"datasets:{user_id}", result, ttl=5)
+    cache_set(f"datasets:{user_id}", result, ttl=15)
     return result
 
 def db_upsert_dataset(ds: dict):
@@ -1564,9 +1564,12 @@ def db_create_group(user_id: str, name: str, description: str = "", watermark_te
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             """, (group_id, user_id, name, description, watermark_text or "", event_type, event_date or None, now))
         conn.commit()
-    return {"id": group_id, "user_id": user_id, "name": name, "description": description,
-            "watermark_text": watermark_text, "event_type": event_type,
-            "event_date": event_date or None, "created_at": now}
+    result = {"id": group_id, "user_id": user_id, "name": name, "description": description,
+              "watermark_text": watermark_text, "event_type": event_type,
+              "event_date": event_date or None, "created_at": now}
+    cache_delete(f"group:{group_id}")
+    cache_delete(f"groups:{user_id}")
+    return result
 
 
 def db_get_group(group_id: str) -> Optional[dict]:
@@ -1585,6 +1588,9 @@ def db_get_group(group_id: str) -> Optional[dict]:
 
 
 def db_list_groups(user_id: str) -> list:
+    cached = cache_get(f"groups:{user_id}")
+    if cached:
+        return cached
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -1592,7 +1598,9 @@ def db_list_groups(user_id: str) -> list:
                 (user_id,)
             )
             rows = cur.fetchall()
-    return [dict(r) for r in rows]
+    result = [dict(r) for r in rows]
+    cache_set(f"groups:{user_id}", result, ttl=30)
+    return result
 
 
 def db_update_group(group_id: str, **fields):
@@ -1605,14 +1613,22 @@ def db_update_group(group_id: str, **fields):
             cur.execute(f"UPDATE event_groups SET {set_clause} WHERE id=%s", values)
         conn.commit()
     cache_delete(f"group:{group_id}")
+    # Invalidate list cache — look up user_id from the (now stale) group cache or DB
+    g = db_get_group(group_id)
+    if g:
+        cache_delete(f"groups:{g['user_id']}")
 
 
 def db_delete_group(group_id: str):
+    # Fetch user_id before deleting so we can invalidate the list cache
+    g = db_get_group(group_id)
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("DELETE FROM event_groups WHERE id=%s", (group_id,))
         conn.commit()
     cache_delete(f"group:{group_id}")
+    if g:
+        cache_delete(f"groups:{g['user_id']}")
 
 
 # ── Discount code helpers ─────────────────────────────────────────────────────
@@ -1912,7 +1928,7 @@ def db_get_session_user(token: str) -> Optional[dict]:
             row = cur.fetchone()
     if row:
         user = dict(row)
-        cache_set(f"session:{token}", user, ttl=30)
+        cache_set(f"session:{token}", user, ttl=300)  # 5-min cache — was 30s
         return user
     return None
 
@@ -2144,9 +2160,8 @@ def me(request: Request):
 def list_datasets(request: Request):
     user = require_auth(request)
     datasets = db_list_datasets(user["id"])
-    # Append live disk size to each dataset (calculated from filesystem)
-    for ds_id, ds in datasets.items():
-        ds["size_bytes"] = get_dataset_disk_size(ds_id)
+    # size_bytes is intentionally omitted — it's a slow B2/disk estimate
+    # and the frontend doesn't use it for anything critical.
     return datasets
 
 @app.post("/api/datasets/upload-zip")
@@ -4350,28 +4365,38 @@ def list_groups(request: Request):
     """List all event groups for the authenticated user."""
     user = require_auth(request)
     groups = db_list_groups(user["id"])
-    # Attach dataset count and share link per group
+    if not groups:
+        return groups
+
+    group_ids = [g["id"] for g in groups]
+    placeholders = ",".join(["%s"] * len(group_ids))
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            # Bulk: dataset counts per group
+            cur.execute(
+                f"SELECT group_id, COUNT(*) as n FROM datasets WHERE user_id=%s AND group_id IN ({placeholders}) GROUP BY group_id",
+                [user["id"]] + group_ids
+            )
+            counts = {row["group_id"]: row["n"] for row in cur.fetchall()}
+
+            # Bulk: one share per group (the most recent one)
+            cur.execute(f"""
+                SELECT DISTINCT ON (d.group_id)
+                    d.group_id, s.share_id, s.view_count, s.download_count
+                FROM shares s
+                JOIN datasets d ON s.dataset_id = d.id
+                WHERE d.user_id=%s AND d.group_id IN ({placeholders})
+                ORDER BY d.group_id, s.created_at DESC
+            """, [user["id"]] + group_ids)
+            shares = {row["group_id"]: row for row in cur.fetchall()}
+
     for g in groups:
-        with get_db() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT COUNT(*) as n FROM datasets WHERE user_id=%s AND group_id=%s",
-                    (user["id"], g["id"])
-                )
-                row = cur.fetchone()
-                g["dataset_count"] = row["n"] if row else 0
-                # Find share for this group (join through datasets)
-                cur.execute("""
-                    SELECT s.share_id, s.view_count, s.download_count
-                    FROM shares s
-                    JOIN datasets d ON s.dataset_id = d.id
-                    WHERE d.user_id=%s AND d.group_id=%s
-                    LIMIT 1
-                """, (user["id"], g["id"]))
-                share_row = cur.fetchone()
-                g["share_id"] = share_row["share_id"] if share_row else None
-                g["view_count"] = share_row["view_count"] if share_row else 0
-                g["download_count"] = share_row["download_count"] if share_row else 0
+        g["dataset_count"] = counts.get(g["id"], 0)
+        share_row = shares.get(g["id"])
+        g["share_id"]       = share_row["share_id"]       if share_row else None
+        g["view_count"]     = share_row["view_count"]     if share_row else 0
+        g["download_count"] = share_row["download_count"] if share_row else 0
     return groups
 
 

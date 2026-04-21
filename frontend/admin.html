@@ -2847,10 +2847,19 @@
   });
 
   async function checkAuth() {
+    // ── Fast path: prefill from sessionStorage so the UI renders instantly ──
+    // The server call below will update/correct this within ~100ms.
+    try {
+      const cached = sessionStorage.getItem('ls_user');
+      if (cached) setProfileUser(JSON.parse(cached));
+    } catch (_) {}
+
     try {
       const r = await fetch(`${API}/api/auth/me`, { credentials: 'include' });
       if (!r.ok) { safeRedirect('/login.html'); return; }
       const user = await r.json();
+      // Persist for next page load — cheap JSON, no sensitive data risk
+      try { sessionStorage.setItem('ls_user', JSON.stringify(user)); } catch (_) {}
       setProfileUser(user);
     } catch {
       safeRedirect('/login.html');
@@ -2859,6 +2868,7 @@
 
   async function doLogout() {
     try { await fetch(`${API}/api/auth/logout`, { method: 'POST', credentials: 'include' }); } catch(e) {}
+    try { sessionStorage.removeItem('ls_user'); } catch(_) {}
     safeRedirect('/');
   }
 
@@ -5491,19 +5501,13 @@
     if (e.key === 'Escape') afpCloseLb();
   });
 
-  // ── Init ────────────────────────────────────────────────────────────────────
-  checkAuth();
-
   // ── Client-side routing ─────────────────────────────────────────────────────
-  // Restore state from URL on load, then push initial entry into history
   function _applyRouteState(state, isPopState) {
     const tab     = (state && state.tab)     || 'events';
     const groupId = (state && state.groupId) || null;
-    // Activate the correct section tab without pushing another history entry
     switchSection(tab, null, null, /*_skipHistory=*/true);
     if (tab === 'events') {
       if (groupId) {
-        // Wait for groups to be loaded before opening group detail
         const tryOpen = (attempts) => {
           if (groups[groupId]) {
             openGroup(groupId, /*_skipHistory=*/true);
@@ -5522,24 +5526,21 @@
     _applyRouteState(e.state, true);
   });
 
-  // Read initial URL params and set up first history entry
   const _initParams = new URLSearchParams(window.location.search);
   const _initTab    = _initParams.get('tab') || 'events';
   const _initGroup  = _initParams.get('group') || null;
-
-  // Replace the current history entry with the parsed state (no extra entry)
-  const _initState = { tab: _initTab, groupId: _initGroup };
+  const _initState  = { tab: _initTab, groupId: _initGroup };
   history.replaceState(_initState, '', window.location.href);
 
+  // ── Init — all three requests fire in parallel, no waterfall ────────────────
+  checkAuth();
+  loadPlanBanner();
   loadGroups().then(() => {
     loadAnalytics();
-    // Restore tab/group from URL after groups are loaded
     _applyRouteState(_initState, false);
   });
-  loadPlanBanner();
 
-  // Background refresh intentionally removed — data is refreshed on user actions
-  // and active uploads are handled by dedicated polling intervals.
+  // Background refresh intentionally removed — data is refreshed on user actions.
 
   // ── Photo Preview Panel ──────────────────────────────────────────────────────
   // Stores {file, url, removed} objects for all selected files
