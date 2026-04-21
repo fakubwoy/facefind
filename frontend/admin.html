@@ -2871,7 +2871,7 @@
   }
 
   // ── Section & Tab switching ─────────────────────────────────────────────────
-  function switchSection(name, btn, groupId) {
+  function switchSection(name, btn, groupId, _skipHistory) {
     document.querySelectorAll('.section-tab').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.section-panel').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.section-tab').forEach(b => {
@@ -2894,6 +2894,11 @@
     }
     // Sync stepper active indicator to current tab
     syncStepperToSection(name);
+    // Push history entry so browser back/forward works between tabs
+    if (!_skipHistory) {
+      const params = new URLSearchParams({ tab: name });
+      history.pushState({ tab: name }, '', '?' + params.toString());
+    }
   }
 
   function syncStepperToSection(name) {
@@ -2907,7 +2912,7 @@
   }
 
   function goUploadForGroup(groupId) {
-    showGroupsList();
+    showGroupsList(/*_skipHistory=*/true);
     setTimeout(() => switchSection('upload', document.querySelectorAll('.section-tab')[1], groupId), 50);
   }
 
@@ -3241,13 +3246,19 @@
     if (restore) sel.value = restore;
   }
 
-  function openGroup(groupId) {
+  function openGroup(groupId, _skipHistory) {
     currentGroupId = groupId;
     const g = groups[groupId];
     document.getElementById('eventsListView').style.display = 'none';
     document.getElementById('groupDetailView').style.display = '';
     document.getElementById('groupDetailTitle').textContent = g?.name || 'Event Photos';
     loadDatasets(groupId);
+
+    // Push history so back button returns to events list
+    if (!_skipHistory) {
+      const params = new URLSearchParams({ tab: 'events', group: groupId });
+      history.pushState({ tab: 'events', groupId }, '', '?' + params.toString());
+    }
 
     // Reset watermark UI first
     applyWatermarkPlanUI();
@@ -3291,13 +3302,16 @@
     }
   }
 
-  function showGroupsList() {
+  function showGroupsList(_skipHistory) {
     currentGroupId = null;
     selectedDatasetId = null;
     document.getElementById('groupDetailView').style.display = 'none';
     document.getElementById('eventsListView').style.display = '';
     document.getElementById('shareBtn').disabled = true;
     loadGroups();
+    if (!_skipHistory) {
+      history.pushState({ tab: 'events' }, '', '?tab=events');
+    }
   }
 
   function showCreateGroupModal() {
@@ -5451,7 +5465,49 @@
 
   // ── Init ────────────────────────────────────────────────────────────────────
   checkAuth();
-  loadGroups().then(() => loadAnalytics());
+
+  // ── Client-side routing ─────────────────────────────────────────────────────
+  // Restore state from URL on load, then push initial entry into history
+  function _applyRouteState(state, isPopState) {
+    const tab     = (state && state.tab)     || 'events';
+    const groupId = (state && state.groupId) || null;
+    // Activate the correct section tab without pushing another history entry
+    switchSection(tab, null, null, /*_skipHistory=*/true);
+    if (tab === 'events') {
+      if (groupId) {
+        // Wait for groups to be loaded before opening group detail
+        const tryOpen = (attempts) => {
+          if (groups[groupId]) {
+            openGroup(groupId, /*_skipHistory=*/true);
+          } else if (attempts > 0) {
+            setTimeout(() => tryOpen(attempts - 1), 150);
+          }
+        };
+        tryOpen(10);
+      } else {
+        showGroupsList(/*_skipHistory=*/true);
+      }
+    }
+  }
+
+  window.addEventListener('popstate', e => {
+    _applyRouteState(e.state, true);
+  });
+
+  // Read initial URL params and set up first history entry
+  const _initParams = new URLSearchParams(window.location.search);
+  const _initTab    = _initParams.get('tab') || 'events';
+  const _initGroup  = _initParams.get('group') || null;
+
+  // Replace the current history entry with the parsed state (no extra entry)
+  const _initState = { tab: _initTab, groupId: _initGroup };
+  history.replaceState(_initState, '', window.location.href);
+
+  loadGroups().then(() => {
+    loadAnalytics();
+    // Restore tab/group from URL after groups are loaded
+    _applyRouteState(_initState, false);
+  });
   loadPlanBanner();
 
   // Background refresh intentionally removed — data is refreshed on user actions
