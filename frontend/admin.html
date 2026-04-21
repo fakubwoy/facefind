@@ -2848,19 +2848,24 @@
 
   async function checkAuth() {
     // ── Fast path: prefill from sessionStorage so the UI renders instantly ──
-    // The server call below will update/correct this within ~100ms.
     try {
       const cached = sessionStorage.getItem('ls_user');
-      if (cached) setProfileUser(JSON.parse(cached));
+      if (cached) {
+        const u = JSON.parse(cached);
+        setProfileUser(u);
+        // Also seed currentPlan so loadPlanBanner renders immediately from cache
+        currentPlan = u.plan || 'free';
+      }
     } catch (_) {}
 
     try {
       const r = await fetch(`${API}/api/auth/me`, { credentials: 'include' });
       if (!r.ok) { safeRedirect('/login.html'); return; }
       const user = await r.json();
-      // Persist for next page load — cheap JSON, no sensitive data risk
       try { sessionStorage.setItem('ls_user', JSON.stringify(user)); } catch (_) {}
       setProfileUser(user);
+      // Update plan banner with the authoritative user — no extra fetch needed
+      loadPlanBanner(user);
     } catch {
       safeRedirect('/login.html');
     }
@@ -2963,18 +2968,25 @@
   // ── Event Groups ────────────────────────────────────────────────────────────
   let groups = {};
 
-  let _datasetsCacheTs = 0; // timestamp of last datasets fetch
+  let _datasetsCacheTs = 0;
+  let _datasetsFetchInFlight = null; // deduplicates concurrent fetches
 
   async function fetchDatasetsIfStale(maxAgeMs = 2000) {
     if (Date.now() - _datasetsCacheTs < maxAgeMs) return; // already fresh
-    try {
-      const r = await fetch(`${API}/api/datasets`, { credentials: 'include' });
-      if (r.ok) { allDatasetsCache = await r.json(); _datasetsCacheTs = Date.now(); }
-    } catch {}
+    if (_datasetsFetchInFlight) return _datasetsFetchInFlight; // share in-flight fetch
+    _datasetsFetchInFlight = (async () => {
+      try {
+        const r = await fetch(`${API}/api/datasets`, { credentials: 'include' });
+        if (r.ok) { allDatasetsCache = await r.json(); _datasetsCacheTs = Date.now(); }
+      } catch {}
+      _datasetsFetchInFlight = null;
+    })();
+    return _datasetsFetchInFlight;
   }
 
   function invalidateDatasetsCache() {
-    _datasetsCacheTs = 0; // force next fetchDatasetsIfStale to actually fetch
+    _datasetsCacheTs = 0;
+    _datasetsFetchInFlight = null;
   }
 
   async function loadGroups() {
@@ -4715,13 +4727,18 @@
 
   let currentPlan = 'free';
 
-  async function loadPlanBanner() {
-    try {
-      const r = await fetch(`${API}/api/auth/me`, { credentials: 'include' });
-      if (!r.ok) return;
-      const user = await r.json();
-      currentPlan = user.plan || 'free';
-    } catch { currentPlan = 'free'; }
+  async function loadPlanBanner(prefetchedUser) {
+    // Accept a prefetched user object to avoid a redundant /api/auth/me call
+    if (prefetchedUser) {
+      currentPlan = prefetchedUser.plan || 'free';
+    } else {
+      try {
+        const r = await fetch(`${API}/api/auth/me`, { credentials: 'include' });
+        if (!r.ok) return;
+        const user = await r.json();
+        currentPlan = user.plan || 'free';
+      } catch { currentPlan = 'free'; }
+    }
 
     const cfg = PLAN_CONFIG[currentPlan] || PLAN_CONFIG.free;
     applyWatermarkPlanUI(); // update watermark section to match current plan
@@ -5532,9 +5549,10 @@
   const _initState  = { tab: _initTab, groupId: _initGroup };
   history.replaceState(_initState, '', window.location.href);
 
-  // ── Init — all three requests fire in parallel, no waterfall ────────────────
+  // ── Init — auth + groups fire in parallel; plan banner is driven by checkAuth ─
+  // checkAuth() fetches /api/auth/me ONCE and passes the result to loadPlanBanner().
+  // loadGroups() fetches /api/groups + /api/datasets (deduplicated in-flight).
   checkAuth();
-  loadPlanBanner();
   loadGroups().then(() => {
     loadAnalytics();
     _applyRouteState(_initState, false);
