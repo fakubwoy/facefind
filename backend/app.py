@@ -249,24 +249,10 @@ def init_db():
             cur.execute("""
                 ALTER TABLE razorpay_orders ADD COLUMN IF NOT EXISTS credit_applied_paise INT DEFAULT 0;
             """)
-            # Migration: enforce one share per dataset (deduplicate first, then add constraint)
-            cur.execute("""
-                DELETE FROM shares s1
-                USING shares s2
-                WHERE s1.created_at < s2.created_at
-                  AND s1.dataset_id = s2.dataset_id;
-            """)
-            cur.execute("""
-                DO $$
-                BEGIN
-                    IF NOT EXISTS (
-                        SELECT 1 FROM pg_constraint
-                        WHERE conname = 'shares_dataset_id_unique'
-                    ) THEN
-                        ALTER TABLE shares ADD CONSTRAINT shares_dataset_id_unique UNIQUE (dataset_id);
-                    END IF;
-                END$$;
-            """)
+            # Migration: old single-share-per-dataset constraint and dedup DELETE removed —
+            # superseded by the (dataset_id, permission) unique constraint above which
+            # allows separate view and contribute share rows per dataset.
+
             # License keys table
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS license_keys (
