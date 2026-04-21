@@ -699,16 +699,10 @@
     const API = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
       ? 'http://localhost:8000' : window.location.origin;
 
-    // Fast auth check: if cookie exists, verify server-side and redirect.
-    // We hide the page until we know the answer to eliminate the login flash.
+    // Auth check: always call the server since the session cookie is HttpOnly
+    // and invisible to document.cookie. fetch with credentials:include sends it.
+    // Page stays hidden until resolved to avoid a login-form flash.
     (function() {
-      const hasCookie = document.cookie.includes('ff_token');
-      if (!hasCookie) {
-        // Definitely not logged in — show the form immediately
-        document.getElementById('loginPage').style.visibility = '';
-        return;
-      }
-      // Cookie present — check with server (fast because Redis caches the session)
       fetch(`${API}/api/auth/me`, { credentials: 'include' })
         .then(r => {
           if (r.ok) {
