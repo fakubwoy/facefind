@@ -1403,73 +1403,88 @@
     .contrib-success-text { font-size: 14px; font-weight: 600; color: #166534; }
     .contrib-success-sub  { font-size: 12px; color: #16a34a; margin-top: 2px; }
 
-    /* ── Reindex status panel ── */
-    .reindex-panel {
-      margin-top: 16px;
-      background: #f0fdf4;
-      border: 1px solid #bbf7d0;
-      border-radius: var(--radius);
-      padding: 14px 16px;
+    /* ── Contrib photo preview panel ── */
+    .contrib-preview-panel {
       display: none;
-    }
-    .reindex-panel.show { display: block; }
-    .reindex-panel.done { background: #f0fdf4; border-color: #86efac; }
-    .reindex-panel.done .reindex-spinner { display: none; }
-    .reindex-panel.done .reindex-check { display: flex; }
-    .reindex-header {
-      display: flex; align-items: center; gap: 10px;
-      font-size: 13px; font-weight: 600; color: #15803d;
-    }
-    .reindex-spinner {
-      width: 16px; height: 16px; flex-shrink: 0;
-      border: 2px solid #86efac; border-top-color: #16a34a;
-      border-radius: 50%; animation: spin 0.8s linear infinite;
-    }
-    .reindex-check {
-      width: 16px; height: 16px; flex-shrink: 0;
-      background: #16a34a; border-radius: 50%;
-      display: none; align-items: center; justify-content: center; color: #fff;
-    }
-    .reindex-bar-wrap {
-      margin-top: 8px; height: 5px;
-      background: #bbf7d0; border-radius: 99px; overflow: hidden;
-    }
-    .reindex-bar-fill {
-      height: 100%; width: 5%;
-      background: #16a34a; border-radius: 99px;
-      transition: width 0.5s ease;
-    }
-    .reindex-label {
-      margin-top: 6px; font-size: 11px; color: #16a34a;
-    }
-
-    /* ── View my pics CTA ── */
-    .contrib-find-cta {
-      margin-top: 20px;
-      background: var(--surface);
+      margin-top: 14px;
       border: 1.5px solid var(--border);
       border-radius: var(--radius);
-      padding: 18px 20px;
-      display: none;
-      flex-direction: column;
+      overflow: hidden;
+      animation: fadeIn 0.2s ease;
+    }
+    .contrib-preview-panel.visible { display: block; }
+
+    .contrib-preview-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      background: #f9fafb;
+      border-bottom: 1px solid var(--border);
       gap: 10px;
     }
-    .contrib-find-cta.show { display: flex; }
-    .contrib-find-cta-title {
-      font-size: 14px; font-weight: 700; color: var(--text);
+    .contrib-preview-title {
+      font-size: 13px; font-weight: 700; color: var(--text);
+      display: flex; align-items: center; gap: 8px;
     }
-    .contrib-find-cta-sub {
-      font-size: 12px; color: var(--muted); margin-top: -4px;
+    .contrib-preview-count {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 22px; height: 22px; padding: 0 7px;
+      background: #16a34a; color: #fff;
+      font-size: 11px; font-weight: 800; border-radius: 100px;
     }
-    .contrib-find-btn {
-      display: inline-flex; align-items: center; gap: 8px;
-      background: var(--primary); color: #fff;
-      border: none; border-radius: var(--radius-sm);
-      padding: 10px 18px; font-size: 13px; font-weight: 600;
-      cursor: pointer; transition: opacity 0.15s;
-      align-self: flex-start;
+    .contrib-preview-clear {
+      font-size: 12px; font-weight: 600; color: var(--muted);
+      background: none; border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 4px 10px;
+      cursor: pointer; transition: all 0.15s;
     }
-    .contrib-find-btn:hover { opacity: 0.88; }
+    .contrib-preview-clear:hover { border-color: #ef4444; color: #ef4444; background: rgba(239,68,68,0.05); }
+
+    .contrib-preview-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+      gap: 5px;
+      padding: 10px;
+      max-height: 260px;
+      overflow-y: auto;
+      background: var(--bg);
+    }
+    .contrib-preview-grid::-webkit-scrollbar { width: 4px; }
+    .contrib-preview-grid::-webkit-scrollbar-track { background: transparent; }
+    .contrib-preview-grid::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    .contrib-preview-item {
+      position: relative; aspect-ratio: 1;
+      border-radius: 7px; overflow: hidden;
+      background: #f3f4f6;
+      border: 2px solid transparent;
+      transition: border-color 0.15s, opacity 0.2s;
+    }
+    .contrib-preview-item img {
+      width: 100%; height: 100%; object-fit: cover; display: block;
+    }
+    .contrib-preview-item-remove {
+      position: absolute; top: 3px; right: 3px;
+      width: 18px; height: 18px;
+      background: rgba(0,0,0,0.6); border: none; border-radius: 50%;
+      color: #fff; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; opacity: 0;
+      transition: opacity 0.15s, background 0.15s; padding: 0;
+    }
+    .contrib-preview-item:hover .contrib-preview-item-remove { opacity: 1; }
+    .contrib-preview-item-remove:hover { background: #ef4444; }
+    .contrib-preview-item.removed { opacity: 0.2; border-color: #ef4444; }
+    .contrib-preview-item.removed .contrib-preview-item-remove { opacity: 1; background: #ef4444; }
+
+    .contrib-preview-footer {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 9px 14px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      font-size: 12px; color: var(--muted); font-weight: 500;
+    }
+    .contrib-preview-footer strong { color: var(--text); }
 
     /* ── Perks strip ── */
     .contrib-perks {
@@ -2552,13 +2567,24 @@ toast(`Photos uploaded! They'll be searchable soon.`, '<svg width="16" height="1
             <div class="contrib-drop-hint">JPG · PNG · WEBP · HEIC &nbsp;·&nbsp; up to 50 photos per upload</div>
           </div>
 
-          <!-- File queue -->
-          <div class="contrib-queue" id="contribModeQueue">
-            <div class="contrib-queue-header">
-              <span>Ready to upload <span class="contrib-queue-count" id="contribModeQueueCount">0 photos</span></span>
-              <button class="contrib-queue-clear" onclick="contribModeClearQueue()">Clear all</button>
+          <!-- Photo preview panel -->
+          <div class="contrib-preview-panel" id="contribModePreviewPanel">
+            <div class="contrib-preview-header">
+              <div class="contrib-preview-title">
+                <span class="contrib-preview-count" id="contribModePreviewCount">0</span>
+                photos ready to upload
+              </div>
+              <button class="contrib-preview-clear" onclick="contribModeClearQueue()">Clear all</button>
             </div>
-            <div class="contrib-queue-list" id="contribModeQueueList"></div>
+            <div class="contrib-preview-grid" id="contribModePreviewGrid"></div>
+            <div class="contrib-preview-footer">
+              <span id="contribModePreviewFooter">0 photos · 0 MB</span>
+              <label style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:#16a34a;cursor:pointer;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add more
+                <input type="file" accept="image/*" multiple style="display:none;" onchange="contribModeAddMore(this.files)">
+              </label>
+            </div>
           </div>
 
           <!-- Progress -->
@@ -2574,33 +2600,8 @@ toast(`Photos uploaded! They'll be searchable soon.`, '<svg width="16" height="1
             </div>
             <div>
               <div class="contrib-success-text" id="contribModeSuccessText">Photos uploaded!</div>
-              <div class="contrib-success-sub" id="contribModeSuccessSub">Your photos are being processed…</div>
+              <div class="contrib-success-sub">They'll appear in search results once AI processing finishes.</div>
             </div>
-          </div>
-
-          <!-- Reindex status panel -->
-          <div class="reindex-panel" id="reindexPanel">
-            <div class="reindex-header">
-              <div class="reindex-spinner" id="reindexSpinner"></div>
-              <div class="reindex-check" id="reindexCheck">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
-              </div>
-              <span id="reindexHeading">AI is indexing your photos…</span>
-            </div>
-            <div class="reindex-bar-wrap">
-              <div class="reindex-bar-fill" id="reindexBarFill"></div>
-            </div>
-            <div class="reindex-label" id="reindexLabel">Starting…</div>
-          </div>
-
-          <!-- Find my pics CTA (appears after upload, scrolls to selfie search) -->
-          <div class="contrib-find-cta" id="contribFindCta">
-            <div class="contrib-find-cta-title">Want to find your own photos?</div>
-            <div class="contrib-find-cta-sub">Upload a selfie below and AI will find every photo you appear in — even ones other contributors uploaded.</div>
-            <button class="contrib-find-btn" onclick="contribScrollToSearch()">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              Find my photos
-            </button>
           </div>
 
           <button class="contrib-upload-btn" id="contribModeUploadBtn" disabled onclick="contribModeUpload()">
@@ -2661,48 +2662,77 @@ toast(`Photos uploaded! They'll be searchable soon.`, '<svg width="16" height="1
   }
 
   function contribModeRenderQueue() {
-    const queue = document.getElementById('contribModeQueue');
-    const list  = document.getElementById('contribModeQueueList');
-    const count = document.getElementById('contribModeQueueCount');
-    const btn   = document.getElementById('contribModeUploadBtn');
-    const n     = _contribQueueFiles.length;
+    const panel  = document.getElementById('contribModePreviewPanel');
+    const grid   = document.getElementById('contribModePreviewGrid');
+    const count  = document.getElementById('contribModePreviewCount');
+    const footer = document.getElementById('contribModePreviewFooter');
+    const btn    = document.getElementById('contribModeUploadBtn');
+    const active = _contribQueueFiles.filter(f => !f._removed);
+    const n      = active.length;
 
-    if (!n) { queue.style.display = 'none'; btn.disabled = true; return; }
+    if (!_contribQueueFiles.length) {
+      panel.classList.remove('visible');
+      btn.disabled = true;
+      return;
+    }
 
-    count.textContent = `${n} photo${n !== 1 ? 's' : ''}`;
-    list.innerHTML = '';
-    _contribQueueFiles.forEach(f => {
+    const totalMB = _contribQueueFiles.reduce((s, f) => s + (f._removed ? 0 : f.size), 0) / 1024 / 1024;
+    count.textContent = n;
+    footer.innerHTML = `<strong>${n}</strong> photo${n !== 1 ? 's' : ''} · <strong>${totalMB.toFixed(1)} MB</strong>`;
+
+    grid.innerHTML = '';
+    _contribQueueFiles.forEach((f, idx) => {
       const item = document.createElement('div');
-      item.className = 'contrib-queue-item';
-      const thumb = document.createElement('img');
-      thumb.className = 'contrib-queue-thumb';
-      thumb.alt = f.name;
-      const reader = new FileReader();
-      reader.onload = e => { thumb.src = e.target.result; };
-      reader.readAsDataURL(f);
-      const name = document.createElement('div');
-      name.className = 'contrib-queue-name';
-      name.textContent = f.name;
-      const size = document.createElement('div');
-      size.className = 'contrib-queue-size';
-      size.textContent = (f.size / 1024 / 1024).toFixed(1) + ' MB';
-      item.append(thumb, name, size);
-      list.appendChild(item);
+      item.className = 'contrib-preview-item' + (f._removed ? ' removed' : '');
+
+      const img = document.createElement('img');
+      img.alt = f.name;
+      if (f._dataUrl) {
+        img.src = f._dataUrl;
+      } else {
+        const reader = new FileReader();
+        reader.onload = e => { img.src = e.target.result; f._dataUrl = e.target.result; };
+        reader.readAsDataURL(f);
+      }
+      item.appendChild(img);
+
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'contrib-preview-item-remove';
+      removeBtn.title = f._removed ? 'Restore' : 'Remove';
+      removeBtn.innerHTML = f._removed
+        ? `<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>`
+        : `<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+      removeBtn.addEventListener('click', () => {
+        _contribQueueFiles[idx]._removed = !_contribQueueFiles[idx]._removed;
+        contribModeRenderQueue();
+      });
+      item.appendChild(removeBtn);
+
+      grid.appendChild(item);
     });
 
-    queue.style.display = '';
-    btn.disabled = false;
-    // Reset success/progress
+    panel.classList.add('visible');
+    btn.disabled = (n === 0);
+    // Reset success/progress when new files are picked
     document.getElementById('contribModeSuccess').style.display = 'none';
     document.getElementById('contribModeProgressBar').style.display = 'none';
     document.getElementById('contribModeProgressLabel').style.display = 'none';
   }
 
+  function contribModeAddMore(fileList) {
+    const newFiles = Array.from(fileList).filter(f =>
+      /\.(jpe?g|png|webp|heic|heif|bmp)$/i.test(f.name)
+    );
+    const combined = [..._contribQueueFiles, ...newFiles].slice(0, 50);
+    _contribQueueFiles = combined;
+    contribModeRenderQueue();
+  }
+
   function contribModeClearQueue() {
     _contribQueueFiles = [];
     document.getElementById('contribModeFile').value = '';
-    contribModeRenderQueue();
-    document.getElementById('contribModeQueue').style.display = 'none';
+    document.getElementById('contribModePreviewPanel').classList.remove('visible');
+    document.getElementById('contribModeUploadBtn').disabled = true;
   }
 
   async function contribModeUpload() {
@@ -2722,7 +2752,7 @@ toast(`Photos uploaded! They'll be searchable soon.`, '<svg width="16" height="1
 
     try {
       const fd = new FormData();
-      _contribQueueFiles.forEach(f => fd.append('file', f));
+      _contribQueueFiles.filter(f => !f._removed).forEach(f => fd.append('file', f));
 
       // Animate progress bar during upload
       let pct = 10;
@@ -2746,20 +2776,12 @@ toast(`Photos uploaded! They'll be searchable soon.`, '<svg width="16" height="1
 
       document.getElementById('contribModeSuccessText').textContent =
         `${d.saved} photo${d.saved !== 1 ? 's' : ''} uploaded successfully!`;
-      document.getElementById('contribModeSuccessSub').textContent =
-        'Your photos are being processed — this usually takes under a minute.';
       sucEl.style.display = 'flex';
       _contribQueueFiles = [];
       document.getElementById('contribModeFile').value = '';
-      document.getElementById('contribModeQueue').style.display = 'none';
+      document.getElementById('contribModePreviewPanel').classList.remove('visible');
       toast(`${d.saved} photo${d.saved !== 1 ? 's' : ''} added to the album!`,
         '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>');
-
-      // Show the find-my-pics CTA immediately
-      document.getElementById('contribFindCta').classList.add('show');
-
-      // Start polling reindex status
-      startReindexPolling();
     } catch(e) {
       progBar.style.display = 'none';
       progLbl.style.display = 'none';
@@ -2767,70 +2789,6 @@ toast(`Photos uploaded! They'll be searchable soon.`, '<svg width="16" height="1
         '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>');
       btn.disabled = false;
     }
-  }
-
-  /* ── Reindex status polling ──────────────────────────────── */
-  let _reindexTimer = null;
-
-  function startReindexPolling() {
-    const panel   = document.getElementById('reindexPanel');
-    const fill    = document.getElementById('reindexBarFill');
-    const label   = document.getElementById('reindexLabel');
-    const heading = document.getElementById('reindexHeading');
-    const check   = document.getElementById('reindexCheck');
-
-    panel.classList.add('show');
-    fill.style.width = '5%';
-    label.textContent = 'Starting…';
-
-    if (_reindexTimer) clearInterval(_reindexTimer);
-
-    _reindexTimer = setInterval(async () => {
-      try {
-        const r = await fetch(`${API}/api/shares/${shareId}/status`);
-        if (!r.ok) return;
-        const s = await r.json();
-
-        const status = s.status || 'processing';
-        const total  = s.total  || 0;
-        const done   = s.processed || 0;
-
-        if (status === 'ready') {
-          clearInterval(_reindexTimer);
-          fill.style.width = '100%';
-          label.textContent = `Done! ${s.face_count || ''} faces indexed — your photos are searchable.`;
-          heading.textContent = 'Photos indexed and ready!';
-          panel.classList.add('done');
-          document.getElementById('contribModeSuccessSub').textContent =
-            'Your photos are indexed and ready to search!';
-          // nudge them to try the selfie search
-          document.getElementById('contribFindCta').classList.add('show');
-          toast('Your photos are now searchable!',
-            '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>');
-        } else if (status === 'processing' || status === 'compressing' || status === 'uploading') {
-          const pct = total > 0 ? Math.round((done / total) * 90) + 5 : 40;
-          fill.style.width = pct + '%';
-          const statusLabels = {
-            compressing: 'Compressing photos…',
-            uploading:   'Uploading to cloud…',
-            processing:  total > 0 ? `Indexing ${done} / ${total} photos…` : 'Indexing photos…',
-          };
-          label.textContent = statusLabels[status] || 'Processing…';
-          heading.textContent = 'AI is indexing your photos…';
-        } else if (status === 'error') {
-          clearInterval(_reindexTimer);
-          label.textContent = 'Processing error — please try again or contact support.';
-          heading.textContent = 'Something went wrong';
-          fill.style.background = '#ef4444';
-          fill.style.width = '100%';
-        }
-      } catch(_) { /* network hiccup — just wait for next tick */ }
-    }, 2500);
-  }
-
-  function contribScrollToSearch() {
-    const card = document.getElementById('uploadCard');
-    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   /* ── Init ───────────────────────────────────────────────── */
