@@ -2703,14 +2703,19 @@ async def search_by_selfie(share_id: str, file: UploadFile = File(...), face_ind
             if key not in merged or m["score"] > merged[key]["score"]:
                 merged[key] = m
 
-    sorted_results = sorted(merged.values(), key=lambda x: x["score"], reverse=True)
+    # Only return matches with at least 50% confidence to avoid false positives
+    min_conf = 0.50
+    sorted_results = sorted(
+        [r for r in merged.values() if r["score"] >= min_conf],
+        key=lambda x: x["score"], reverse=True
+    )
 
     return {
-        "face_detected": True,
-        "num_faces":     len(all_faces_sorted),
-        "matches":       sorted_results,
-        "latency_ms":    round((time.time()-t0)*1000, 1),
-        "dataset_id":    share["dataset_id"],
+        "face_detected":    True,
+        "num_faces":        len(all_faces_sorted),
+        "matches":          sorted_results,
+        "latency_ms":       round((time.time()-t0)*1000, 1),
+        "dataset_id":       share["dataset_id"],
     }
 
 # ── Contributor upload endpoint (for 'contribute' permission share links) ───────
@@ -2880,7 +2885,11 @@ async def search_dataset_authenticated(
             if key not in merged or m["score"] > merged[key]["score"]:
                 merged[key] = m
 
-    sorted_results = sorted(merged.values(), key=lambda x: x["score"], reverse=True)
+    min_conf = 0.50
+    sorted_results = sorted(
+        [r for r in merged.values() if r["score"] >= min_conf],
+        key=lambda x: x["score"], reverse=True
+    )
 
     return {
         "face_detected":  True,
