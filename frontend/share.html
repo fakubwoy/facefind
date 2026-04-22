@@ -2490,9 +2490,9 @@
     searchBtn.disabled = true;
     hideError();
     setStep(1);
-    // In contrib mode, resetting from search goes back to upload mode
+    // In contrib mode, resetting from search goes back to the find-my-pics screen
     if (isContribMode()) {
-      setContribMode('upload');
+      setContribMode('search');
     } else {
       setState('upload');
     }
