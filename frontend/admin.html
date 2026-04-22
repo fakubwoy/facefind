@@ -910,7 +910,7 @@
     .dataset-name { font-weight: 700; font-size: 14px; color: var(--text); margin-bottom: 8px; }
     .dataset-meta { font-size: 12px; color: var(--muted); display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
     .dataset-size { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: var(--muted); }
-    .dataset-actions { display: flex; gap: 8px; margin-top: 10px; }
+    .dataset-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
     .btn-delete {
       display: inline-flex;
       align-items: center;
@@ -3782,7 +3782,7 @@
 
     try {
       const resp = await fetch(
-        `${API}/api/datasets/${ibState.datasetId}/images/${encodeURIComponent(imgPath)}`,
+        `${API}/api/datasets/${ibState.datasetId}/images/${imgPath.split('/').map(encodeURIComponent).join('/')}`,
         { method: 'DELETE', credentials: 'include' }
       );
       if (!resp.ok) throw new Error((await resp.json()).detail || 'Could not remove photo');
