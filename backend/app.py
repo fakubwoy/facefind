@@ -3027,26 +3027,23 @@ def delete_dataset_image(dataset_id: str, image_path: str,
     deleted = False
 
     if b2.b2_configured():
-        b2_key = f"datasets/{dataset_id}/{image_path}"
+        b2_key = b2.dataset_image_key(dataset_id, image_path)
         try:
-            # Use the generic b2 delete — works for any key
+            if not b2.object_exists(b2_key):
+                raise HTTPException(404, "Image not found.")
             b2_client = b2.get_b2_client()
-            bucket    = b2_client.get_bucket_by_name(b2.B2_BUCKET_NAME)
-            # list_file_names to get the fileId needed for deletion
-            file_list = bucket.ls(folder_to_list=b2_key, latest_only=True)
-            for file_version, _ in file_list:
-                file_version.delete()
-                deleted = True
-                break
+            b2_client.delete_object(Bucket=b2.B2_BUCKET_NAME, Key=b2_key)
+            deleted = True
             # Best-effort: delete cached thumb
             try:
-                thumb_key = b2_key + ".thumb.jpg"
-                thumb_list = bucket.ls(folder_to_list=thumb_key, latest_only=True)
-                for tv, _ in thumb_list:
-                    tv.delete()
-                    break
+                b2_client.delete_object(
+                    Bucket=b2.B2_BUCKET_NAME,
+                    Key=b2.thumb_key(dataset_id, image_path + ".thumb.jpg"),
+                )
             except Exception:
                 pass
+        except HTTPException:
+            raise
         except Exception as e:
             log.warning(f"B2 delete failed for datasets/{dataset_id}/{image_path}: {e}")
             raise HTTPException(500, f"Failed to delete image from B2 storage: {e}")
