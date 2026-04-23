@@ -4894,6 +4894,15 @@
   }
 
   function addImagesSubmit() {
+    // ── Quota guard: check account-wide photo limit before submitting ────────
+    const _cfg        = PLAN_CONFIG[currentPlan] || PLAN_CONFIG.free;
+    const _usedImages = Object.values(allDatasetsCache || {})
+                              .reduce((s, d) => s + (d.total || d.total_images || 0), 0);
+    if (_usedImages >= _cfg.maxImages) {
+      toast('Photo limit reached — upgrade your plan to add more photos.', 'error');
+      return;
+    }
+
     // If preview is active, use filtered file list
     const usePreview = _addImagesPreviewItems.length > 0;
     const activeItems = usePreview ? _addImagesPreviewItems.filter(i => !i.removed) : null;

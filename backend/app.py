@@ -2431,15 +2431,24 @@ async def add_images_to_dataset(
             dest.write_bytes(raw)
             del raw
 
-    # ── Enforce image limit on combined total ─────────────────────────────────
+    # ── Enforce image limit on combined total across ALL user datasets ─────────
     limits = get_plan_limits(user)
     existing_count = count_images_in_dir(dataset_dir)
     new_count      = count_images_in_dir(temp_dir)
-    if existing_count + new_count > limits["max_images"]:
+    # Also count images in every OTHER dataset this user owns (use DB totals for speed)
+    all_user_datasets = db_list_datasets(user["id"])
+    other_datasets_total = sum(
+        ds.get("total", 0)
+        for ds_id, ds in all_user_datasets.items()
+        if ds_id != dataset_id
+    )
+    grand_total = other_datasets_total + existing_count + new_count
+    if grand_total > limits["max_images"]:
         _shutil.rmtree(temp_dir, ignore_errors=True)
+        already_used = other_datasets_total + existing_count
         raise HTTPException(400,
-            f"Image limit exceeded. Your plan allows {limits['max_images']:,} images per dataset. "
-            f"This dataset already has {existing_count:,} and you're adding {new_count:,}.")
+            f"Image limit exceeded. Your plan allows {limits['max_images']:,} photos in total across all albums. "
+            f"You currently have {already_used:,} photo(s) and are trying to add {new_count:,} more.")
 
     is_free = user.get("plan", "free") == "free"
     total_imgs, capped = compress_images_in_dir(temp_dir, free_tier=is_free)
@@ -2752,6 +2761,21 @@ async def contribute_photos(
         raise HTTPException(400, "Only image files are accepted (JPG, PNG, WEBP, HEIC).")
     if len(files) > 50:
         raise HTTPException(400, "Maximum 50 photos per upload.")
+
+    # ── Enforce plan quota for the dataset owner ───────────────────────────────
+    with get_db() as _qconn:
+        with _qconn.cursor() as _qcur:
+            _qcur.execute("SELECT plan FROM users WHERE id=%s", (ds["user_id"],))
+            _owner_row = _qcur.fetchone()
+    _owner_plan   = (_owner_row["plan"] if _owner_row else None) or "free"
+    _owner_limits = PLAN_LIMITS.get(_owner_plan, PLAN_LIMITS["free"])
+    _owner_datasets = db_list_datasets(ds["user_id"])
+    _owner_total_images = sum(d.get("total", 0) for d in _owner_datasets.values())
+    if _owner_total_images + len(files) > _owner_limits["max_images"]:
+        remaining = max(0, _owner_limits["max_images"] - _owner_total_images)
+        raise HTTPException(400,
+            f"This album has reached its photo limit. "
+            f"Only {remaining} more photo(s) can be added.")
 
     # Save to existing dataset dir (or temp dir if dataset is B2-backed)
     dataset_dir = DATASETS_DIR / ds["id"]
