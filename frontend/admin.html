@@ -6,6 +6,19 @@
   <title>Lenstagram — My Dashboard</title>
   <meta name="robots" content="noindex, nofollow" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script>
+    // Navigation guard: pressing Back from admin always lands on index.html,
+    // regardless of what was in history before.
+    (function() {
+      // Replace whatever entry brought us here with the index page,
+      // then push the current admin URL on top. Now the stack is:
+      //   [index.html]  <-- back leads here
+      //   [admin.html]  <-- current page
+      var adminUrl = window.location.href;
+      history.replaceState({ page: 'index' }, '', '/index.html');
+      history.pushState({ page: 'admin' }, '', adminUrl);
+    })();
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,700;9..144,800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Great+Vibes&family=Kaushan+Script&display=swap" rel="stylesheet">
   <style>
