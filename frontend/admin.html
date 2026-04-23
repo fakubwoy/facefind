@@ -5746,22 +5746,15 @@
   window.addEventListener('popstate', e => {
     if (_guardInProgress) return;
 
-    // If back is pressed while on the base admin URL (/admin.html or ?tab=events),
-    // ignore the entire history stack and go straight to index.
-    const beforePopTab   = new URLSearchParams(location.search).get('tab') || 'events';
-    const isBaseAdminUrl = location.pathname === '/admin.html' && beforePopTab === 'events';
-    if (isBaseAdminUrl) {
+    // Sentinel (null state) means we've backed past all admin entries → go to index.
+    // This fires regardless of how admin was opened (index, bookmark, direct URL).
+    if (!e.state || !e.state.tab) {
       window.location.replace('/index.html');
       return;
     }
 
-    // Deeper in tab history — apply the popped state normally.
-    // If we've somehow backed past all admin entries (sentinel), also go to index.
-    if (e.state && e.state.tab) {
-      _applyRouteState(e.state, true);
-      return;
-    }
-    window.location.replace('/index.html');
+    // Still within admin tab history — apply the popped state normally.
+    _applyRouteState(e.state, true);
   });
 
   const _initParams = new URLSearchParams(window.location.search);
