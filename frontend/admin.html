@@ -5745,9 +5745,9 @@
 
   window.addEventListener('popstate', e => {
     if (_guardInProgress) return;
-    const tab = e.state && e.state.tab;
-    // Landed on index sentinel — navigate for real
-    if (e.state && e.state.page === 'index') {
+    // Backed past all admin tab entries (state is null or has no `tab`) —
+    // or landed on an explicit index sentinel.  Either way, go to index.
+    if (!e.state || !e.state.tab || e.state.page === 'index') {
       window.location.replace('/index.html');
       return;
     }
@@ -5761,14 +5761,14 @@
   history.replaceState(_initState, '', window.location.href);
 
   // ── Back-to-index guard ──────────────────────────────────────────────────────
-  // Overwrite the entry below the current one with /index.html so that pressing
-  // Back always lands on index, regardless of prior history.
-  // replaceState+pushState is purely synchronous — no navigation occurs.
+  // We can't reliably plant an entry *below* the current one (replaceState only
+  // touches the current entry; if admin was opened directly/bookmarked there is
+  // nothing useful beneath it).  Instead we intercept popstate: when the browser
+  // pops past all of admin's own tab-navigation entries (i.e. the resulting state
+  // has no `tab` key, or is null/undefined), we redirect to /index.html.
+  // This works whether the user arrived via index, a bookmark, or a direct URL.
   (function() {
-    var adminUrl   = window.location.href;
-    var adminState = _initState;
-    history.replaceState({ page: 'index' }, '', '/index.html');
-    history.pushState(adminState, '', adminUrl);
+    history.replaceState(_initState, '', window.location.href);
   })();
 
   // ── Initialise permission toggle visual state ─────────────────────────────────
