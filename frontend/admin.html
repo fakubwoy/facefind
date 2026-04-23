@@ -3057,10 +3057,10 @@
     }
     // Sync stepper active indicator to current tab
     syncStepperToSection(name);
-    // Update the URL to reflect the current tab without adding a history entry
+    // Push history entry so browser back/forward works between tabs
     if (!_skipHistory) {
       const params = new URLSearchParams({ tab: name });
-      history.replaceState({ tab: name }, '', '?' + params.toString());
+      history.pushState({ tab: name }, '', '?' + params.toString());
     }
   }
 
@@ -3440,10 +3440,10 @@
     document.getElementById('groupDetailTitle').textContent = g?.name || 'Event Photos';
     loadDatasets(groupId);
 
-    // Update URL to reflect the open group without adding a history entry
+    // Push history so back button returns to events list
     if (!_skipHistory) {
       const params = new URLSearchParams({ tab: 'events', group: groupId });
-      history.replaceState({ tab: 'events', groupId }, '', '?' + params.toString());
+      history.pushState({ tab: 'events', groupId }, '', '?' + params.toString());
     }
 
     // Reset watermark UI first
@@ -3491,7 +3491,7 @@
     // Only reload when user explicitly navigates back (not during init routing)
     if (!_skipHistory) {
       loadGroups();
-      history.replaceState({ tab: 'events' }, '', '?tab=events');
+      history.pushState({ tab: 'events' }, '', '?tab=events');
     }
   }
 
@@ -5763,12 +5763,14 @@
   history.replaceState(_initState, '', window.location.href);
 
   // ── Back-to-index guard ──────────────────────────────────────────────────────
-  // Plant a null sentinel one step below admin in the history stack, then push
-  // admin back on top. Stack becomes: [...prior] → [sentinel:null] → [admin].
-  // Tab/group switches use replaceState so they never add entries.
-  // When the user presses Back from admin, the browser pops to [sentinel:null].
-  // popstate fires with e.state === null → handler redirects to /index.html.
-  // This works whether admin was opened from index, bookmarked, or typed directly.
+  // Plant a null sentinel one step below the initial admin entry.
+  // Stack on load: [...prior] → [sentinel:null] → [admin:initTab]
+  // Tab/group switches use pushState, building on top:
+  //   → [sentinel:null] → [admin:events] → [admin:upload] → [admin:analytics]
+  // Pressing Back unwinds through tab history normally (popstate handler applies
+  // each tab state). When Back finally reaches [sentinel:null], e.state has no
+  // `tab` key → handler redirects to /index.html.
+  // Works whether admin was opened from index, bookmarked, or typed directly.
   (function () {
     var adminUrl   = window.location.href;
     var adminState = _initState;
