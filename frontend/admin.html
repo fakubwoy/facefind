@@ -6,19 +6,6 @@
   <title>Lenstagram — My Dashboard</title>
   <meta name="robots" content="noindex, nofollow" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-  <script>
-    // Navigation guard: pressing Back from admin always lands on index.html,
-    // regardless of what was in history before.
-    (function() {
-      // Replace whatever entry brought us here with the index page,
-      // then push the current admin URL on top. Now the stack is:
-      //   [index.html]  <-- back leads here
-      //   [admin.html]  <-- current page
-      var adminUrl = window.location.href;
-      history.replaceState({ page: 'index' }, '', '/index.html');
-      history.pushState({ page: 'admin' }, '', adminUrl);
-    })();
-  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,700;9..144,800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Great+Vibes&family=Kaushan+Script&display=swap" rel="stylesheet">
   <style>
@@ -5754,16 +5741,14 @@
     }
   }
 
+  var _guardInProgress = false;
+
   window.addEventListener('popstate', e => {
+    if (_guardInProgress) return; // ignore guard's internal history.go(-1)
     const tab = e.state && e.state.tab;
-    // Landed on events tab via back — show it, and mark it so the NEXT back goes to index
-    if (!tab || tab === 'events') {
-      if (e.state && e.state.__exitNext) {
-        window.location.href = '/';
-        return;
-      }
-      _applyRouteState(e.state, true);
-      history.replaceState({ tab: 'events', __exitNext: true }, '', '/admin.html?tab=events');
+    // Landed on index sentinel — navigate for real
+    if (e.state && e.state.page === 'index') {
+      window.location.replace('/index.html');
       return;
     }
     _applyRouteState(e.state, true);
@@ -5774,6 +5759,39 @@
   const _initGroup  = _initParams.get('group') || null;
   const _initState  = { tab: _initTab, groupId: _initGroup };
   history.replaceState(_initState, '', window.location.href);
+
+  // ── Back-to-index guard ──────────────────────────────────────────────────────
+  // Insert a /index.html sentinel BELOW the current admin entry so that
+  // pressing Back always lands on index, not whatever was in history before.
+  // Runs after replaceState so the admin URL/state is fully settled.
+  (function() {
+    var adminUrl   = window.location.href;
+    var adminState = _initState;
+    var _guardDone = false;
+
+    function _installSentinel() {
+      if (_guardDone) return;
+      _guardDone = true;
+      history.replaceState({ page: 'index' }, '', '/index.html');
+      history.pushState(adminState, '', adminUrl);
+    }
+
+    // history.go(-1) is async and fires popstate only if there IS a prior entry.
+    // If there is no prior entry the popstate never fires, so we fall back after 200ms.
+    var _guardTimer = setTimeout(function() {
+      _guardInProgress = false;
+      _installSentinel();
+    }, 200);
+
+    _guardInProgress = true;
+    history.go(-1);
+    window.addEventListener('popstate', function _guardSetup() {
+      window.removeEventListener('popstate', _guardSetup);
+      clearTimeout(_guardTimer);
+      _guardInProgress = false;
+      _installSentinel();
+    }, { once: true });
+  })();
 
   // ── Initialise permission toggle visual state ─────────────────────────────────
   onPermissionChange();
