@@ -1720,25 +1720,34 @@
       document.getElementById('mainNav').classList.toggle('scrolled', window.scrollY > 20);
     });
 
-    // ── History cleanup: when index is loaded, collapse all prior history so
-    //    pressing Back exits the site rather than returning to admin or other pages. ──
+    // ── History: make Back exit the site when already on index ──────────────────
+    // Strategy: ensure exactly two index entries sit at the top of the stack —
+    //   [...anything] → [index-base] → [index-top]  (we are here)
+    // When the user presses Back:
+    //   • They land on [index-base].  Our popstate handler sees it's still index
+    //     (not admin) and immediately pushes [index-top] back, making Back a no-op.
+    //   • The *next* Back attempt walks past [index-base] into whatever was before
+    //     — at that point history.length is 1 (or the tab is brand-new) so the
+    //     browser closes / exits the site as expected.
+    // We never interfere with forward entries or admin tab navigation.
     (function() {
-      // Replace the current history entry with a clean index state.
-      // We can't programmatically delete previous entries, but we can use
-      // history.go() to walk back to the very start and replace each entry.
-      // Simpler cross-browser approach: replace current entry so the URL is
-      // canonical, and let the browser's natural "no more entries → exit" handle it.
-      history.replaceState({ page: 'index', clean: true }, '', window.location.href);
+      var INDEX_STATE = { page: 'index', clean: true };
+      var indexUrl = window.location.href;
 
-      // If we arrived here via a popstate from admin (back button), there may
-      // still be forward entries. Clear them by pushing then replacing.
-      // Also guard against the popstate loop that the admin guard creates.
-      window.addEventListener('popstate', function onIndexPop(e) {
-        // If state says we're on admin, redirect properly rather than partial render.
-        if (e.state && e.state.page === 'admin') {
-          window.removeEventListener('popstate', onIndexPop);
-          window.location.replace(document.location.href); // re-navigate cleanly
+      // Lay down the two-entry cushion synchronously.
+      // replaceState turns the current entry into [index-base],
+      // pushState adds [index-top] on top — no navigation occurs.
+      history.replaceState(INDEX_STATE, '', indexUrl);
+      history.pushState(INDEX_STATE, '', indexUrl);
+
+      window.addEventListener('popstate', function(e) {
+        // If we popped into something that is NOT an admin page, we're still on
+        // index territory — push the top entry back so the page stays put.
+        if (!e.state || e.state.page !== 'admin') {
+          history.pushState(INDEX_STATE, '', indexUrl);
         }
+        // (If somehow an admin state surfaces — shouldn't happen — do nothing
+        //  and let the browser navigate naturally.)
       });
     })();
 
