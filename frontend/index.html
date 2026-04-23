@@ -1529,6 +1529,9 @@
   </footer>
 
   <script>
+    // ── Clear history on landing — nothing to go back to from index ──
+    history.replaceState(null, '', window.location.href);
+
     // ── Nav hamburger ──
     const navToggle = document.getElementById('navToggle');
     const navLinks = document.getElementById('navLinks');

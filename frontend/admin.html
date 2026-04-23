@@ -5742,13 +5742,9 @@
   }
 
   window.addEventListener('popstate', e => {
-    // Popped back to the index sentinel — actually navigate to index
-    if (e.state && e.state.__indexSentinel) {
-      window.location.href = e.state.__indexUrl || '/';
-      return;
-    }
-    // Popped past everything we seeded — go to index
-    if (!e.state) {
+    // If we land on the events tab (dashboard), always go to index instead
+    const tab = e.state && e.state.tab;
+    if (!tab || tab === 'events') {
       window.location.href = '/';
       return;
     }
@@ -5759,14 +5755,7 @@
   const _initTab    = _initParams.get('tab') || 'events';
   const _initGroup  = _initParams.get('group') || null;
   const _initState  = { tab: _initTab, groupId: _initGroup };
-
-  // Seed history: [index sentinel] then [admin page]
-  // No matter how many tab switches happen, pressing Back past the
-  // first admin entry will hit the sentinel and redirect to index.
-  const _adminUrl   = window.location.href;
-  const _indexUrl   = window.location.pathname.replace(/\/[^\/]*$/, '/') || '/';
-  history.replaceState({ __indexSentinel: true, __indexUrl: _indexUrl }, '', _indexUrl);
-  history.pushState(_initState, '', _adminUrl);
+  history.replaceState(_initState, '', window.location.href);
 
   // ── Initialise permission toggle visual state ─────────────────────────────────
   onPermissionChange();
