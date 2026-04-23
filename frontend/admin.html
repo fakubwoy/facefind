@@ -5742,9 +5742,15 @@
   }
 
   window.addEventListener('popstate', e => {
-    // Hit the index sentinel — navigate for real to index
-    if (e.state && e.state.__sentinel) {
-      window.location.href = '/';
+    const tab = e.state && e.state.tab;
+    // Landed on events tab via back — show it, and mark it so the NEXT back goes to index
+    if (!tab || tab === 'events') {
+      if (e.state && e.state.__exitNext) {
+        window.location.href = '/';
+        return;
+      }
+      _applyRouteState(e.state, true);
+      history.replaceState({ tab: 'events', __exitNext: true }, '', '/admin.html?tab=events');
       return;
     }
     _applyRouteState(e.state, true);
@@ -5754,11 +5760,7 @@
   const _initTab    = _initParams.get('tab') || 'events';
   const _initGroup  = _initParams.get('group') || null;
   const _initState  = { tab: _initTab, groupId: _initGroup };
-
-  // Build history as: [ / (sentinel) ] → [ current admin page ]
-  // So from events tab, back = shows sentinel → redirects to index.
-  history.replaceState({ __sentinel: true }, '', '/');
-  history.pushState(_initState, '', '/admin.html?tab=' + _initTab);
+  history.replaceState(_initState, '', window.location.href);
 
   // ── Initialise permission toggle visual state ─────────────────────────────────
   onPermissionChange();
