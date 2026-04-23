@@ -5744,7 +5744,7 @@
   var _guardInProgress = false;
 
   window.addEventListener('popstate', e => {
-    if (_guardInProgress) return; // ignore guard's internal history.go(-1)
+    if (_guardInProgress) return;
     const tab = e.state && e.state.tab;
     // Landed on index sentinel — navigate for real
     if (e.state && e.state.page === 'index') {
@@ -5761,36 +5761,14 @@
   history.replaceState(_initState, '', window.location.href);
 
   // ── Back-to-index guard ──────────────────────────────────────────────────────
-  // Insert a /index.html sentinel BELOW the current admin entry so that
-  // pressing Back always lands on index, not whatever was in history before.
-  // Runs after replaceState so the admin URL/state is fully settled.
+  // Overwrite the entry below the current one with /index.html so that pressing
+  // Back always lands on index, regardless of prior history.
+  // replaceState+pushState is purely synchronous — no navigation occurs.
   (function() {
     var adminUrl   = window.location.href;
     var adminState = _initState;
-    var _guardDone = false;
-
-    function _installSentinel() {
-      if (_guardDone) return;
-      _guardDone = true;
-      history.replaceState({ page: 'index' }, '', '/index.html');
-      history.pushState(adminState, '', adminUrl);
-    }
-
-    // history.go(-1) is async and fires popstate only if there IS a prior entry.
-    // If there is no prior entry the popstate never fires, so we fall back after 200ms.
-    var _guardTimer = setTimeout(function() {
-      _guardInProgress = false;
-      _installSentinel();
-    }, 200);
-
-    _guardInProgress = true;
-    history.go(-1);
-    window.addEventListener('popstate', function _guardSetup() {
-      window.removeEventListener('popstate', _guardSetup);
-      clearTimeout(_guardTimer);
-      _guardInProgress = false;
-      _installSentinel();
-    }, { once: true });
+    history.replaceState({ page: 'index' }, '', '/index.html');
+    history.pushState(adminState, '', adminUrl);
   })();
 
   // ── Initialise permission toggle visual state ─────────────────────────────────
