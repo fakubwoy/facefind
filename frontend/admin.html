@@ -5742,9 +5742,8 @@
   }
 
   window.addEventListener('popstate', e => {
-    // If we land on the events tab (dashboard), always go to index instead
-    const tab = e.state && e.state.tab;
-    if (!tab || tab === 'events') {
+    // Hit the index sentinel — navigate for real to index
+    if (e.state && e.state.__sentinel) {
       window.location.href = '/';
       return;
     }
@@ -5755,7 +5754,11 @@
   const _initTab    = _initParams.get('tab') || 'events';
   const _initGroup  = _initParams.get('group') || null;
   const _initState  = { tab: _initTab, groupId: _initGroup };
-  history.replaceState(_initState, '', window.location.href);
+
+  // Build history as: [ / (sentinel) ] → [ current admin page ]
+  // So from events tab, back = shows sentinel → redirects to index.
+  history.replaceState({ __sentinel: true }, '', '/');
+  history.pushState(_initState, '', '/admin.html?tab=' + _initTab);
 
   // ── Initialise permission toggle visual state ─────────────────────────────────
   onPermissionChange();
