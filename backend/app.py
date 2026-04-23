@@ -15,7 +15,7 @@ from email.mime.multipart import MIMEMultipart
 from email.message import EmailMessage
 import urllib.request, urllib.parse, logging
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 import numpy as np
 import cv2
@@ -49,7 +49,7 @@ THUMBS_DIR     = DATA_DIR / "thumbs"      # not used (B2 caches thumbs)
 FRONTEND_DIR   = Path(__file__).parent.parent / "frontend"
 
 # Executable ZIP is now served from B2 — local path only used for migration
-EXECUTABLE_PATH = Path(os.environ.get("EXECUTABLE_PATH", "/data/releases/facefind-selfhosted.zip"))
+EXECUTABLE_PATH = Path(os.environ.get("EXECUTABLE_PATH", "/data/releases/lenstagram-selfhosted.zip"))
 
 for d in [DATASETS_DIR, EMBEDDINGS_DIR, UPLOADS_DIR, THUMBS_DIR]:
     d.mkdir(parents=True, exist_ok=True)
@@ -121,6 +121,40 @@ def init_db():
                     dataset_name TEXT,
                     created_at   DOUBLE PRECISION
                 );
+            """)
+            # Migration: allow one share per (dataset_id, permission) instead of one per dataset
+            # This enables separate view and contribute links with their own share_ids.
+            cur.execute("""
+                DO $$
+                BEGIN
+                    -- Drop the old UNIQUE(dataset_id) constraint (either known name)
+                    IF EXISTS (
+                        SELECT 1 FROM pg_constraint
+                        WHERE conrelid = 'shares'::regclass
+                          AND contype = 'u'
+                          AND conname = 'shares_dataset_id_key'
+                    ) THEN
+                        ALTER TABLE shares DROP CONSTRAINT shares_dataset_id_key;
+                    END IF;
+                    IF EXISTS (
+                        SELECT 1 FROM pg_constraint
+                        WHERE conrelid = 'shares'::regclass
+                          AND contype = 'u'
+                          AND conname = 'shares_dataset_id_unique'
+                    ) THEN
+                        ALTER TABLE shares DROP CONSTRAINT shares_dataset_id_unique;
+                    END IF;
+                    -- Add unique per (dataset_id, permission) if not already there
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_constraint
+                        WHERE conrelid = 'shares'::regclass
+                          AND contype = 'u'
+                          AND conname = 'shares_dataset_permission_key'
+                    ) THEN
+                        ALTER TABLE shares ADD CONSTRAINT shares_dataset_permission_key
+                            UNIQUE (dataset_id, permission);
+                    END IF;
+                END $$;
             """)
             # Migration: add user_id to datasets table if it doesn't exist yet
             cur.execute("""
@@ -194,6 +228,14 @@ def init_db():
                     attempted_at DOUBLE PRECISION
                 );
             """)
+            # Migration: free trial duration on 100% off codes (NULL = no auto-expiry)
+            cur.execute("""
+                ALTER TABLE discount_codes ADD COLUMN IF NOT EXISTS free_months INT DEFAULT NULL;
+            """)
+            # Migration: track when a free-trial plan should auto-expire to free
+            cur.execute("""
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_free_until DOUBLE PRECISION DEFAULT NULL;
+            """)
             # Migration: add previous_plan + proration fields to razorpay_orders
             cur.execute("""
                 ALTER TABLE razorpay_orders ADD COLUMN IF NOT EXISTS previous_plan TEXT DEFAULT NULL;
@@ -207,24 +249,10 @@ def init_db():
             cur.execute("""
                 ALTER TABLE razorpay_orders ADD COLUMN IF NOT EXISTS credit_applied_paise INT DEFAULT 0;
             """)
-            # Migration: enforce one share per dataset (deduplicate first, then add constraint)
-            cur.execute("""
-                DELETE FROM shares s1
-                USING shares s2
-                WHERE s1.created_at < s2.created_at
-                  AND s1.dataset_id = s2.dataset_id;
-            """)
-            cur.execute("""
-                DO $$
-                BEGIN
-                    IF NOT EXISTS (
-                        SELECT 1 FROM pg_constraint
-                        WHERE conname = 'shares_dataset_id_unique'
-                    ) THEN
-                        ALTER TABLE shares ADD CONSTRAINT shares_dataset_id_unique UNIQUE (dataset_id);
-                    END IF;
-                END$$;
-            """)
+            # Migration: old single-share-per-dataset constraint and dedup DELETE removed —
+            # superseded by the (dataset_id, permission) unique constraint above which
+            # allows separate view and contribute share rows per dataset.
+
             # License keys table
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS license_keys (
@@ -288,6 +316,9 @@ def init_db():
             # Migration: shares table — add watermark, analytics, qr fields
             cur.execute("""
                 ALTER TABLE shares ADD COLUMN IF NOT EXISTS watermark_text TEXT DEFAULT NULL;
+            """)
+            cur.execute("""
+                ALTER TABLE shares ADD COLUMN IF NOT EXISTS permission TEXT DEFAULT 'view';
             """)
             cur.execute("""
                 ALTER TABLE shares ADD COLUMN IF NOT EXISTS view_count INT DEFAULT 0;
@@ -416,7 +447,7 @@ def db_list_datasets(user_id: str) -> dict:
             cur.execute("SELECT * FROM datasets WHERE user_id = %s ORDER BY created_at DESC", (user_id,))
             rows = cur.fetchall()
     result = {row["id"]: dict(row) for row in rows}
-    cache_set(f"datasets:{user_id}", result, ttl=5)
+    cache_set(f"datasets:{user_id}", result, ttl=15)
     return result
 
 def db_upsert_dataset(ds: dict):
@@ -475,6 +506,7 @@ def db_insert_share(share: dict):
             cur.execute("""
                 INSERT INTO shares (share_id, dataset_id, dataset_name, created_at)
                 VALUES (%(share_id)s, %(dataset_id)s, %(dataset_name)s, %(created_at)s)
+                ON CONFLICT DO NOTHING
             """, share)
         conn.commit()
     cache_set(f"share:{share['share_id']}", share, ttl=300)
@@ -482,6 +514,42 @@ def db_insert_share(share: dict):
 # ── InsightFace model (lazy) ──────────────────────────────────────────────────
 _face_model = None
 _model_lock  = threading.Lock()
+
+# ── Idle-unload: release model + FAISS indexes after N minutes of inactivity ──
+IDLE_UNLOAD_SECONDS = int(os.environ.get("IDLE_UNLOAD_SECONDS", str(10 * 60)))  # default 10 min
+_last_activity_time: float = 0.0  # updated on every search / embed call
+
+
+def _touch_activity():
+    """Call this on every search or embed operation to reset the idle timer."""
+    global _last_activity_time
+    _last_activity_time = time.time()
+
+
+def _idle_watcher():
+    """Background thread: unloads face model and FAISS indexes when idle."""
+    global _face_model
+    log.info(f"Idle-watcher started (threshold={IDLE_UNLOAD_SECONDS}s)")
+    while True:
+        time.sleep(60)  # check every minute
+        if _last_activity_time == 0:
+            continue  # nothing has run yet — nothing to unload
+        idle_for = time.time() - _last_activity_time
+        if idle_for < IDLE_UNLOAD_SECONDS:
+            continue
+
+        # Unload face model
+        with _model_lock:
+            if _face_model is not None:
+                _face_model = None
+                log.info(f"[idle-watcher] Face model unloaded after {idle_for:.0f}s idle")
+
+        # Evict all FAISS indexes
+        with _index_cache_lock:
+            if _index_cache:
+                n = len(_index_cache)
+                _index_cache.clear()
+                log.info(f"[idle-watcher] Cleared {n} FAISS index(es) after {idle_for:.0f}s idle")
 
 def get_face_model():
     global _face_model
@@ -546,6 +614,7 @@ def cap_image(img_bgr: np.ndarray,
         return encode_to_jpg(img_bgr, 92)
 
 def extract_embedding(img_bgr: np.ndarray):
+    _touch_activity()
     model = get_face_model()
     faces = model.get(img_bgr)
     if not faces:
@@ -757,12 +826,194 @@ def compress_images_in_dir(directory: Path,
     log.info(f"{label}: {processed}/{len(image_paths)} images processed in {directory}")
     return len(image_paths), processed
 
-# ── Embedding job ─────────────────────────────────────────────────────────────
+# ── Compress-and-upload pipeline (single pass, parallel B2 uploads) ───────────
+
+B2_UPLOAD_WORKERS = int(os.environ.get("B2_UPLOAD_WORKERS", "8"))
+
+def _compress_and_upload_one(args):
+    """
+    Worker: compress one image, upload to B2, delete local copy.
+    Returns (rel_path, img_bytes) for reuse in the embedding phase.
+    Returns None on error.
+    """
+    img_path, dataset_dir, dataset_id, is_free, use_b2 = args
+    try:
+        raw = img_path.read_bytes()
+        arr = np.frombuffer(raw, np.uint8)
+        img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+        if img is None:
+            return None
+
+        h, w       = img.shape[:2]
+        max_width  = 3840
+        max_bytes  = FREE_TIER_MAX_BYTES if is_free else None
+        needs_resize  = w > max_width
+        needs_sizecap = is_free and len(raw) > FREE_TIER_MAX_BYTES
+
+        if needs_resize or needs_sizecap:
+            img_bytes = cap_image(img, max_width=max_width, max_bytes=max_bytes)
+        else:
+            _, buf = cv2.imencode('.jpg', img, [int(cv2.IMWRITE_JPEG_QUALITY), 92])
+            img_bytes = buf.tobytes()
+
+        # Normalise extension to .jpg
+        rel_path = str(Path(img_path.relative_to(dataset_dir)).with_suffix('.jpg'))
+
+        if use_b2:
+            b2.upload_bytes(
+                b2.dataset_image_key(dataset_id, rel_path),
+                img_bytes,
+                content_type="image/jpeg",
+            )
+            img_path.unlink(missing_ok=True)   # free local disk immediately
+        else:
+            out = img_path.with_suffix('.jpg')
+            out.write_bytes(img_bytes)
+            if out != img_path:
+                img_path.unlink(missing_ok=True)
+
+        return (rel_path, img_bytes)
+
+    except Exception as exc:
+        log.warning(f"compress/upload failed for {img_path}: {exc}")
+        return None
+
+
+def _unload_face_model():
+    """Unload InsightFace model to free RAM after a batch job."""
+    if os.environ.get("UNLOAD_MODEL_AFTER_EMBED", "true").lower() != "true":
+        return
+    global _face_model
+    with _model_lock:
+        _face_model = None
+    import gc
+    gc.collect()
+
+
+def compress_upload_and_embed(dataset_id: str, is_free: bool):
+    """
+    Full pipeline for a ZIP-sourced dataset:
+      Phase 1 — Compress every image + upload to B2 in parallel (8 workers).
+                 Local copy deleted immediately after upload to keep /tmp lean.
+      Phase 2 — Embed faces using the in-memory bytes from Phase 1
+                 (no re-download needed).
+      Phase 3 — Build FAISS index, upload to B2, clean up temp dirs.
+    """
+    import shutil
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    ds = db_get_dataset(dataset_id)
+    if not ds:
+        return
+
+    dataset_dir = DATASETS_DIR / dataset_id
+    emb_dir     = EMBEDDINGS_DIR / dataset_id
+    emb_dir.mkdir(exist_ok=True)
+
+    use_b2 = b2.b2_configured()
+    exts   = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
+
+    image_paths = [p for p in dataset_dir.rglob("*") if p.suffix.lower() in exts]
+    total = len(image_paths)
+
+    if total == 0:
+        db_update_dataset_fields(dataset_id, status="ready", total=0, face_count=0)
+        log.info(f"[{dataset_id}] No images found — marked ready")
+        return
+
+    log.info(f"[{dataset_id}] Pipeline start: {total} images | B2={'yes' if use_b2 else 'no'} | free={is_free} | workers={B2_UPLOAD_WORKERS}")
+    db_update_dataset_fields(dataset_id, status="compressing", total=total, processed=0)
+
+    # ── Phase 1: compress + upload (parallel) ────────────────────────────────
+    args_list    = [(p, dataset_dir, dataset_id, is_free, use_b2) for p in image_paths]
+    results      = [None] * total   # preserves order for embedding phase
+    upload_count = 0
+
+    with ThreadPoolExecutor(max_workers=B2_UPLOAD_WORKERS) as pool:
+        future_to_idx = {pool.submit(_compress_and_upload_one, a): i
+                         for i, a in enumerate(args_list)}
+        for fut in as_completed(future_to_idx):
+            idx = future_to_idx[fut]
+            results[idx] = fut.result()
+            upload_count += 1
+            if upload_count % 10 == 0 or upload_count == total:
+                db_update_dataset_fields(dataset_id, status="uploading", processed=upload_count)
+                log.info(f"[{dataset_id}] Compress+upload {upload_count}/{total}")
+
+    log.info(f"[{dataset_id}] Phase 1 complete — all images compressed and uploaded")
+
+    # ── Phase 2: embed (uses in-memory bytes, no re-download) ────────────────
+    db_update_dataset_fields(dataset_id, status="processing", processed=0)
+    model      = get_face_model()
+    embeddings = []
+    metadata   = []
+
+    for i, result in enumerate(results):
+        if result is None:
+            continue
+        rel_path, img_bytes = result
+        try:
+            arr = np.frombuffer(img_bytes, np.uint8)
+            img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+            if img is None:
+                continue
+            label = Path(rel_path).parent.name or Path(rel_path).stem
+            for face in model.get(img):
+                embeddings.append(face.normed_embedding.astype("float32"))
+                metadata.append({
+                    "image_path": rel_path,
+                    "label":      label,
+                    "bbox":       [int(x) for x in face.bbox.tolist()],
+                })
+        except Exception as exc:
+            log.warning(f"[{dataset_id}] embed item {i}: {exc}")
+
+        update_freq = 1 if total < 50 else 5
+        if (i + 1) % update_freq == 0 or i == total - 1:
+            db_update_dataset_fields(dataset_id, processed=i + 1)
+            log.info(f"[{dataset_id}] Embed {i+1}/{total}")
+
+    # ── Phase 3: build + upload FAISS index ──────────────────────────────────
+    if embeddings:
+        emb_matrix = np.stack(embeddings).astype("float32")
+        np.save(str(emb_dir / "embeddings.npy"), emb_matrix)
+        with open(emb_dir / "metadata.pkl", "wb") as f:
+            pickle.dump(metadata, f)
+        import faiss
+        idx = faiss.IndexFlatIP(emb_matrix.shape[1])
+        idx.add(emb_matrix)
+        faiss.write_index(idx, str(emb_dir / "face_index.faiss"))
+        if use_b2:
+            for fname in ("embeddings.npy", "metadata.pkl", "face_index.faiss"):
+                fpath = emb_dir / fname
+                if fpath.exists():
+                    b2.upload_embedding_file(dataset_id, fname, fpath.read_bytes())
+                    log.info(f"[{dataset_id}] Uploaded {fname} to B2")
+
+    db_update_dataset_fields(dataset_id, status="ready", face_count=len(embeddings))
+    log.info(f"[{dataset_id}] Done — {len(embeddings)} face embeddings")
+
+    # Clean up local temp dirs
+    if use_b2:
+        for d in (emb_dir, dataset_dir):
+            if d.exists():
+                shutil.rmtree(d, ignore_errors=True)
+        log.info(f"[{dataset_id}] Local temp dirs cleaned up")
+
+    _unload_face_model()
+    log.info(f"[{dataset_id}] Face model unloaded")
+
+
+# ── Embedding job (GDrive path — images already in B2, just embed) ────────────
 
 def run_embedding_job(dataset_id: str):
     ds = db_get_dataset(dataset_id)
     if not ds:
         return
+
+    # Evict any stale cached index so searches after re-indexing see the new data
+    with _index_cache_lock:
+        _index_cache.pop(dataset_id, None)
 
     dataset_dir = DATASETS_DIR / dataset_id
     emb_dir     = EMBEDDINGS_DIR / dataset_id
@@ -787,7 +1038,6 @@ def run_embedding_job(dataset_id: str):
 
     embeddings, metadata = [], []
     model = get_face_model()
-
     items = b2_keys if use_b2 else image_paths
 
     for i, item in enumerate(items):
@@ -807,18 +1057,15 @@ def run_embedding_job(dataset_id: str):
                 label    = item.parent.name
 
             for face in model.get(img):
-                emb  = face.normed_embedding.astype("float32")
-                bbox = [int(x) for x in face.bbox.tolist()]
-                embeddings.append(emb)
+                embeddings.append(face.normed_embedding.astype("float32"))
                 metadata.append({
                     "image_path": rel_path,
                     "label":      label,
-                    "bbox":       bbox,
+                    "bbox":       [int(x) for x in face.bbox.tolist()],
                 })
         except Exception as exc:
             log.warning(f"[{dataset_id}] item {i}: {exc}")
 
-        # Update progress more frequently for better UI feedback
         update_freq = 1 if total < 50 else 5
         if (i + 1) % update_freq == 0 or i == total - 1:
             db_update_dataset_fields(dataset_id, processed=i+1)
@@ -833,8 +1080,6 @@ def run_embedding_job(dataset_id: str):
         idx = faiss.IndexFlatIP(emb_matrix.shape[1])
         idx.add(emb_matrix)
         faiss.write_index(idx, str(emb_dir / "face_index.faiss"))
-
-        # Upload embeddings to B2
         if use_b2:
             for fname in ("embeddings.npy", "metadata.pkl", "face_index.faiss"):
                 fpath = emb_dir / fname
@@ -845,23 +1090,15 @@ def run_embedding_job(dataset_id: str):
     db_update_dataset_fields(dataset_id, status="ready", face_count=len(embeddings))
     log.info(f"[{dataset_id}] Done — {len(embeddings)} face embeddings")
 
-    # Clean up local temp files after uploading to B2
     if use_b2:
         import shutil
-        if emb_dir.exists():
-            shutil.rmtree(emb_dir, ignore_errors=True)
-        if dataset_dir.exists():
-            shutil.rmtree(dataset_dir, ignore_errors=True)
+        for d in (emb_dir, dataset_dir):
+            if d.exists():
+                shutil.rmtree(d, ignore_errors=True)
         log.info(f"[{dataset_id}] Local temp dirs cleaned up")
 
-    # Unload model after batch embedding to free RAM
-    if os.environ.get("UNLOAD_MODEL_AFTER_EMBED", "true").lower() == "true":
-        global _face_model
-        with _model_lock:
-            _face_model = None
-        import gc
-        gc.collect()
-        log.info(f"[{dataset_id}] Face model unloaded to free RAM")
+    _unload_face_model()
+    log.info(f"[{dataset_id}] Face model unloaded")
 
 # ── Search ────────────────────────────────────────────────────────────────────
 
@@ -871,6 +1108,7 @@ _index_cache: "collections.OrderedDict[str, tuple]" = collections.OrderedDict()
 _index_cache_lock = threading.Lock()
 
 def _get_index_and_meta(dataset_id: str):
+    _touch_activity()
     with _index_cache_lock:
         if dataset_id in _index_cache:
             _index_cache.move_to_end(dataset_id)
@@ -1078,18 +1316,20 @@ def download_gdrive_folder(folder_id: str, dest_dir: Path, dataset_id: str):
 
     db_update_dataset_fields(dataset_id, status="queued")
 
-    # Upload downloaded images to B2 before embedding
-    if b2.b2_configured():
-        exts = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
-        uploaded = 0
-        for img_path in dest_dir.rglob("*"):
-            if img_path.is_file() and img_path.suffix.lower() in exts:
-                rel = str(img_path.relative_to(dest_dir))
-                b2.upload_dataset_image(dataset_id, rel, img_path.read_bytes())
-                uploaded += 1
-        log.info(f"[{dataset_id}] GDrive: uploaded {uploaded} images to B2")
+    # Determine free tier from dataset owner's plan
+    ds_fresh = db_get_dataset(dataset_id)
+    is_free = True
+    if ds_fresh:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT plan FROM users WHERE id=%s", (ds_fresh["user_id"],))
+                row = cur.fetchone()
+        if row:
+            is_free = (row["plan"] or "free") == "free"
 
-    run_embedding_job(dataset_id)
+    # Use the same compress → parallel B2 upload → embed pipeline as ZIP uploads
+    # (compress_upload_and_embed reads images from dest_dir which is DATASETS_DIR / dataset_id)
+    compress_upload_and_embed(dataset_id, is_free)
 
 # ── Auth helpers ──────────────────────────────────────────────────────────────
 
@@ -1118,69 +1358,171 @@ def generate_qr_code_png(data: str) -> bytes:
 
 def apply_watermark(image_bytes: bytes, watermark_text: str) -> bytes:
     """
-    Overlay studio name as a watermark at bottom-left of image.
-    Uses Pillow. Raises on failure so the caller can log and handle it.
+    Overlay studio name as a cursive watermark at bottom-left of image.
+    Uses Great Vibes font with a dark translucent gradient pill background
+    that fades out to the right.
     """
+    import numpy as np
     from PIL import Image as PILImage, ImageDraw, ImageFont
 
     img = PILImage.open(io.BytesIO(image_bytes)).convert("RGBA")
     w, h = img.size
 
-    txt_layer = PILImage.new("RGBA", img.size, (255, 255, 255, 0))
-    draw = ImageDraw.Draw(txt_layer)
+    font_size = max(36, int(h * 0.055))
+    font = _load_watermark_font(font_size)
 
-    font_size = max(28, int(h * 0.045))
-    font = None
-
-    # Broader list covering Debian, Ubuntu, Alpine (Railway)
-    font_candidates = [
-        "/usr/share/fonts/truetype/dejavu/DejaVuSerif-BoldItalic.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSerif-BoldItalic.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-        "/usr/share/fonts/truetype/freefont/FreeSerifBoldItalic.ttf",
-        "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
-        "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/dejavu/DejaVuSerif-BoldItalic.ttf",
-        "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/truetype/ttf-dejavu/DejaVuSans-Bold.ttf",
-    ]
-    for fpath in font_candidates:
-        if os.path.exists(fpath):
-            try:
-                font = ImageFont.truetype(fpath, font_size)
-                log.info(f"Watermark font: {fpath} size={font_size}")
-                break
-            except Exception as fe:
-                log.warning(f"Font load failed {fpath}: {fe}")
-
-    if font is None:
-        log.warning("No system font found — using Pillow default")
-        try:
-            font = ImageFont.load_default(size=font_size)
-        except TypeError:
-            font = ImageFont.load_default()
-
-    # Text bounding box — textbbox available since Pillow 8.0
+    # ── Measure the rendered text on a scratch canvas ──────────────────────
+    scratch = PILImage.new("RGBA", (w, h), (0, 0, 0, 0))
+    scratch_draw = ImageDraw.Draw(scratch)
     try:
-        bbox = draw.textbbox((0, 0), watermark_text, font=font)
-        tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+        bbox = scratch_draw.textbbox((0, 0), watermark_text, font=font)
+        tw = bbox[2] - bbox[0]
+        th = bbox[3] - bbox[1]
     except AttributeError:
-        tw, th = draw.textsize(watermark_text, font=font)
+        tw, th = scratch_draw.textsize(watermark_text, font=font)
 
-    pad_x = int(w * 0.02)
-    pad_y = int(h * 0.02)
-    x = pad_x
-    y = h - th - pad_y * 3
+    # ── Layout: pill sits flush to the left edge, above bottom ────────────
+    pad_y   = int(h * 0.025)
+    inner_x = int(tw * 0.20)   # horizontal padding inside pill (right side only)
+    inner_y = int(th * 0.50)   # vertical padding inside pill
 
-    draw.text((x + 2, y + 2), watermark_text, font=font, fill=(0, 0, 0, 130))
-    draw.text((x, y), watermark_text, font=font, fill=(255, 255, 255, 210))
+    # Pill starts at x=0 (flush left edge)
+    px = 0
+    py = h - th - pad_y - inner_y * 2
+
+    pill_w = tw + inner_x * 2
+    pill_h = th + inner_y * 2
+
+    # ── Build gradient pill on a small canvas, then paste onto full image ──
+    # Use numpy for a clean horizontal alpha gradient (left=opaque, right=transparent)
+    grad = np.zeros((pill_h, pill_w, 4), dtype=np.uint8)
+    # R, G, B stay 0 (black background)
+    xs = np.arange(pill_w, dtype=np.float32)
+    fade_start = pill_w * 0.55
+    alpha_col = np.where(
+        xs <= fade_start,
+        170,
+        (170 * (1.0 - (xs - fade_start) / max(pill_w - fade_start, 1))).clip(0, 170)
+    ).astype(np.uint8)
+    grad[:, :, 3] = alpha_col[np.newaxis, :]   # broadcast across all rows
+
+    pill_img = PILImage.fromarray(grad, mode="RGBA")
+
+    # Rounded corners only on the right side (left is flush with image edge)
+    corner_r = min(pill_h // 4, 10)
+    mask = PILImage.new("L", (pill_w, pill_h), 0)
+    mask_draw = ImageDraw.Draw(mask)
+    # Draw a rounded rect but cover the left half with a plain rectangle so
+    # left corners stay square while right corners stay rounded.
+    mask_draw.rounded_rectangle(
+        [0, 0, pill_w - 1, pill_h - 1], radius=corner_r, fill=255
+    )
+    mask_draw.rectangle([0, 0, corner_r, pill_h - 1], fill=255)  # square off left corners
+    # Multiply existing alpha by the rounded mask
+    r, g, b, a = pill_img.split()
+    a = PILImage.fromarray((np.array(a, dtype=np.uint16) * np.array(mask, dtype=np.uint16) // 255).astype(np.uint8))
+    pill_img = PILImage.merge("RGBA", (r, g, b, a))
+
+    # Composite pill onto image
+    pill_layer = PILImage.new("RGBA", (w, h), (0, 0, 0, 0))
+    pill_layer.paste(pill_img, (px, py))
+    img = PILImage.alpha_composite(img, pill_layer)
+
+    # ── Draw text centred vertically inside the pill ───────────────────────
+    # Use textbbox with actual draw position to get exact ink bounds,
+    # then offset so the visible glyph is centred in the pill.
+    txt_layer = PILImage.new("RGBA", (w, h), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(txt_layer)
+    tx = px + inner_x
+    # Centre vertically: offset by the top bearing so glyph sits in the middle
+    try:
+        ink_bbox = draw.textbbox((tx, 0), watermark_text, font=font)
+        ink_h = ink_bbox[3] - ink_bbox[1]
+        ink_top_bearing = ink_bbox[1]  # how far below y=0 the top of the glyph is
+    except AttributeError:
+        ink_h = th
+        ink_top_bearing = 0
+    ty = py + (pill_h - ink_h) // 2 - ink_top_bearing
+    # Soft shadow for depth
+    draw.text((tx + 1, ty + 2), watermark_text, font=font, fill=(0, 0, 0, 100))
+    draw.text((tx, ty), watermark_text, font=font, fill=(255, 255, 255, 235))
 
     out = PILImage.alpha_composite(img, txt_layer).convert("RGB")
     buf = io.BytesIO()
     out.save(buf, format="JPEG", quality=92)
-    log.info(f"Watermark applied: size={w}x{h}")
+    log.info(f"Watermark applied: size={w}x{h} font_size={font_size}")
     return buf.getvalue()
+
+
+# ── Watermark font loader (cached) ───────────────────────────────────────────
+
+_wm_font_cache: dict = {}
+_wm_font_lock = threading.Lock()
+
+_GREAT_VIBES_URL = (
+    "https://github.com/google/fonts/raw/main/ofl/greatvibes/GreatVibes-Regular.ttf"
+)
+_GREAT_VIBES_PATH = DATA_DIR / "fonts" / "GreatVibes-Regular.ttf"
+
+# Fallback cursive/script system fonts (Debian/Ubuntu/Alpine)
+_CURSIVE_FONT_CANDIDATES = [
+    "/usr/share/fonts/truetype/urw-base35/URWChanceryL-MediItal.ttf",
+    "/usr/share/fonts/truetype/freefont/FreeSerifBoldItalic.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSerif-BoldItalic.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSerif-BoldItalic.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+]
+
+
+def _load_watermark_font(size: int):
+    """Return an ImageFont for the watermark, using Great Vibes if available."""
+    from PIL import ImageFont
+
+    with _wm_font_lock:
+        if size in _wm_font_cache:
+            return _wm_font_cache[size]
+
+        font = None
+
+        # 1. Try cached Great Vibes on disk
+        if _GREAT_VIBES_PATH.exists():
+            try:
+                font = ImageFont.truetype(str(_GREAT_VIBES_PATH), size)
+                log.info(f"Watermark: loaded Great Vibes from cache size={size}")
+            except Exception as e:
+                log.warning(f"Watermark: cached Great Vibes failed: {e}")
+
+        # 2. Try downloading Great Vibes from Google Fonts GitHub
+        if font is None:
+            try:
+                _GREAT_VIBES_PATH.parent.mkdir(parents=True, exist_ok=True)
+                urllib.request.urlretrieve(_GREAT_VIBES_URL, str(_GREAT_VIBES_PATH))
+                font = ImageFont.truetype(str(_GREAT_VIBES_PATH), size)
+                log.info(f"Watermark: downloaded Great Vibes size={size}")
+            except Exception as e:
+                log.warning(f"Watermark: Great Vibes download failed: {e}")
+
+        # 3. Fall back to system cursive/script fonts
+        if font is None:
+            for fpath in _CURSIVE_FONT_CANDIDATES:
+                if os.path.exists(fpath):
+                    try:
+                        font = ImageFont.truetype(fpath, size)
+                        log.info(f"Watermark: fallback font {fpath} size={size}")
+                        break
+                    except Exception:
+                        pass
+
+        # 4. Last resort: Pillow default
+        if font is None:
+            log.warning("Watermark: using Pillow default font")
+            try:
+                font = ImageFont.load_default(size=size)
+            except TypeError:
+                font = ImageFont.load_default()
+
+        _wm_font_cache[size] = font
+        return font
 
 
 # ── Google Drive accessibility check ─────────────────────────────────────────
@@ -1246,9 +1588,12 @@ def db_create_group(user_id: str, name: str, description: str = "", watermark_te
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             """, (group_id, user_id, name, description, watermark_text or "", event_type, event_date or None, now))
         conn.commit()
-    return {"id": group_id, "user_id": user_id, "name": name, "description": description,
-            "watermark_text": watermark_text, "event_type": event_type,
-            "event_date": event_date or None, "created_at": now}
+    result = {"id": group_id, "user_id": user_id, "name": name, "description": description,
+              "watermark_text": watermark_text, "event_type": event_type,
+              "event_date": event_date or None, "created_at": now}
+    cache_delete(f"group:{group_id}")
+    cache_delete(f"groups:{user_id}")
+    return result
 
 
 def db_get_group(group_id: str) -> Optional[dict]:
@@ -1267,6 +1612,9 @@ def db_get_group(group_id: str) -> Optional[dict]:
 
 
 def db_list_groups(user_id: str) -> list:
+    cached = cache_get(f"groups:{user_id}")
+    if cached:
+        return cached
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -1274,7 +1622,9 @@ def db_list_groups(user_id: str) -> list:
                 (user_id,)
             )
             rows = cur.fetchall()
-    return [dict(r) for r in rows]
+    result = [dict(r) for r in rows]
+    cache_set(f"groups:{user_id}", result, ttl=30)
+    return result
 
 
 def db_update_group(group_id: str, **fields):
@@ -1287,14 +1637,22 @@ def db_update_group(group_id: str, **fields):
             cur.execute(f"UPDATE event_groups SET {set_clause} WHERE id=%s", values)
         conn.commit()
     cache_delete(f"group:{group_id}")
+    # Invalidate list cache — look up user_id from the (now stale) group cache or DB
+    g = db_get_group(group_id)
+    if g:
+        cache_delete(f"groups:{g['user_id']}")
 
 
 def db_delete_group(group_id: str):
+    # Fetch user_id before deleting so we can invalidate the list cache
+    g = db_get_group(group_id)
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("DELETE FROM event_groups WHERE id=%s", (group_id,))
         conn.commit()
     cache_delete(f"group:{group_id}")
+    if g:
+        cache_delete(f"groups:{g['user_id']}")
 
 
 # ── Discount code helpers ─────────────────────────────────────────────────────
@@ -1343,7 +1701,13 @@ def validate_discount_code(code: str, user_id: str, interval: str = "monthly") -
         return {"valid": False, "discount_pct": 0,
                 "reason": f"This code is only valid for {dc_interval} billing."}
 
-    return {"valid": True, "discount_pct": dc["discount_pct"], "reason": "ok", "code": code}
+    return {
+        "valid":        True,
+        "discount_pct": dc["discount_pct"],
+        "free_months":  dc.get("free_months"),  # None means no timed trial
+        "reason":       "ok",
+        "code":         code,
+    }
 
 
 def consume_discount_code(code: str, user_id: str, order_id: str = None):
@@ -1588,7 +1952,7 @@ def db_get_session_user(token: str) -> Optional[dict]:
             row = cur.fetchone()
     if row:
         user = dict(row)
-        cache_set(f"session:{token}", user, ttl=30)
+        cache_set(f"session:{token}", user, ttl=300)  # 5-min cache — was 30s
         return user
     return None
 
@@ -1723,6 +2087,9 @@ async def no_cache_html(request: Request, call_next):
 def on_startup():
     init_db()
     get_redis()  # warm up connection
+    # Start background idle-unload watcher
+    t = threading.Thread(target=_idle_watcher, daemon=True, name="idle-watcher")
+    t.start()
 
 # ── Auth endpoints ────────────────────────────────────────────────────────────
 
@@ -1808,6 +2175,7 @@ def me(request: Request):
         "scheduled_downgrade_at":       user.get("scheduled_downgrade_at"),
         "scheduled_downgrade_interval": user.get("scheduled_downgrade_interval"),
         "plan_cycle_start":             user.get("plan_cycle_start"),
+        "plan_free_until":              user.get("plan_free_until"),   # non-null = active free trial
     }
 
 # ── Dataset endpoints ─────────────────────────────────────────────────────────
@@ -1816,59 +2184,84 @@ def me(request: Request):
 def list_datasets(request: Request):
     user = require_auth(request)
     datasets = db_list_datasets(user["id"])
-    # Append live disk size to each dataset (calculated from filesystem)
-    for ds_id, ds in datasets.items():
-        ds["size_bytes"] = get_dataset_disk_size(ds_id)
+    # size_bytes is intentionally omitted — it's a slow B2/disk estimate
+    # and the frontend doesn't use it for anything critical.
     return datasets
 
 @app.post("/api/datasets/upload-zip")
 async def upload_zip(
     request: Request,
     background_tasks: BackgroundTasks,
-    file: UploadFile = File(...),
+    file: List[UploadFile] = File(...),
     name: str = Form(default=""),
     group_id: str = Form(default=""),
 ):
     user = require_auth(request)
-    if not file.filename.endswith(".zip"):
-        raise HTTPException(400, "Please upload a .zip file.")
+
+    _IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".heic", ".heif"}
+
+    # Normalise: FastAPI wraps a single file in a list automatically with List[UploadFile]
+    files = file if isinstance(file, list) else [file]
+
+    if not files:
+        raise HTTPException(400, "No files received.")
+
+    is_zip = len(files) == 1 and files[0].filename.lower().endswith(".zip")
+    is_images = all(Path(f.filename).suffix.lower() in _IMAGE_EXTS for f in files)
+
+    if not is_zip and not is_images:
+        raise HTTPException(400, "Please upload a ZIP file or one or more image files (JPG, PNG, WEBP, HEIC).")
 
     dataset_id  = str(uuid.uuid4())[:8]
     dataset_dir = DATASETS_DIR / dataset_id
     dataset_dir.mkdir()
 
-    zip_path = dataset_dir / "upload.zip"
-    raw_bytes = await resilient_read_upload(file)
-    zip_path.write_bytes(raw_bytes)
-    
-    # Extract ZIP
-    with zipfile.ZipFile(zip_path) as zf:
-        zf.extractall(dataset_dir)
-    zip_path.unlink()
-    
+    import shutil as _shutil
+
+    if is_zip:
+        # ── ZIP path: extract as before ──────────────────────────────────────
+        zip_path  = dataset_dir / "upload.zip"
+        raw_bytes = await resilient_read_upload(files[0])
+        zip_path.write_bytes(raw_bytes)
+        del raw_bytes
+        with zipfile.ZipFile(zip_path) as zf:
+            zf.extractall(dataset_dir)
+        zip_path.unlink()
+        default_name = files[0].filename.replace(".zip", "").replace(".ZIP", "")
+    else:
+        # ── Loose images path: save each file directly into dataset_dir ──────
+        for f in files:
+            safe_name = Path(f.filename).name  # strip any path traversal
+            dest = dataset_dir / safe_name
+            raw = await resilient_read_upload(f)
+            dest.write_bytes(raw)
+            del raw
+        default_name = f"{len(files)} photos"
+
     # ── Enforce dataset count limit ──────────────────────────────────────────
-    limits = get_plan_limits(user)
+    limits   = get_plan_limits(user)
     existing = db_list_datasets(user["id"])
     if len(existing) >= limits["max_datasets"]:
-        import shutil; shutil.rmtree(dataset_dir, ignore_errors=True)
+        _shutil.rmtree(dataset_dir, ignore_errors=True)
         raise HTTPException(400, f"Dataset limit reached. Your plan allows {limits['max_datasets']} dataset(s). Delete one or upgrade.")
 
     # ── Enforce image count limit ─────────────────────────────────────────────
     img_count = count_images_in_dir(dataset_dir)
     if img_count > limits["max_images"]:
-        import shutil; shutil.rmtree(dataset_dir, ignore_errors=True)
-        raise HTTPException(400, f"Too many images. Your plan allows up to {limits['max_images']:,} images per dataset. This ZIP contains {img_count:,}.")
+        _shutil.rmtree(dataset_dir, ignore_errors=True)
+        raise HTTPException(400, f"Too many images. Your plan allows up to {limits['max_images']:,} images per dataset. You uploaded {img_count:,}.")
 
-    # Register dataset first so status is visible in the UI immediately
+    # Register dataset — visible in UI immediately with status "queued"
+    is_free = user.get("plan", "free") == "free"
     ds = {
         "id": dataset_id, "user_id": user["id"],
-        "name": name or file.filename.replace(".zip",""),
+        "name": name or default_name,
         "source": "zip", "folder_id": None,
-        "status": "compressing", "total": 0, "processed": 0,
+        "status": "queued", "total": img_count, "processed": 0,
         "face_count": 0, "error": None, "created_at": time.time(),
     }
-    
     db_upsert_dataset(ds)
+
     # Assign to group if provided
     if group_id:
         g = db_get_group(group_id)
@@ -1877,26 +2270,10 @@ async def upload_zip(
                 with conn.cursor() as cur:
                     cur.execute("UPDATE datasets SET group_id=%s WHERE id=%s", (group_id, dataset_id))
                 conn.commit()
-    db_upsert_dataset(ds)
 
-    # Apply caps before embedding.
-    is_free = user.get("plan", "free") == "free"
-    total_imgs, capped = compress_images_in_dir(dataset_dir, free_tier=is_free)
-    log.info(f"[{dataset_id}] {'Free' if is_free else 'Paid'} tier cap: {capped}/{total_imgs} images processed")
-
-    # Upload images to B2
-    if b2.b2_configured():
-        exts = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
-        uploaded = 0
-        for img_path in dataset_dir.rglob("*"):
-            if img_path.is_file() and img_path.suffix.lower() in exts:
-                rel = str(img_path.relative_to(dataset_dir))
-                b2.upload_dataset_image(dataset_id, rel, img_path.read_bytes())
-                uploaded += 1
-        log.info(f"[{dataset_id}] Uploaded {uploaded} images to B2")
-
-    background_tasks.add_task(run_embedding_job, dataset_id)
-    return {"dataset_id": dataset_id, "status": "compressing"}
+    # ── Hand off everything else to background ───────────────────────────────
+    background_tasks.add_task(compress_upload_and_embed, dataset_id, is_free)
+    return {"dataset_id": dataset_id, "status": "queued"}
 
 @app.post("/api/datasets/gdrive")
 async def use_gdrive_folder(
@@ -2008,7 +2385,7 @@ async def add_images_to_dataset(
     dataset_id: str,
     request: Request,
     background_tasks: BackgroundTasks,
-    file: UploadFile = File(...),
+    file: List[UploadFile] = File(...),
 ):
     user = require_auth(request)
     ds = db_get_dataset(dataset_id)
@@ -2018,49 +2395,104 @@ async def add_images_to_dataset(
         raise HTTPException(403, "Not your dataset.")
     if ds["status"] != "ready":
         raise HTTPException(400, "Dataset must be in 'ready' state to add images.")
-    if not file.filename.endswith(".zip"):
-        raise HTTPException(400, "Please upload a .zip file.")
-    
+
+    _IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".heic", ".heif"}
+
+    files = file if isinstance(file, list) else [file]
+    if not files:
+        raise HTTPException(400, "No files received.")
+
+    is_zip    = len(files) == 1 and files[0].filename.lower().endswith(".zip")
+    is_images = all(Path(f.filename).suffix.lower() in _IMAGE_EXTS for f in files)
+
+    if not is_zip and not is_images:
+        raise HTTPException(400, "Please upload a ZIP file or one or more image files (JPG, PNG, WEBP, HEIC).")
+
     dataset_dir = DATASETS_DIR / dataset_id
-    
+    dataset_dir.mkdir(parents=True, exist_ok=True)
     temp_dir = dataset_dir / f"_temp_{int(time.time())}"
     temp_dir.mkdir()
-    
-    zip_path = temp_dir / "upload.zip"
-    raw_bytes = await resilient_read_upload(file)
-    zip_path.write_bytes(raw_bytes)
-    with zipfile.ZipFile(zip_path) as zf:
-        zf.extractall(temp_dir)
-    zip_path.unlink()
 
-    # ── Enforce image limit on combined total ─────────────────────────────────
+    import shutil as _shutil
+
+    if is_zip:
+        zip_path = temp_dir / "upload.zip"
+        raw_bytes = await resilient_read_upload(files[0])
+        zip_path.write_bytes(raw_bytes)
+        del raw_bytes
+        with zipfile.ZipFile(zip_path) as zf:
+            zf.extractall(temp_dir)
+        zip_path.unlink()
+    else:
+        for f in files:
+            safe_name = Path(f.filename).name
+            dest = temp_dir / safe_name
+            raw = await resilient_read_upload(f)
+            dest.write_bytes(raw)
+            del raw
+
+    # ── Enforce image limit on combined total across ALL user datasets ─────────
     limits = get_plan_limits(user)
     existing_count = count_images_in_dir(dataset_dir)
     new_count      = count_images_in_dir(temp_dir)
-    if existing_count + new_count > limits["max_images"]:
-        import shutil; shutil.rmtree(temp_dir, ignore_errors=True)
+    # Also count images in every OTHER dataset this user owns (use DB totals for speed)
+    all_user_datasets = db_list_datasets(user["id"])
+    other_datasets_total = sum(
+        ds.get("total", 0)
+        for ds_id, ds in all_user_datasets.items()
+        if ds_id != dataset_id
+    )
+    grand_total = other_datasets_total + existing_count + new_count
+    if grand_total > limits["max_images"]:
+        _shutil.rmtree(temp_dir, ignore_errors=True)
+        already_used = other_datasets_total + existing_count
         raise HTTPException(400,
-            f"Image limit exceeded. Your plan allows {limits['max_images']:,} images per dataset. "
-            f"This dataset already has {existing_count:,} and you're adding {new_count:,}.")
+            f"Image limit exceeded. Your plan allows {limits['max_images']:,} photos in total across all albums. "
+            f"You currently have {already_used:,} photo(s) and are trying to add {new_count:,} more.")
 
     is_free = user.get("plan", "free") == "free"
     total_imgs, capped = compress_images_in_dir(temp_dir, free_tier=is_free)
     log.info(f"[{dataset_id}] {'Free' if is_free else 'Paid'} tier cap on new images: {capped}/{total_imgs} processed")
-    
-    import shutil
-    for item in temp_dir.rglob("*"):
-        if item.is_file():
-            rel_path = item.relative_to(temp_dir)
-            target = dataset_dir / rel_path
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(item), str(target))
-    
-    shutil.rmtree(temp_dir)
-    
+
+    # Collect new image paths before moving, so we can upload them to B2
+    new_image_paths = [item for item in temp_dir.rglob("*") if item.is_file()]
+
+    # ── If B2 is configured, upload the new images to B2 NOW ─────────────────
+    # run_embedding_job lists images exclusively from B2 when B2 is enabled,
+    # so new images must reach B2 before the re-index job runs.
+    use_b2 = b2.b2_configured()
+    if use_b2:
+        exts = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
+        for item in new_image_paths:
+            if item.suffix.lower() not in exts:
+                continue
+            try:
+                rel_path = str(item.relative_to(temp_dir).with_suffix('.jpg'))
+                b2.upload_bytes(
+                    b2.dataset_image_key(dataset_id, rel_path),
+                    item.read_bytes(),
+                    content_type="image/jpeg",
+                )
+                log.info(f"[{dataset_id}] Uploaded new image to B2: {rel_path}")
+            except Exception as exc:
+                log.warning(f"[{dataset_id}] B2 upload failed for {item.name}: {exc}")
+
+    for item in new_image_paths:
+        rel_path = item.relative_to(temp_dir)
+        target = dataset_dir / rel_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        _shutil.move(str(item), str(target))
+
+    _shutil.rmtree(temp_dir)
+
+    # Evict stale in-memory index so the re-index result is picked up immediately
+    with _index_cache_lock:
+        _index_cache.pop(dataset_id, None)
+
     db_update_dataset_fields(dataset_id, status="queued")
     background_tasks.add_task(run_embedding_job, dataset_id)
-    
-    log.info(f"[{dataset_id}] Images added, re-embedding started")
+
+    log.info(f"[{dataset_id}] {len(new_image_paths)} image(s) added, re-embedding started")
     return {"ok": True, "dataset_id": dataset_id, "status": "queued"}
 
 # ── Share endpoints ───────────────────────────────────────────────────────────
@@ -2083,6 +2515,9 @@ async def create_share(request: Request):
     dataset_id = body.get("dataset_id")
     group_id = body.get("group_id")
     watermark_text = body.get("watermark_text", "")
+    permission = body.get("permission", "view")
+    if permission not in ("view", "contribute"):
+        permission = "view"
 
     # 3. If the frontend tried to share a 'Group', find a ready dataset inside it
     if group_id and not dataset_id:
@@ -2104,16 +2539,23 @@ async def create_share(request: Request):
     if ds["status"] != "ready":
         raise HTTPException(400, "Dataset is not ready yet.")
 
-    # If no explicit watermark supplied, inherit from the event group
-    if not watermark_text and ds.get("group_id"):
+    # Free-plan users always get the Lenstagram.com watermark — enforce server-side
+    # regardless of what the client sent, so it cannot be bypassed via API calls.
+    if user.get("plan", "free") == "free":
+        watermark_text = "Lenstagram.com"
+    elif not watermark_text and ds.get("group_id"):
+        # Paid users: if no explicit watermark supplied, inherit from the event group
         group = db_get_group(ds["group_id"])
         if group:
             watermark_text = group.get("watermark_text") or ""
 
-    # 5. Check if share already exists
+    # 5. Check if share already exists for this (dataset_id, permission) pair
     with get_db() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT share_id FROM shares WHERE dataset_id = %s LIMIT 1", (dataset_id,))
+            cur.execute(
+                "SELECT share_id FROM shares WHERE dataset_id = %s AND COALESCE(permission, 'view') = %s LIMIT 1",
+                (dataset_id, permission)
+            )
             existing = cur.fetchone()
             
     if existing:
@@ -2129,27 +2571,25 @@ async def create_share(request: Request):
             cache_delete(f"share:{existing['share_id']}")
         return {"share_id": existing["share_id"]}
 
-    # 6. Create new share
+    # 6. Create new share — insert permission + watermark atomically.
+    # ON CONFLICT (dataset_id, permission) keeps view and contribute as separate rows,
+    # updating only the watermark if the share already exists for that permission type.
     share_id = str(uuid.uuid4())[:12]
-    share = {
-        "share_id":     share_id,
-        "dataset_id":   dataset_id,
-        "dataset_name": ds["name"],
-        "created_at":   time.time(),
-    }
-    db_insert_share(share)
-    
-    # 7. Apply watermark if provided
-    if watermark_text:
-        with get_db() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "UPDATE shares SET watermark_text=%s WHERE share_id=%s",
-                    (watermark_text[:80], share_id)
-                )
-            conn.commit()
-        cache_delete(f"share:{share_id}")
-        
+    wm = (watermark_text[:80] if watermark_text else None)
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO shares (share_id, dataset_id, dataset_name, created_at, permission, watermark_text)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (dataset_id, permission) DO UPDATE
+                    SET watermark_text = EXCLUDED.watermark_text
+                RETURNING share_id
+            """, (share_id, dataset_id, ds["name"], time.time(), permission, wm))
+            row = cur.fetchone()
+        conn.commit()
+    if row:
+        share_id = row["share_id"]
+    cache_delete(f"share:{share_id}")
     return {"share_id": share_id}
 
 
@@ -2272,15 +2712,218 @@ async def search_by_selfie(share_id: str, file: UploadFile = File(...), face_ind
             if key not in merged or m["score"] > merged[key]["score"]:
                 merged[key] = m
 
-    sorted_results = sorted(merged.values(), key=lambda x: x["score"], reverse=True)
+    # Only return matches with at least 50% confidence to avoid false positives
+    min_conf = 0.50
+    sorted_results = sorted(
+        [r for r in merged.values() if r["score"] >= min_conf],
+        key=lambda x: x["score"], reverse=True
+    )
 
     return {
-        "face_detected": True,
-        "num_faces":     len(all_faces_sorted),
-        "matches":       sorted_results,
-        "latency_ms":    round((time.time()-t0)*1000, 1),
-        "dataset_id":    share["dataset_id"],
+        "face_detected":    True,
+        "num_faces":        len(all_faces_sorted),
+        "matches":          sorted_results,
+        "latency_ms":       round((time.time()-t0)*1000, 1),
+        "dataset_id":       share["dataset_id"],
     }
+
+# ── Contributor upload endpoint (for 'contribute' permission share links) ───────
+
+@app.post("/api/shares/{share_id}/contribute")
+async def contribute_photos(
+    share_id: str,
+    background_tasks: BackgroundTasks,
+    file: List[UploadFile] = File(...),
+):
+    """
+    Allow a guest with a 'contribute' share link to add photos to the dataset.
+    - Validates that the share has permission='contribute'
+    - Saves images into the existing dataset directory
+    - Triggers a background re-embed so new photos become searchable
+    - Rate-limited: max 50 images per call, no auth required
+    """
+    share = db_get_share(share_id)
+    if not share:
+        raise HTTPException(404, "Share link not found.")
+    if share.get("permission") != "contribute":
+        raise HTTPException(403, "This share link does not allow photo contributions.")
+
+    ds = db_get_dataset(share["dataset_id"])
+    if not ds:
+        raise HTTPException(404, "Dataset not found.")
+
+    _IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif", ".bmp"}
+    files = file if isinstance(file, list) else [file]
+
+    # Validate all are images
+    non_images = [f.filename for f in files if Path(f.filename).suffix.lower() not in _IMAGE_EXTS]
+    if non_images:
+        raise HTTPException(400, "Only image files are accepted (JPG, PNG, WEBP, HEIC).")
+    if len(files) > 50:
+        raise HTTPException(400, "Maximum 50 photos per upload.")
+
+    # ── Enforce plan quota for the dataset owner ───────────────────────────────
+    with get_db() as _qconn:
+        with _qconn.cursor() as _qcur:
+            _qcur.execute("SELECT plan FROM users WHERE id=%s", (ds["user_id"],))
+            _owner_row = _qcur.fetchone()
+    _owner_plan   = (_owner_row["plan"] if _owner_row else None) or "free"
+    _owner_limits = PLAN_LIMITS.get(_owner_plan, PLAN_LIMITS["free"])
+    _owner_datasets = db_list_datasets(ds["user_id"])
+    _owner_total_images = sum(d.get("total", 0) for d in _owner_datasets.values())
+    if _owner_total_images + len(files) > _owner_limits["max_images"]:
+        remaining = max(0, _owner_limits["max_images"] - _owner_total_images)
+        raise HTTPException(400,
+            f"This album has reached its photo limit. "
+            f"Only {remaining} more photo(s) can be added.")
+
+    # Save to existing dataset dir (or temp dir if dataset is B2-backed)
+    dataset_dir = DATASETS_DIR / ds["id"]
+    dataset_dir.mkdir(parents=True, exist_ok=True)
+
+    saved = 0
+    saved_files: list[tuple[str, bytes]] = []  # (safe_name, raw_bytes)
+    for f in files:
+        safe_name = f"contrib_{uuid.uuid4().hex[:8]}_{Path(f.filename).name}"
+        dest = dataset_dir / safe_name
+        raw = await f.read()
+        dest.write_bytes(raw)
+        saved_files.append((safe_name, raw))
+        saved += 1
+
+    # If B2 is configured, upload new photos to B2 immediately so run_embedding_job
+    # can see them alongside the already-stored dataset images.
+    if b2.b2_configured():
+        for safe_name, raw in saved_files:
+            try:
+                b2.upload_bytes(
+                    b2.dataset_image_key(ds["id"], safe_name),
+                    raw,
+                    content_type="image/jpeg",
+                )
+                log.info(f"[{ds['id']}] Contributor photo uploaded to B2: {safe_name}")
+            except Exception as exc:
+                log.warning(f"[{ds['id']}] B2 upload failed for {safe_name}: {exc}")
+        # Use run_embedding_job which reads the full B2 dataset (old + new images)
+        background_tasks.add_task(run_embedding_job, ds["id"])
+    else:
+        # Local mode: full compress+embed pipeline over the local dir
+        is_free = True
+        background_tasks.add_task(compress_upload_and_embed, ds["id"], is_free)
+
+    log.info(f"Contributor upload: {saved} photos added to dataset {ds['id']} via share {share_id}")
+    return {"ok": True, "saved": saved, "dataset_id": ds["id"], "dataset_status": "processing"}
+
+
+# ── Authenticated dataset search (admin / owner only) ─────────────────────────
+
+@app.get("/api/shares/{share_id}/status")
+def get_share_status(share_id: str):
+    """
+    Public endpoint — no auth required.
+    Returns the processing status of the dataset behind a share link.
+    Used by the contributor page to poll reindexing progress after upload.
+    """
+    share = db_get_share(share_id)
+    if not share:
+        raise HTTPException(404, "Share link not found.")
+    ds = db_get_dataset(share["dataset_id"])
+    if not ds:
+        raise HTTPException(404, "Dataset not found.")
+    return {
+        "status":     ds.get("status", "unknown"),
+        "total":      ds.get("total", 0),
+        "processed":  ds.get("processed", 0),
+        "face_count": ds.get("face_count", 0),
+    }
+
+
+@app.post("/api/datasets/{dataset_id}/search")
+async def search_dataset_authenticated(
+    dataset_id: str,
+    request: Request,
+    file: UploadFile = File(...),
+    face_indices: str = Form(default=None),
+):
+    """
+    Same face-search logic as the public share endpoint, but authenticated.
+    Only the dataset owner can call this — no share link required.
+    """
+    user = require_auth(request)
+    ds = db_get_dataset(dataset_id)
+    if not ds:
+        raise HTTPException(404, "Dataset not found.")
+    if ds.get("user_id") != user["id"]:
+        raise HTTPException(403, "Not your dataset.")
+    if ds["status"] != "ready":
+        raise HTTPException(400, "Dataset not ready for search yet.")
+
+    contents = await file.read()
+    try:
+        img = decode_image(contents)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+    t0 = time.time()
+    model = get_face_model()
+    all_faces = model.get(img)
+    if not all_faces:
+        return JSONResponse({
+            "face_detected": False,
+            "matches": [],
+            "latency_ms": round((time.time() - t0) * 1000, 1),
+        })
+
+    all_faces_sorted = sorted(all_faces, key=lambda f: f.bbox[0])
+
+    # Return face thumbnails so the admin can pick if multiple faces detected
+    face_thumbs = []
+    for face in all_faces_sorted:
+        try:
+            x1, y1, x2, y2 = [int(v) for v in face.bbox]
+            pad = int((x2 - x1) * 0.2)
+            x1 = max(0, x1 - pad); y1 = max(0, y1 - pad)
+            x2 = min(img.shape[1], x2 + pad); y2 = min(img.shape[0], y2 + pad)
+            face_crop = img[y1:y2, x1:x2]
+            _, buf = cv2.imencode(".jpg", face_crop, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+            b64 = base64.b64encode(buf.tobytes()).decode()
+            face_thumbs.append(f"data:image/jpeg;base64,{b64}")
+        except Exception:
+            face_thumbs.append("")
+
+    if face_indices:
+        try:
+            selected = [int(i) for i in face_indices.split(",") if i.strip().isdigit()]
+            faces_to_search = [all_faces_sorted[i] for i in selected if i < len(all_faces_sorted)]
+        except Exception:
+            faces_to_search = all_faces_sorted
+    else:
+        faces_to_search = [max(all_faces_sorted, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))]
+
+    merged: dict = {}
+    for face in faces_to_search:
+        emb = face.normed_embedding.astype("float32")
+        results = search_in_dataset(dataset_id, emb, top_k=100)
+        for m in results:
+            key = m["image_path"]
+            if key not in merged or m["score"] > merged[key]["score"]:
+                merged[key] = m
+
+    min_conf = 0.50
+    sorted_results = sorted(
+        [r for r in merged.values() if r["score"] >= min_conf],
+        key=lambda x: x["score"], reverse=True
+    )
+
+    return {
+        "face_detected":  True,
+        "face_count":     len(all_faces_sorted),
+        "face_thumbs":    face_thumbs,
+        "matches":        sorted_results,
+        "latency_ms":     round((time.time() - t0) * 1000, 1),
+        "dataset_id":     dataset_id,
+    }
+
 
 # ── Image serving ─────────────────────────────────────────────────────────────
 
@@ -2343,6 +2986,146 @@ def serve_thumb(dataset_id: str, image_path: str):
         cv2.imwrite(str(thumb_path), img, [int(cv2.IMWRITE_JPEG_QUALITY), 82])
     return FileResponse(str(thumb_path), media_type="image/jpeg",
                         headers={"Cache-Control": "public, max-age=604800, immutable"})
+
+# ── Dataset image management endpoints ───────────────────────────────────────
+
+@app.get("/api/datasets/{dataset_id}/images")
+def list_dataset_images(dataset_id: str, request: Request):
+    """
+    Return a paginated list of all image paths in a dataset.
+    Owner-only. Used by the admin image browser.
+    Query params: page (default 1), per_page (default 60, max 200)
+    """
+    user = require_auth(request)
+    ds = db_get_dataset(dataset_id)
+    if not ds:
+        raise HTTPException(404, "Dataset not found.")
+    if ds["user_id"] != user["id"]:
+        raise HTTPException(403, "Not your dataset.")
+
+    page     = max(1, int(request.query_params.get("page", 1)))
+    per_page = min(200, max(1, int(request.query_params.get("per_page", 60))))
+    exts     = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
+
+    if b2.b2_configured():
+        all_keys = [
+            k for k in b2.list_keys(f"datasets/{dataset_id}/")
+            if Path(k).suffix.lower() in exts
+        ]
+        # Strip the "datasets/{dataset_id}/" prefix to get rel paths
+        prefix   = f"datasets/{dataset_id}/"
+        rel_keys = [k[len(prefix):] for k in all_keys]
+    else:
+        dataset_dir = DATASETS_DIR / dataset_id
+        if not dataset_dir.exists():
+            rel_keys = []
+        else:
+            rel_keys = [
+                str(p.relative_to(dataset_dir))
+                for p in dataset_dir.rglob("*")
+                if p.suffix.lower() in exts
+            ]
+
+    rel_keys.sort()
+    total     = len(rel_keys)
+    start     = (page - 1) * per_page
+    page_keys = rel_keys[start: start + per_page]
+
+    return {
+        "dataset_id": dataset_id,
+        "total":      total,
+        "page":       page,
+        "per_page":   per_page,
+        "pages":      max(1, (total + per_page - 1) // per_page),
+        "images":     page_keys,
+    }
+
+
+
+
+@app.delete("/api/datasets/{dataset_id}/images/{image_path:path}")
+def delete_dataset_image(dataset_id: str, image_path: str,
+                          request: Request, background_tasks: BackgroundTasks):
+    """
+    Delete a single image from a dataset, then trigger a background re-index.
+    Owner-only.
+    """
+    user = require_auth(request)
+    ds = db_get_dataset(dataset_id)
+    if not ds:
+        raise HTTPException(404, "Dataset not found.")
+    if ds["user_id"] != user["id"]:
+        raise HTTPException(403, "Not your dataset.")
+
+    deleted = False
+
+    if b2.b2_configured():
+        b2_key = b2.dataset_image_key(dataset_id, image_path)
+        try:
+            if not b2.object_exists(b2_key):
+                raise HTTPException(404, "Image not found.")
+            b2_client = b2.get_b2_client()
+            b2_client.delete_object(Bucket=b2.B2_BUCKET_NAME, Key=b2_key)
+            deleted = True
+            # Best-effort: delete cached thumb
+            try:
+                b2_client.delete_object(
+                    Bucket=b2.B2_BUCKET_NAME,
+                    Key=b2.thumb_key(dataset_id, image_path + ".thumb.jpg"),
+                )
+            except Exception:
+                pass
+        except HTTPException:
+            raise
+        except Exception as e:
+            log.warning(f"B2 delete failed for datasets/{dataset_id}/{image_path}: {e}")
+            raise HTTPException(500, f"Failed to delete image from B2 storage: {e}")
+    else:
+        local_path = DATASETS_DIR / dataset_id / image_path
+        if local_path.exists():
+            local_path.unlink()
+            deleted = True
+            thumb_path = THUMBS_DIR / dataset_id / (image_path + ".thumb.jpg")
+            if thumb_path.exists():
+                thumb_path.unlink()
+
+    if not deleted and not b2.b2_configured():
+        raise HTTPException(404, "Image not found.")
+
+    # Decrement total; mark dataset as queued so UI shows re-indexing state
+    new_total = max(0, (ds.get("total") or 1) - 1)
+    db_update_dataset_fields(dataset_id, total=new_total, status="queued")
+
+    # Evict stale in-memory FAISS index
+    with _index_cache_lock:
+        _index_cache.pop(dataset_id, None)
+
+    background_tasks.add_task(run_embedding_job, dataset_id)
+    log.info(f"[{dataset_id}] Image deleted: {image_path} by user {user['id']} — re-indexing queued")
+    return {"ok": True, "deleted": image_path, "reindexing": True}
+
+
+@app.post("/api/datasets/{dataset_id}/reindex")
+def reindex_dataset(dataset_id: str, request: Request, background_tasks: BackgroundTasks):
+    """
+    Manually trigger a full re-index of a dataset.
+    Owner-only. Safe to call multiple times.
+    """
+    user = require_auth(request)
+    ds = db_get_dataset(dataset_id)
+    if not ds:
+        raise HTTPException(404, "Dataset not found.")
+    if ds["user_id"] != user["id"]:
+        raise HTTPException(403, "Not your dataset.")
+
+    with _index_cache_lock:
+        _index_cache.pop(dataset_id, None)
+
+    db_update_dataset_fields(dataset_id, status="queued")
+    background_tasks.add_task(run_embedding_job, dataset_id)
+    log.info(f"[{dataset_id}] Manual reindex triggered by user {user['id']}")
+    return {"ok": True, "dataset_id": dataset_id, "status": "queued"}
+
 
 # ── Download & license endpoints ──────────────────────────────────────────────
 
@@ -2449,7 +3232,7 @@ def download_file(token: str, request: Request):
     if b2.b2_configured() and b2.executable_exists():
         log.info(f"Executable streamed from B2 by user {user_id}")
         size = b2.get_executable_size()
-        headers = {"Content-Disposition": 'attachment; filename="facefind-selfhosted.zip"'}
+        headers = {"Content-Disposition": 'attachment; filename="lenstagram-selfhosted.zip"'}
         if size:
             headers["Content-Length"] = str(size)
         return StreamingResponse(
@@ -2465,8 +3248,8 @@ def download_file(token: str, request: Request):
     return FileResponse(
         str(EXECUTABLE_PATH),
         media_type="application/zip",
-        filename="facefind-selfhosted.zip",
-        headers={"Content-Disposition": 'attachment; filename="facefind-selfhosted.zip"'},
+        filename="lenstagram-selfhosted.zip",
+        headers={"Content-Disposition": 'attachment; filename="lenstagram-selfhosted.zip"'},
     )
 
 
@@ -2499,17 +3282,21 @@ async def validate_license(request: Request):
     key_data = db_get_license_key(key_str)
 
     if not key_data:
+        log.warning(f"License validate failed: key not found: {key_str[:12]}…")
         return JSONResponse({"valid": False, "reason": "License key not found."}, status_code=403)
 
     if key_data["revoked"]:
+        log.warning(f"License validate failed: key revoked: {key_str[:12]}…")
         return JSONResponse({"valid": False, "reason": "License key has been revoked."}, status_code=403)
 
     if time.time() > key_data["expires_at"]:
+        log.warning(f"License validate failed: key expired: {key_str[:12]}… expires_at={key_data['expires_at']} now={time.time()}")
         return JSONResponse({"valid": False, "reason": "License key has expired. Please renew your subscription."}, status_code=403)
 
     plan   = key_data["plan"]
     limits = SELF_HOSTED_PLAN_LIMITS.get(plan)
     if not limits:
+        log.warning(f"License validate failed: plan '{plan}' not in SELF_HOSTED_PLAN_LIMITS for key {key_str[:12]}…")
         return JSONResponse({"valid": False, "reason": "This plan does not include self-hosted access."}, status_code=403)
 
     client_ip = request.client.host if request.client else "unknown"
@@ -2679,15 +3466,25 @@ async def create_order(request: Request):
     if is_upgrade and charge_paise == 0:
         now = time.time()
         new_credits = max((credits_paise + loyalty_discount) - (get_plan_price(plan, target_interval) - proration_credit), 0)
+
+        # If this is a timed free trial via discount code, compute expiry timestamp
+        free_until = None
+        if discount_code_str and discount_pct == 100:
+            dc_info = validate_discount_code(discount_code_str, user["id"], target_interval)
+            fm = dc_info.get("free_months")
+            if fm:
+                free_until = now + int(fm) * 30 * 86400  # approx 30 days/month
+
         with get_db() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
                     UPDATE users SET plan=%s, plan_cycle_start=%s, credits_paise=%s,
                            plan_interval=%s,
+                           plan_free_until=%s,
                            loyalty_discount_used=CASE WHEN %s>0 THEN TRUE ELSE loyalty_discount_used END,
                            scheduled_downgrade=NULL, scheduled_downgrade_at=NULL
                     WHERE id=%s
-                """, (plan, now, new_credits, target_interval, loyalty_discount, user["id"]))
+                """, (plan, now, new_credits, target_interval, free_until, loyalty_discount, user["id"]))
                 cur.execute("""
                     INSERT INTO razorpay_orders
                       (order_id, user_id, plan, amount_paise, status, created_at, previous_plan, credit_applied_paise, plan_interval)
@@ -3424,6 +4221,100 @@ async def admin_add_credits(request: Request):
     return {"ok": True, "email": target_email, "credits_added_paise": amount_paise}
 
 
+@app.post("/api/billing/expire-free-trials")
+async def expire_free_trials(request: Request):
+    """
+    Cron endpoint: downgrade users whose free-trial period has ended.
+    Run daily alongside send-renewal-reminders.
+    Protected by ADMIN_SECRET.
+
+    Finds all users where plan_free_until IS NOT NULL AND plan_free_until < now,
+    downgrades them to free, clears plan_free_until, and sends a notification email.
+    """
+    check_admin_secret(request)
+    now = time.time()
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT id, email, name, plan
+                FROM users
+                WHERE plan_free_until IS NOT NULL
+                  AND plan_free_until < %s
+                  AND plan != 'free'
+            """, (now,))
+            expired = [dict(r) for r in cur.fetchall()]
+
+    if not expired:
+        return {"ok": True, "expired": [], "count": 0}
+
+    plan_labels = {
+        "personal_lite": "Personal Lite", "personal_pro": "Personal Pro",
+        "personal_max":  "Personal Max",  "photo_starter": "Studio Starter",
+        "photo_pro":     "Studio Pro",
+    }
+
+    results = []
+    for row in expired:
+        try:
+            with get_db() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        UPDATE users
+                        SET plan='free',
+                            plan_cycle_start=NULL,
+                            plan_free_until=NULL,
+                            plan_interval='monthly',
+                            scheduled_downgrade=NULL,
+                            scheduled_downgrade_at=NULL
+                        WHERE id=%s
+                    """, (row["id"],))
+                    # Revoke any active license keys
+                    cur.execute(
+                        "UPDATE license_keys SET revoked=TRUE WHERE user_id=%s AND revoked=FALSE",
+                        (row["id"],)
+                    )
+                conn.commit()
+
+            # Invalidate cached session
+            with get_db() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT token FROM sessions WHERE user_id=%s", (row["id"],))
+                    session_rows = cur.fetchall()
+            for sr in session_rows:
+                cache_delete(f"session:{sr['token']}")
+
+            plan_label = plan_labels.get(row["plan"], row["plan"])
+            html = f"""
+            <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:480px;margin:0 auto;background:#f9f7f4;padding:32px 24px">
+              <div style="text-align:center;margin-bottom:24px">
+                <span style="font-size:28px;font-weight:800;color:#4f46e5;letter-spacing:-1px">Lenstagram</span>
+              </div>
+              <div style="background:#fff;border-radius:16px;padding:36px;box-shadow:0 4px 16px rgba(0,0,0,0.07)">
+                <h2 style="margin:0 0 8px;font-size:20px;color:#1c1917">Your free trial has ended</h2>
+                <p style="margin:0 0 24px;font-size:14px;color:#78716c;line-height:1.65">
+                  Hi {row['name']}, your complimentary <strong style="color:#1c1917">{plan_label}</strong> trial has now ended
+                  and your account has been moved back to the free plan.
+                </p>
+                <p style="margin:0 0 24px;font-size:14px;color:#78716c;line-height:1.65">
+                  Upgrade any time to restore full access to your datasets and features.
+                </p>
+                <a href="https://www.lenstagram.com/billing"
+                   style="display:block;text-align:center;background:#4f46e5;color:#fff;font-weight:700;font-size:14px;padding:12px 24px;border-radius:10px;text-decoration:none;">
+                  Upgrade now
+                </a>
+              </div>
+            </div>
+            """
+            send_email(row["email"], "Your Lenstagram free trial has ended", html)
+            log.info(f"Free trial expired: user={row['id']} was on {row['plan']}, now free")
+            results.append({"user_id": row["id"], "email": row["email"], "previous_plan": row["plan"]})
+        except Exception as e:
+            log.warning(f"Failed to expire free trial for user {row['id']}: {e}")
+
+    return {"ok": True, "expired": results, "count": len(results)}
+
+
 @app.post("/api/billing/send-renewal-reminders")
 async def send_renewal_reminders(request: Request):
     """
@@ -3626,28 +4517,38 @@ def list_groups(request: Request):
     """List all event groups for the authenticated user."""
     user = require_auth(request)
     groups = db_list_groups(user["id"])
-    # Attach dataset count and share link per group
+    if not groups:
+        return groups
+
+    group_ids = [g["id"] for g in groups]
+    placeholders = ",".join(["%s"] * len(group_ids))
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            # Bulk: dataset counts per group
+            cur.execute(
+                f"SELECT group_id, COUNT(*) as n FROM datasets WHERE user_id=%s AND group_id IN ({placeholders}) GROUP BY group_id",
+                [user["id"]] + group_ids
+            )
+            counts = {row["group_id"]: row["n"] for row in cur.fetchall()}
+
+            # Bulk: one share per group (the most recent one)
+            cur.execute(f"""
+                SELECT DISTINCT ON (d.group_id)
+                    d.group_id, s.share_id, s.view_count, s.download_count
+                FROM shares s
+                JOIN datasets d ON s.dataset_id = d.id
+                WHERE d.user_id=%s AND d.group_id IN ({placeholders})
+                ORDER BY d.group_id, s.created_at DESC
+            """, [user["id"]] + group_ids)
+            shares = {row["group_id"]: row for row in cur.fetchall()}
+
     for g in groups:
-        with get_db() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT COUNT(*) as n FROM datasets WHERE user_id=%s AND group_id=%s",
-                    (user["id"], g["id"])
-                )
-                row = cur.fetchone()
-                g["dataset_count"] = row["n"] if row else 0
-                # Find share for this group (join through datasets)
-                cur.execute("""
-                    SELECT s.share_id, s.view_count, s.download_count
-                    FROM shares s
-                    JOIN datasets d ON s.dataset_id = d.id
-                    WHERE d.user_id=%s AND d.group_id=%s
-                    LIMIT 1
-                """, (user["id"], g["id"]))
-                share_row = cur.fetchone()
-                g["share_id"] = share_row["share_id"] if share_row else None
-                g["view_count"] = share_row["view_count"] if share_row else 0
-                g["download_count"] = share_row["download_count"] if share_row else 0
+        g["dataset_count"] = counts.get(g["id"], 0)
+        share_row = shares.get(g["id"])
+        g["share_id"]       = share_row["share_id"]       if share_row else None
+        g["view_count"]     = share_row["view_count"]     if share_row else 0
+        g["download_count"] = share_row["download_count"] if share_row else 0
     return groups
 
 
@@ -3850,12 +4751,23 @@ async def update_share(share_id: str, request: Request):
         body = await request.json()
     except Exception:
         raise HTTPException(400, "Invalid JSON body.")
-    watermark_text = (body.get("watermark_text") or "").strip()[:80]
+    # Free-plan users: always keep Lenstagram.com watermark, ignore client value
+    if user.get("plan", "free") == "free":
+        watermark_text = "Lenstagram.com"
+    else:
+        watermark_text = (body.get("watermark_text") or "").strip()[:80]
+    permission = body.get("permission")
+    if permission not in ("view", "contribute", None):
+        permission = None
+    updates = {"watermark_text": watermark_text or None}
+    if permission is not None:
+        updates["permission"] = permission
+    set_clause = ", ".join(f"{k}=%s" for k in updates)
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "UPDATE shares SET watermark_text=%s WHERE share_id=%s",
-                (watermark_text or None, share_id)
+                f"UPDATE shares SET {set_clause} WHERE share_id=%s",
+                list(updates.values()) + [share_id]
             )
         conn.commit()
     cache_delete(f"share:{share_id}")
@@ -4044,35 +4956,44 @@ async def admin_create_discount(request: Request):
     interval = (body.get("interval") or "both").strip()
     max_uses = int(body.get("max_uses", 10))
     expires_days = body.get("expires_days")
+    free_months = body.get("free_months")  # optional int: months of free access before auto-downgrade
     created_by = (body.get("created_by") or "admin").strip()
 
     if discount_pct < 1 or discount_pct > 100:
         raise HTTPException(400, "discount_pct must be 1-100.")
     if interval not in ("monthly", "annual", "both"):
         raise HTTPException(400, "interval must be monthly, annual, or both.")
+    if free_months is not None:
+        free_months = int(free_months)
+        if free_months < 1:
+            raise HTTPException(400, "free_months must be a positive integer.")
+        if discount_pct != 100:
+            raise HTTPException(400, "free_months only makes sense with discount_pct=100.")
 
     expires_at = time.time() + int(expires_days) * 86400 if expires_days else None
 
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO discount_codes (code, discount_pct, interval, max_uses, use_count, expires_at, created_by, created_at)
-                VALUES (%s, %s, %s, %s, 0, %s, %s, %s)
+                INSERT INTO discount_codes (code, discount_pct, interval, max_uses, use_count, expires_at, created_by, created_at, free_months)
+                VALUES (%s, %s, %s, %s, 0, %s, %s, %s, %s)
                 ON CONFLICT (code) DO UPDATE SET
                     discount_pct=EXCLUDED.discount_pct,
                     interval=EXCLUDED.interval,
                     max_uses=EXCLUDED.max_uses,
-                    expires_at=EXCLUDED.expires_at
-            """, (code, discount_pct, interval, max_uses, expires_at, created_by, time.time()))
+                    expires_at=EXCLUDED.expires_at,
+                    free_months=EXCLUDED.free_months
+            """, (code, discount_pct, interval, max_uses, expires_at, created_by, time.time(), free_months))
         conn.commit()
 
-    log.info(f"Discount code created: {code} ({discount_pct}% off, {interval}, max_uses={max_uses})")
+    log.info(f"Discount code created: {code} ({discount_pct}% off, {interval}, max_uses={max_uses}, free_months={free_months})")
     return {
         "ok": True,
         "code": code,
         "discount_pct": discount_pct,
         "interval": interval,
         "max_uses": max_uses,
+        "free_months": free_months,
         "expires_at": expires_at,
     }
 

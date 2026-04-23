@@ -476,6 +476,31 @@
 
     .logo-text { display: inline-flex; align-items: baseline; gap: 0; letter-spacing: normal; }
     .logo-text .logo-serif { font-family: 'Fraunces', serif; font-weight: 800; }
+
+    /* ── Mobile responsive ── */
+    @media (max-width: 480px) {
+      .topbar {
+        padding: 14px 16px;
+      }
+      .page {
+        padding: 16px 16px 48px;
+      }
+      .card {
+        padding: 24px 20px;
+        border-radius: 16px;
+      }
+      .card-header h1 { font-size: 22px; }
+      .card-header-icon { width: 60px; height: 60px; border-radius: 18px; }
+      .field input { font-size: 16px; } /* prevent iOS zoom on focus */
+      .btn { font-size: 15px; padding: 14px; }
+      .tab-btn { font-size: 13px; padding: 10px 6px; }
+      .google-btn { font-size: 14px; }
+    }
+
+    @media (max-width: 360px) {
+      .card { padding: 20px 16px; }
+      .tabs { gap: 2px; }
+    }
   </style>
 </head>
 <body>
@@ -500,7 +525,7 @@
     </a>
   </div>
 
-  <div class="page">
+  <div class="page" id="loginPage" style="visibility:hidden;">
     <div class="card-header">
       <div class="card-header-icon">
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
@@ -674,10 +699,22 @@
     const API = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
       ? 'http://localhost:8000' : window.location.origin;
 
-    // If already logged in, go straight to admin
-    fetch(`${API}/api/auth/me`, { credentials: 'include' })
-      .then(r => { if (r.ok) window.location.replace('/admin.html'); })
-      .catch(() => {});
+    // Auth check: always call the server since the session cookie is HttpOnly
+    // and invisible to document.cookie. fetch with credentials:include sends it.
+    // Page stays hidden until resolved to avoid a login-form flash.
+    (function() {
+      fetch(`${API}/api/auth/me`, { credentials: 'include' })
+        .then(r => {
+          if (r.ok) {
+            window.location.replace('/admin.html');
+          } else {
+            document.getElementById('loginPage').style.visibility = '';
+          }
+        })
+        .catch(() => {
+          document.getElementById('loginPage').style.visibility = '';
+        });
+    })();
 
     /* ── Tab switching ───────────────────────────────────── */
     function switchTab(name) {
@@ -873,5 +910,9 @@
       if (step2visible) doRegister(); else doSendOtp();
     });
   </script>
+
+<footer style="text-align:center;padding:18px 16px;font-size:13px;color:#888;border-top:1px solid #e5e7eb;margin-top:40px;">
+  Need help? Contact us at <a href="mailto:admin.facefind@gmail.com" style="color:#6366f1;text-decoration:none;">admin.facefind@gmail.com</a>
+</footer>
 </body>
 </html>
