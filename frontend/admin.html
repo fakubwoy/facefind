@@ -3057,10 +3057,10 @@
     }
     // Sync stepper active indicator to current tab
     syncStepperToSection(name);
-    // Push history entry so browser back/forward works between tabs
+    // Update the URL to reflect the current tab without adding a history entry
     if (!_skipHistory) {
       const params = new URLSearchParams({ tab: name });
-      history.pushState({ tab: name }, '', '?' + params.toString());
+      history.replaceState({ tab: name }, '', '?' + params.toString());
     }
   }
 
@@ -3440,10 +3440,10 @@
     document.getElementById('groupDetailTitle').textContent = g?.name || 'Event Photos';
     loadDatasets(groupId);
 
-    // Push history so back button returns to events list
+    // Update URL to reflect the open group without adding a history entry
     if (!_skipHistory) {
       const params = new URLSearchParams({ tab: 'events', group: groupId });
-      history.pushState({ tab: 'events', groupId }, '', '?' + params.toString());
+      history.replaceState({ tab: 'events', groupId }, '', '?' + params.toString());
     }
 
     // Reset watermark UI first
@@ -3491,7 +3491,7 @@
     // Only reload when user explicitly navigates back (not during init routing)
     if (!_skipHistory) {
       loadGroups();
-      history.pushState({ tab: 'events' }, '', '?tab=events');
+      history.replaceState({ tab: 'events' }, '', '?tab=events');
     }
   }
 
@@ -5745,13 +5745,15 @@
 
   window.addEventListener('popstate', e => {
     if (_guardInProgress) return;
-    // Backed past all admin tab entries (state is null or has no `tab`) —
-    // or landed on an explicit index sentinel.  Either way, go to index.
-    if (!e.state || !e.state.tab || e.state.page === 'index') {
-      window.location.replace('/index.html');
+    // If the state has a tab, we're still on an admin entry — apply it.
+    if (e.state && e.state.tab) {
+      _applyRouteState(e.state, true);
       return;
     }
-    _applyRouteState(e.state, true);
+    // No admin state — we've backed out past admin entirely.
+    // Navigate to index explicitly so it always lands there regardless of
+    // whether admin was opened from index, a bookmark, or a direct URL.
+    window.location.replace('/index.html');
   });
 
   const _initParams = new URLSearchParams(window.location.search);
@@ -5761,14 +5763,17 @@
   history.replaceState(_initState, '', window.location.href);
 
   // ── Back-to-index guard ──────────────────────────────────────────────────────
-  // We can't reliably plant an entry *below* the current one (replaceState only
-  // touches the current entry; if admin was opened directly/bookmarked there is
-  // nothing useful beneath it).  Instead we intercept popstate: when the browser
-  // pops past all of admin's own tab-navigation entries (i.e. the resulting state
-  // has no `tab` key, or is null/undefined), we redirect to /index.html.
-  // This works whether the user arrived via index, a bookmark, or a direct URL.
-  (function() {
-    history.replaceState(_initState, '', window.location.href);
+  // Plant a null sentinel one step below admin in the history stack, then push
+  // admin back on top. Stack becomes: [...prior] → [sentinel:null] → [admin].
+  // Tab/group switches use replaceState so they never add entries.
+  // When the user presses Back from admin, the browser pops to [sentinel:null].
+  // popstate fires with e.state === null → handler redirects to /index.html.
+  // This works whether admin was opened from index, bookmarked, or typed directly.
+  (function () {
+    var adminUrl   = window.location.href;
+    var adminState = _initState;
+    history.replaceState(null, '', adminUrl);   // sentinel (no tab key)
+    history.pushState(adminState, '', adminUrl); // admin back on top
   })();
 
   // ── Initialise permission toggle visual state ─────────────────────────────────
