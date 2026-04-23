@@ -2590,24 +2590,24 @@
         </div>
         <div class="analytics-grid" id="analyticsStats">
           <div class="stat-card">
-            <div class="stat-label" id="statSearchesLabel">Total Photos</div>
+            <div class="stat-label" id="statSearchesLabel">Photos Uploaded</div>
             <div class="stat-value" id="statSearches"><span class="loading-dots"><span></span><span></span><span></span></span></div>
-            <div class="stat-sub" id="statSearchesSub">across all your events</div>
+            <div class="stat-sub" id="statSearchesSub">ready for guests to find</div>
           </div>
           <div class="stat-card">
-            <div class="stat-label">Photos Viewed</div>
+            <div class="stat-label">Times Guests Visited</div>
             <div class="stat-value" id="statViews"><span class="loading-dots"><span></span><span></span><span></span></span></div>
-            <div class="stat-sub">across all events</div>
+            <div class="stat-sub">across all your events</div>
           </div>
           <div class="stat-card">
-            <div class="stat-label">Downloads</div>
+            <div class="stat-label">Photos Saved</div>
             <div class="stat-value" id="statDownloads"><span class="loading-dots"><span></span><span></span><span></span></span></div>
-            <div class="stat-sub">photos downloaded</div>
+            <div class="stat-sub">downloaded by guests</div>
           </div>
           <div class="stat-card">
-            <div class="stat-label">Active Events</div>
+            <div class="stat-label">Live Events</div>
             <div class="stat-value" id="statEvents"><span class="loading-dots"><span></span><span></span><span></span></span></div>
-            <div class="stat-sub">with a live share link</div>
+            <div class="stat-sub">guests can visit right now</div>
           </div>
         </div>
       </div>
@@ -3018,7 +3018,7 @@
         <div class="ib-header-actions">
           <button class="ib-reindex-btn" id="ibReindexBtn" onclick="ibReindex()">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-            Refresh Face Data
+            Re-scan Photos
           </button>
           <button class="modal-close" onclick="closeImageBrowser()" style="position:static;transform:none;margin-left:8px;">×</button>
         </div>
@@ -3869,12 +3869,12 @@
       queued:      '<span class="badge badge-queued">In queue</span>',
       compressing: '<span class="badge badge-compressing">Getting ready…</span>',
       downloading: '<span class="badge badge-downloading">Importing…</span>',
-      processing:  '<span class="badge badge-processing">Finding faces…</span>',
+      processing:  '<span class="badge badge-processing">Getting photos ready…</span>',
       ready:       '<span class="badge badge-ready">Ready</span>',
       error:       '<span class="badge badge-error">Something went wrong</span>',
     }[ds.status] || `<span class="badge">${ds.status}</span>`;
 
-    const faceCount = ds.face_count ? `<span class="dataset-size"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="4"/><path d="M11 7a4 4 0 0 1 4 4"/></svg>${ds.face_count.toLocaleString('en-IN')} faces</span>` : '';
+    const faceCount = ds.face_count ? `<span class="dataset-size"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="4"/><path d="M11 7a4 4 0 0 1 4 4"/></svg>${ds.face_count.toLocaleString('en-IN')} people</span>` : '';
  const totalImgs = ds.total || ds.total_images || 0;
     const imgCount  = totalImgs ? `<span class="dataset-size"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>${totalImgs.toLocaleString('en-IN')} photos</span>` : '';
 
@@ -4468,7 +4468,7 @@
         // Show inline success
         document.getElementById('zipProgressPanel').classList.remove('visible');
         const suc = document.getElementById('zipSuccess');
-        document.getElementById('zipSuccessMeta').textContent = 'Photos added to your album — faces are being scanned.';
+        document.getElementById('zipSuccessMeta').textContent = 'Photos added to your album — we\'re scanning them now so guests can find themselves.';
         suc.classList.add('visible');
       });
       xhr.addEventListener('error', () => {
@@ -4646,8 +4646,8 @@
                              (d.status === 'processing' && d.total === 0);
         const pct = modelLoading ? -1
                   : d.total > 0 ? Math.round((d.processed / d.total) * 100) : 0;
-        const phase = modelLoading ? 'Identifying faces…'
-                    : d.status === 'processing'  ? 'Finding faces…'
+        const phase = modelLoading ? 'Getting things ready…'
+                    : d.status === 'processing'  ? 'Making photos searchable…'
                     : d.status === 'downloading' ? 'Importing from Google Drive…'
                     : d.status === 'compressing' ? 'Getting photos ready…'
                     : d.status === 'ready'        ? 'All done!'
@@ -4660,7 +4660,7 @@
           : d.status === 'downloading'
           ? 'Fetching your photos from Google Drive…'
           : d.status === 'ready'
-          ? `${d.face_count} people found`
+          ? `${d.face_count} people can now be found`
           : d.error || '—';
         const etp = d.eta_seconds > 0
           ? (d.eta_seconds > 3600 ? `${Math.round(d.eta_seconds/3600)}h` : d.eta_seconds > 60 ? `${Math.round(d.eta_seconds/60)} min` : `${d.eta_seconds}s`)
@@ -4684,7 +4684,7 @@
 
         if (d.status === 'ready') {
           clearInterval(pollingInterval); pollingInterval = null;
-          updateInlineProgress(which, 'All done!', `${d.face_count} people found in your photos`, 100, '');
+          updateInlineProgress(which, 'All done!', `${d.face_count} people ready to find themselves`, 100, '');
           setTimeout(() => {
             if (which === 'zip') showZipSuccess(d.name || d.id, id);
             else showDriveSuccess(id);
@@ -4699,7 +4699,7 @@
             driveBtn.disabled = false;
             driveBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Import from Google Drive`;
           }
-          toast(`All done — ${d.face_count} people found in your photos!`, 'success');
+          toast(`All done — ${d.face_count} people can now find themselves in your photos!`, 'success');
         } else if (d.status === 'error') {
           clearInterval(pollingInterval); pollingInterval = null;
           if (which === 'drive') {
@@ -4990,13 +4990,13 @@
         const d = await r.json();
         const modelLoading = (d.status === 'queued') || (d.status === 'processing' && d.total === 0);
         const pct = modelLoading ? -1 : d.total > 0 ? Math.round((d.processed / d.total) * 100) : 0;
-        const phase  = modelLoading ? 'Getting ready…' : d.status === 'processing' ? 'Finding faces in new photos…' : d.status === 'ready' ? 'All done!' : d.status === 'error' ? 'Something went wrong' : 'In queue…';
+        const phase  = modelLoading ? 'Getting ready…' : d.status === 'processing' ? 'Making new photos searchable…' : d.status === 'ready' ? 'All done!' : d.status === 'error' ? 'Something went wrong' : 'In queue…';
         const detail = modelLoading
           ? 'Getting things ready, just a moment…'
           : d.status === 'processing' && d.total > 0
           ? `${d.processed} of ${d.total} photos scanned`
           : d.status === 'ready'
-          ? `${d.face_count} people recognised`
+          ? `${d.face_count} people can now be found`
           : d.error || '—';
         if (pct === -1) updateIndeterminate('add', phase, detail);
         else updateInlineProgress('add', phase, detail, pct, '');
@@ -5009,14 +5009,14 @@
 
         if (d.status === 'ready') {
           clearInterval(reembeddingPollInterval); reembeddingPollInterval = null;
-          updateInlineProgress('add', 'All done!', `${d.face_count} people found`, 100, '');
+          updateInlineProgress('add', 'All done!', `${d.face_count} people ready to find themselves`, 100, '');
           setTimeout(() => {
             document.getElementById('addProgressPanel').classList.remove('visible');
-            document.getElementById('addSuccessMeta').textContent = `${d.face_count} people found — album updated!`;
+            document.getElementById('addSuccessMeta').textContent = `Your album is updated — ${d.face_count} people can now find their photos!`;
             document.getElementById('addSuccess').classList.add('visible');
           }, 800);
           loadDatasets(currentGroupId);
-          toast(`Done! Found ${d.face_count} people in your new photos.`, 'success');
+          toast(`Done! ${d.face_count} people can now find themselves in your new photos.`, 'success');
         } else if (d.status === 'error') {
           clearInterval(reembeddingPollInterval); reembeddingPollInterval = null;
           updateInlineProgress('add', 'Error', d.error || 'Failed', pct === -1 ? 0 : pct, '');
@@ -5079,16 +5079,16 @@
               items.push({
                 type: 'view',
                 ts: a.last_viewed_at,
-                title: `<span class="activity-name">${escHtml(g.name)}</span> was viewed`,
-                meta: `${(a.view_count || 0).toLocaleString('en-IN')} total views · ${(a.download_count || 0).toLocaleString('en-IN')} downloads`,
+                title: `Guests visited <span class="activity-name">${escHtml(g.name)}</span>`,
+                meta: `${(a.view_count || 0).toLocaleString('en-IN')} total visits · ${(a.download_count || 0).toLocaleString('en-IN')} photos saved`,
               });
             }
             if (a.download_count > 0 && !a.last_viewed_at) {
               items.push({
                 type: 'download',
                 ts: g.created_at,
-                title: `${(a.download_count).toLocaleString('en-IN')} photos downloaded from <span class="activity-name">${escHtml(g.name)}</span>`,
-                meta: `${(a.view_count || 0).toLocaleString('en-IN')} total views`,
+                title: `${(a.download_count).toLocaleString('en-IN')} photos saved by guests from <span class="activity-name">${escHtml(g.name)}</span>`,
+                meta: `${(a.view_count || 0).toLocaleString('en-IN')} total visits`,
               });
             }
           }
@@ -5098,8 +5098,8 @@
         items.push({
           type: 'share',
           ts: g.created_at,
-          title: `Share link activated for <span class="activity-name">${escHtml(g.name)}</span>`,
-          meta: 'Guests can now find themselves with a selfie',
+          title: `Guest link turned on for <span class="activity-name">${escHtml(g.name)}</span>`,
+          meta: 'Guests can find themselves with a selfie',
         });
       }
 
@@ -5110,8 +5110,8 @@
           items.push({
             type: 'upload',
             ts: d.created_at,
-            title: `<span class="activity-name">${escHtml(d.name || 'Collection')}</span> indexed in <span class="activity-name">${escHtml(g.name)}</span>`,
-            meta: `${(d.total || 0).toLocaleString('en-IN')} photos · ${(d.face_count || 0).toLocaleString('en-IN')} people recognised`,
+            title: `<span class="activity-name">${escHtml(d.name || 'Album')}</span> added to <span class="activity-name">${escHtml(g.name)}</span>`,
+            meta: `${(d.total || 0).toLocaleString('en-IN')} photos · ${(d.face_count || 0).toLocaleString('en-IN')} people ready to find`,
           });
         }
       }
@@ -5122,7 +5122,7 @@
       items.push({
         type: 'event',
         ts: g.created_at,
-        title: `Event <span class="activity-name">${escHtml(g.name)}</span> created`,
+        title: `<span class="activity-name">${escHtml(g.name)}</span> event created`,
         meta: (g.event_type || g.type) ? (g.event_type || g.type).charAt(0).toUpperCase() + (g.event_type || g.type).slice(1) + (g.event_date || g.date ? ' · ' + (g.event_date || g.date) : '') : ((g.event_date || g.date) || ''),
       });
     });
@@ -5143,7 +5143,7 @@
     const skel = document.getElementById('activitySkeleton');
     if (skel) skel.remove();
     if (!items.length) {
-      list.innerHTML = '<div style="text-align:center;padding:32px 0;color:var(--muted);font-size:13px;">No activity yet — share links with guests to see events here.</div>';
+      list.innerHTML = '<div style="text-align:center;padding:32px 0;color:var(--muted);font-size:13px;">Nothing here yet — once guests start visiting your events, you\'ll see their activity show up here.</div>';
       return;
     }
 
@@ -5696,7 +5696,7 @@
     if (id) {
       const ds = allDatasetsCache[id];
       const count = ds ? (ds.face_count || 0) : 0;
-      hint.textContent = count ? `${count.toLocaleString('en-IN')} faces indexed in this album` : '';
+      hint.textContent = count ? `${count.toLocaleString('en-IN')} people can be found in this album` : '';
       hint.style.display = count ? '' : 'none';
     } else {
       hint.style.display = 'none';
