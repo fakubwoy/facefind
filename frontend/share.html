@@ -1849,7 +1849,7 @@
       </svg>
     </div>
     <div class="loading-title">Searching…</div>
-    <div class="loading-sub" id="loadingText">Detecting face &amp; scanning collection</div>
+    <div class="loading-sub" id="loadingText">Looking through every photo for you…</div>
   </div>
 
   <!-- No face -->
@@ -1861,8 +1861,8 @@
         <line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/>
       </svg>
     </div>
-    <div class="no-face-title">No face detected</div>
-    <p class="no-face-text">We couldn't find a clear face in your photo. Try a well-lit, front-facing selfie without sunglasses.</p>
+    <div class="no-face-title">We couldn't find your face</div>
+    <p class="no-face-text">Make sure your selfie is clear, well-lit, and front-facing — without sunglasses. Then give it another go!</p>
     <button class="btn-primary" onclick="reset()">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
         <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/>
@@ -1880,15 +1880,15 @@
       Back
     </button>
     <div class="card">
-      <div class="card-title">Multiple faces detected</div>
-      <div class="card-sub">Tap the face you want to search for</div>
+      <div class="card-title">We found a few faces</div>
+      <div class="card-sub">Tap the one that's you</div>
       <div class="face-picker-grid" id="facePickerGrid"></div>
       <div class="picker-hint" id="pickerHint">Select at least one face to continue</div>
       <button class="btn-primary" id="pickerSearchBtn" onclick="doFaceSearch()" disabled>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
         </svg>
-        Search Selected Faces
+        Find My Photos
       </button>
       <button class="btn-outline" onclick="reset()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -1950,7 +1950,7 @@
 <!-- Footer -->
 <footer>
   <a href="https://lenstagram.app" class="footer-brand"><span class="logo-text"><span class="logo-serif">Lens</span><span>tagram</span></span></a>
-  <div class="footer-tagline">AI photo search for weddings &amp; events</div>
+  <div class="footer-tagline">Find yourself in every photo, instantly</div>
 </footer>
 
 <!-- Lightbox -->
@@ -2772,7 +2772,7 @@ toast(`Photos uploaded! They'll be searchable soon.`, '<svg width="16" height="1
     clearInterval(_reindexPollTimer);
     statusEl.classList.remove('done');
     statusEl.classList.add('show');
-    textEl.textContent = 'AI is indexing your photos…';
+    textEl.textContent = 'Getting your photos ready — this takes a minute…';
 
     let attempts = 0;
     const MAX_ATTEMPTS = 60; // poll for up to ~3 minutes
@@ -2781,7 +2781,7 @@ toast(`Photos uploaded! They'll be searchable soon.`, '<svg width="16" height="1
       attempts++;
       if (attempts > MAX_ATTEMPTS) {
         clearInterval(_reindexPollTimer);
-        textEl.textContent = 'Processing is taking longer than usual — photos will be searchable soon.';
+        textEl.textContent = 'Still getting things ready — your photos will be searchable very soon.';
         return;
       }
       try {
@@ -2792,14 +2792,14 @@ toast(`Photos uploaded! They'll be searchable soon.`, '<svg width="16" height="1
         if (status === 'ready') {
           clearInterval(_reindexPollTimer);
           statusEl.classList.add('done');
-          textEl.textContent = `✓ Indexing complete — your photos are now searchable!`;
+          textEl.textContent = `✓ All done — your photos are now searchable!`;
           // Auto-hide after 6 seconds
           setTimeout(() => statusEl.classList.remove('show'), 6000);
         } else if (status === 'processing' || status === 'compressing' || status === 'uploading') {
           const pct = d.total > 0 ? Math.round((d.processed / d.total) * 100) : 0;
-          textEl.textContent = `Indexing photos… ${d.processed || 0}/${d.total || '?'} (${pct}%)`;
+          textEl.textContent = `Getting photos ready… ${d.processed || 0} of ${d.total || '?'} done (${pct}%)`;
         } else {
-          textEl.textContent = `Processing… (${status})`;
+          textEl.textContent = `Almost there, just a moment…`;
         }
       } catch { /* ignore transient errors */ }
     }, 3000);
@@ -2947,7 +2947,7 @@ toast(`Photos uploaded! They'll be searchable soon.`, '<svg width="16" height="1
       // Update the sub-text to show processing is starting
       const successEl = document.getElementById('contribModeSuccess');
       const subEl = successEl.querySelector('.contrib-success-sub');
-      if (subEl) subEl.textContent = 'AI is indexing your photos — they\'ll be searchable shortly.';
+      if (subEl) subEl.textContent = 'We\'re getting them ready — they\'ll be searchable in a moment.';
       sucEl.style.display = 'flex';
       _contribQueueFiles = [];
       document.getElementById('contribModeFile').value = '';
