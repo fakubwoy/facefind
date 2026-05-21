@@ -588,7 +588,7 @@
 <!-- ── Header (identical to admin.html) ──────────────────────────────────── -->
 <header>
   <div class="header-left">
-    <a href="/admin.html" class="logo">
+    <a href="/admin" class="logo">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M3 7V5a2 2 0 0 1 2-2h2"/>
         <path d="M17 3h2a2 2 0 0 1 2 2v2"/>
@@ -602,7 +602,7 @@
     <span class="header-badge">Self-Hosted</span>
   </div>
   <div class="header-right">
-    <a href="/admin.html" class="header-nav-link">
+    <a href="/admin" class="header-nav-link">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
       Dashboard
     </a>
@@ -616,11 +616,11 @@
             <div class="pd-email" id="pdEmail">—</div>
           </div>
         </div>
-        <a href="/admin.html" class="pd-item">
+        <a href="/admin" class="pd-item">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
           Dashboard
         </a>
-        <a href="/pricing.html" class="pd-item">
+        <a href="/pricing" class="pd-item">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
           Manage plan
         </a>
@@ -678,7 +678,7 @@
           Studio Pro
         </span>
       </div>
-      <a href="/pricing.html" class="upgrade-btn">
+      <a href="/pricing" class="upgrade-btn">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>
         View plans &amp; pricing
       </a>
@@ -799,7 +799,7 @@
           </div>
           <div id="limitRows"></div>
           <div class="divider" style="margin:12px 0;"></div>
-          <a href="/pricing.html" style="font-size:12.5px;color:var(--primary);font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:5px;">
+          <a href="/pricing" style="font-size:12.5px;color:var(--primary);font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:5px;">
             Compare all plans
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
           </a>
@@ -868,10 +868,10 @@
   (async () => {
     try {
       const r = await fetch('/api/auth/me', { credentials: 'include' });
-      if (!r.ok) { window.location.href = '/login.html?next=/download.html'; return; }
+      if (!r.ok) { window.location.href = '/login?next=/download'; return; }
       const u = await r.json();
       setProfileUser(u);
-    } catch { window.location.href = '/login.html?next=/download.html'; return; }
+    } catch { window.location.href = '/login?next=/download'; return; }
 
     await loadInfo();
   })();

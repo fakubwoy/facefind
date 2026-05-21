@@ -2101,7 +2101,7 @@
       <span class="header-badge">Dashboard</span>
     </div>
     <div class="header-right">
-      <a href="/download.html" class="header-nav-link" id="selfHostedNavLink">
+      <a href="/download" class="header-nav-link" id="selfHostedNavLink">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         Self-Hosted
       </a>
@@ -2115,7 +2115,7 @@
               <div class="pd-email" id="pdEmail">—</div>
             </div>
           </div>
-          <a href="/pricing.html" class="pd-item">
+          <a href="/pricing" class="pd-item">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
             Manage plan
           </a>
@@ -2145,7 +2145,7 @@
           <div class="plan-banner-name" id="planName">Starter (Free)</div>
           <div class="plan-banner-limits" id="planLimits">1 event · up to 100 photos</div>
         </div>
-        <a href="/pricing.html" class="plan-upgrade-btn" id="planUpgradeBtn">
+        <a href="/pricing" class="plan-upgrade-btn" id="planUpgradeBtn">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>
           Upgrade
         </a>
@@ -2329,7 +2329,7 @@
                       <div style="font-size:11px;color:var(--muted);line-height:1.5;">Upgrade to remove it or add your studio name.</div>
                     </div>
                   </div>
-                  <a href="/pricing.html" style="display:inline-flex;align-items:center;gap:6px;margin-top:10px;background:var(--primary);color:#fff;font-family:'Plus Jakarta Sans',sans-serif;font-size:12px;font-weight:700;padding:6px 12px;border-radius:var(--radius-sm);text-decoration:none;" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">Upgrade</a>
+                  <a href="/pricing" style="display:inline-flex;align-items:center;gap:6px;margin-top:10px;background:var(--primary);color:#fff;font-family:'Plus Jakarta Sans',sans-serif;font-size:12px;font-weight:700;padding:6px 12px;border-radius:var(--radius-sm);text-decoration:none;" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">Upgrade</a>
                   <input type="hidden" id="watermarkEnabled" value="1">
                   <input type="hidden" id="watermarkText" value="Lenstagram.com">
                 </div>
@@ -2424,7 +2424,7 @@
                 </div>
                 <div class="limit-wall-title">You've reached your event limit</div>
                 <div class="limit-wall-desc">You've used all <strong id="limitWallMax">1 event</strong> on your current plan. Upgrade to add more events and photos.</div>
-                <a href="/pricing.html" class="btn btn-primary" style="width:auto;display:inline-flex;text-decoration:none;">Upgrade Plan</a>
+                <a href="/pricing" class="btn btn-primary" style="width:auto;display:inline-flex;text-decoration:none;">Upgrade Plan</a>
               </div>
 
               <div id="zipFormFields">
@@ -3222,14 +3222,14 @@
 
     try {
       const r = await fetch(`${API}/api/auth/me`, { credentials: 'include' });
-      if (!r.ok) { safeRedirect('/login.html'); return; }
+      if (!r.ok) { safeRedirect('/login'); return; }
       const user = await r.json();
       try { sessionStorage.setItem('ls_user', JSON.stringify(user)); } catch (_) {}
       setProfileUser(user);
       // Update plan banner with the authoritative user — no extra fetch needed
       loadPlanBanner(user);
     } catch {
-      safeRedirect('/login.html');
+      safeRedirect('/login');
     }
   }
 
@@ -3700,7 +3700,7 @@
     // Check existing share
     const ind = document.getElementById('shareActiveIndicator');
     if (g && g.share_id) {
-      const shareUrl = `${BASE_URL}/share.html?id=${g.share_id}`;
+      const shareUrl = `${BASE_URL}/share?id=${g.share_id}`;
       document.getElementById('shareUrl').textContent = shareUrl;
       if (ind) ind.style.display = 'flex';
 
@@ -3770,7 +3770,7 @@
         <h3 style="margin-bottom:8px;">Event limit reached</h3>
         <p class="modal-sub" style="margin-bottom:20px;">Your <strong>${(PLAN_CONFIG[currentPlan]||PLAN_CONFIG.free).label}</strong> plan includes <strong>${limitLabel}</strong>. Upgrade to create more events and upload more photos.</p>
         <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
-          <a href="/pricing.html" class="btn btn-primary" style="width:auto;margin-top:0;text-decoration:none;padding:11px 22px;">
+          <a href="/pricing" class="btn btn-primary" style="width:auto;margin-top:0;text-decoration:none;padding:11px 22px;">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>
             Upgrade plan
           </a>
@@ -4207,8 +4207,8 @@
       _lastContribShareId = contribShareId;
 
       // ── Populate modal ─────────────────────────────────────────────────────
-      const viewUrl    = `${BASE_URL}/share.html?id=${vd.share_id}`;
-      const contribUrl = contribShareId ? `${BASE_URL}/share.html?id=${contribShareId}` : null;
+      const viewUrl    = `${BASE_URL}/share?id=${vd.share_id}`;
+      const contribUrl = contribShareId ? `${BASE_URL}/share?id=${contribShareId}` : null;
 
       document.getElementById('shareUrl').textContent    = viewUrl;
       document.getElementById('contributeUrl').textContent = contribUrl || '—';
@@ -5223,13 +5223,13 @@
 
     if (cfg.isProPhoto) {
       upBtn.className = 'plan-upgrade-btn gold';
-      upBtn.href = '/pricing.html';
+      upBtn.href = '/pricing';
       upBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg> Manage plan`;
     } else if (currentPlan !== 'free') {
-      upBtn.href = '/pricing.html';
+      upBtn.href = '/pricing';
       upBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg> Manage plan';
     } else {
-      upBtn.href = '/pricing.html';
+      upBtn.href = '/pricing';
       upBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg> Upgrade plan';
     }
 
@@ -5391,7 +5391,7 @@
     const hint = document.getElementById('uploadSelectorHint');
     if (hint) {
       hint.innerHTML = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="display:inline;vertical-align:-1px;margin-right:3px;color:var(--warn);"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-      You've used all ${datasetCount} event groups on your plan. Pick an album below and keep uploading, or <a href="/pricing.html" style="color:var(--primary);font-weight:700;text-decoration:none;">upgrade</a> to create more groups.`;
+      You've used all ${datasetCount} event groups on your plan. Pick an album below and keep uploading, or <a href="/pricing" style="color:var(--primary);font-weight:700;text-decoration:none;">upgrade</a> to create more groups.`;
     }
 
     // Rewire upload button label
@@ -6009,7 +6009,7 @@
   //   • On popstate (back pressed): ALWAYS re-pushState to keep the admin URL
   //     in place (so the browser never actually leaves), then check _tabHistory:
   //       – entries remain  →  pop the top, apply that tab
-  //       – stack empty     →  redirect to /index.html
+  //       – stack empty     →  redirect to /
 
   var _tabHistory      = [];   // our own stack of tab states visited after landing
   var _currentTab      = 'events'; // tracks whichever tab is currently visible
@@ -6029,7 +6029,7 @@
     // If we're currently on the events tab (the "home" of admin), always
     // go straight to index — wipe the entire tab history, ignore everything.
     if (_currentTab === 'events') {
-      window.location.replace('/index.html');
+      window.location.replace('/');
       return;
     }
 
@@ -6042,7 +6042,7 @@
       _guardInProgress = false;
     } else {
       // Nothing left — exit admin to index
-      window.location.replace('/index.html');
+      window.location.replace('/');
     }
   });
 

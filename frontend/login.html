@@ -6,10 +6,10 @@
   <title>Lenstagram — Sign In</title>
   <meta name="description" content="Sign in to Lenstagram to upload photo collections and generate face search links for your events, weddings, and gatherings." />
   <meta name="robots" content="noindex, follow" />
-  <link rel="canonical" href="https://lenstagram.app/login.html" />
+  <link rel="canonical" href="https://lenstagram.app/login" />
   <meta property="og:title" content="Lenstagram — Sign In" />
   <meta property="og:description" content="Sign in to manage your face search photo collections." />
-  <meta property="og:url" content="https://lenstagram.app/login.html" />
+  <meta property="og:url" content="https://lenstagram.app/login" />
   <meta property="og:type" content="website" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -706,7 +706,7 @@
       fetch(`${API}/api/auth/me`, { credentials: 'include' })
         .then(r => {
           if (r.ok) {
-            window.location.replace('/admin.html');
+            window.location.replace('/admin');
           } else {
             document.getElementById('loginPage').style.visibility = '';
           }
@@ -756,7 +756,7 @@
         const r = await fetch(`${API}/api/auth/login`, { method: 'POST', body: fd, credentials: 'include' });
         const d = await r.json();
         if (!r.ok) throw new Error(d.detail || 'Login failed.');
-        window.location.replace('/admin.html');
+        window.location.replace('/admin');
       } catch(e) {
         showError('loginError', e.message);
         setLoading('loginBtn', false, 'Sign In');
@@ -892,7 +892,7 @@
         const r = await fetch(`${API}/api/auth/register`, { method: 'POST', body: fd, credentials: 'include' });
         const d = await r.json();
         if (!r.ok) throw new Error(d.detail || 'Registration failed.');
-        window.location.replace('/admin.html');
+        window.location.replace('/admin');
       } catch(e) {
         showError('registerError', e.message);
         clearOtpDigits();

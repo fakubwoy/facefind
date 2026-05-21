@@ -496,7 +496,7 @@ def db_get_share(share_id: str) -> Optional[dict]:
             row = cur.fetchone()
     if row:
         result = dict(row)
-        cache_set(f"share:{share_id}", result, ttl=300)  # shares rarely change
+        cache_set(f"share:{share_id}", result, ttl=15)  # short TTL so revocations propagate quickly
         return result
     return None
 
@@ -509,7 +509,7 @@ def db_insert_share(share: dict):
                 ON CONFLICT DO NOTHING
             """, share)
         conn.commit()
-    cache_set(f"share:{share['share_id']}", share, ttl=300)
+    cache_set(f"share:{share['share_id']}", share, ttl=15)
 
 # ── InsightFace model (lazy) ──────────────────────────────────────────────────
 _face_model = None
@@ -5033,7 +5033,26 @@ def admin_migrate_to_b2(request: Request):
     return {"ok": True, "summary": summary, "log": messages}
 
 
+# ── Clean URL routes (no .html in browser bar) ───────────────────────────────
+_CLEAN_URL_PAGES = {
+    "/pricing":  "pricing.html",
+    "/login":    "login.html",
+    "/admin":    "admin.html",
+    "/share":    "share.html",
+    "/download": "download.html",
+}
+
 if FRONTEND_DIR.exists():
+    for _route, _file in _CLEAN_URL_PAGES.items():
+        _html_path = FRONTEND_DIR / _file
+        if _html_path.exists():
+            # Create a closure to capture the correct path per iteration
+            def _make_handler(p=_html_path):
+                async def _handler(request: Request):
+                    return FileResponse(str(p))
+                return _handler
+            app.add_api_route(_route, _make_handler(), methods=["GET"], include_in_schema=False)
+
     app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
 
 if __name__ == "__main__":

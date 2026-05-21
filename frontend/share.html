@@ -2507,6 +2507,62 @@
 
   function hideError() { document.getElementById('errorBanner').classList.remove('show'); }
 
+  /* ── Share revocation watchdog ──────────────────────────────
+     Poll every 30 s. If the share is gone (404) or unreachable
+     for two consecutive checks, lock the page immediately.
+  ── */
+  let _shareInvalidStrikes = 0;
+  let _shareRevoked = false;
+
+  function _lockPageRevoked() {
+    if (_shareRevoked) return;
+    _shareRevoked = true;
+    // Blur / hide all content
+    document.querySelectorAll('.step, .tab-panel, #resultsSection, #contribSection, .search-area')
+      .forEach(el => { el.style.filter = 'blur(6px)'; el.style.pointerEvents = 'none'; });
+    // Show a full-screen overlay
+    const overlay = document.createElement('div');
+    overlay.id = 'revokedOverlay';
+    overlay.style.cssText = [
+      'position:fixed', 'inset:0', 'z-index:9999',
+      'display:flex', 'flex-direction:column', 'align-items:center', 'justify-content:center',
+      'background:rgba(255,255,255,0.92)', 'backdrop-filter:blur(8px)',
+      'padding:32px', 'text-align:center', 'gap:16px'
+    ].join(';');
+    overlay.innerHTML = `
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#e11d48" stroke-width="1.8">
+        <circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+      </svg>
+      <h2 style="font-size:1.4rem;font-weight:700;color:#1c1917;margin:0">This link has been deactivated</h2>
+      <p style="color:#78716c;max-width:340px;margin:0;font-size:0.95rem">
+        The organiser has removed access to this album. Contact them if you think this is a mistake.
+      </p>`;
+    document.body.appendChild(overlay);
+  }
+
+  async function _pollShareValidity() {
+    if (!shareId || _shareRevoked) return;
+    try {
+      const r = await fetch(`${API}/api/shares/${shareId}`, { cache: 'no-store' });
+      if (r.status === 404) {
+        _shareInvalidStrikes += 2; // 404 is definitive — act immediately
+      } else if (!r.ok) {
+        _shareInvalidStrikes++;   // transient server error — one strike
+      } else {
+        _shareInvalidStrikes = 0; // still alive — reset
+      }
+    } catch {
+      _shareInvalidStrikes++;     // network error — one strike
+    }
+    if (_shareInvalidStrikes >= 2) _lockPageRevoked();
+  }
+
+  // Start polling 30 s after the page loads (don't hammer on first load)
+  if (shareId) setTimeout(() => {
+    _pollShareValidity(); // first check at 30 s
+    setInterval(_pollShareValidity, 30_000);
+  }, 30_000);
+
   /* ── Contribute upload logic ─────────────────────────────── */
   let _contribFiles = [];
 
